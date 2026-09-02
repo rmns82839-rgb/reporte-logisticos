@@ -14,8 +14,6 @@ const COMPANIES = [
   { key: "fsfb",   label: "FSFB",   css: "c-fsfb" },
   { key: "poliza", label: "Poliza", css: "c-poliza" },
 ];
-const DEFAULT_COMPANY = "vip";
-
 const TUBOS = [
   { key: "Amarillo",                emoji: "🟡", color: "var(--amarillo)",      text: "text-dark" },
   { key: "Lila",                    emoji: "🟣", color: "var(--lila)",          text: "text-dark" },
@@ -29,13 +27,13 @@ const TUBOS = [
   { key: "Otros",                   emoji: "📦", color: "var(--otros)",         text: "text-light" },
 ];
 
-const STORAGE_KEY = "reporte_logisticos_state_v2";
+const STORAGE_KEY = "reporte_logisticos_state_v4";
 
 function buildFixedHours() {
   const list = [];
   let h = 5, m = 0;
   for (let i = 0; i < 13; i++) {
-    list.push({ time: formatTime(h, m), company: DEFAULT_COMPANY });
+    list.push({ time: formatTime(h, m), selected: false, company: "vip" });
     m += 30;
     if (m >= 60) { m = 0; h += 1; }
   }
@@ -78,6 +76,7 @@ function loadState() {
       if (!parsed.tubes[tb.key]) parsed.tubes[tb.key] = { vip: 0, fsfb: 0, poliza: 0 };
     });
     if (typeof parsed.otrosDetalle !== "string") parsed.otrosDetalle = "";
+    if (!Array.isArray(parsed.hours) || parsed.hours.some(h => typeof h.selected === "undefined")) return null;
     return parsed;
   } catch (e) {
     return null;
@@ -102,14 +101,23 @@ const sendBtn = document.getElementById("sendBtn");
 const resetBtn = document.getElementById("resetBtn");
 const toast = document.getElementById("toast");
 
+const statsStrip = document.getElementById("statsStrip");
+
 // ---------------- Render: Auxiliares ----------------
+const AUX_COLORS = ["#4A8DFB", "#F1453B", "#FFB020", "#1FD290", "#C58CF0", "#3FAFA6", "#F0C33C", "#E29A3E", "#8C9BFF"];
+function avatarColor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AUX_COLORS[Math.abs(hash) % AUX_COLORS.length];
+}
+
 function renderAux() {
   auxGrid.innerHTML = "";
   AUXILIARES.forEach((name, i) => {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "aux-chip" + (state.auxIndex === i ? " active" : "");
-    chip.innerHTML = `<span class="avatar">${initials(name)}</span><span>${name}</span>`;
+    chip.innerHTML = `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span><span>${name}</span>`;
     chip.addEventListener("click", () => {
       state.auxIndex = i;
       saveState();
@@ -124,15 +132,10 @@ function initials(name) {
   return name.slice(0, 2).toUpperCase();
 }
 
-// ---------------- Select de compañía (reutilizable) ----------------
+// ---------------- Select de compañía (VIP por defecto, sin opción vacía) ----------------
 function buildCompanySelect(currentValue, onChange) {
   const select = document.createElement("select");
   select.className = "company-select";
-
-  const blank = document.createElement("option");
-  blank.value = "";
-  blank.textContent = "Sin marcar";
-  select.appendChild(blank);
 
   COMPANIES.forEach(c => {
     const opt = document.createElement("option");
@@ -141,8 +144,8 @@ function buildCompanySelect(currentValue, onChange) {
     select.appendChild(opt);
   });
 
-  select.value = currentValue || "";
-  applyCompanyClass(select, currentValue);
+  select.value = currentValue || "vip";
+  applyCompanyClass(select, select.value);
 
   select.addEventListener("change", () => {
     applyCompanyClass(select, select.value);
@@ -163,19 +166,34 @@ function renderHours() {
   hourGrid.innerHTML = "";
   state.hours.forEach((slot, i) => {
     const row = document.createElement("div");
-    row.className = "hour-row";
+    row.className = "hour-row" + (slot.selected ? " is-set" : "");
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "hour-check";
+    check.checked = !!slot.selected;
+    check.setAttribute("aria-label", `Recibido a las ${slot.time}`);
+    check.addEventListener("change", () => {
+      state.hours[i].selected = check.checked;
+      saveState();
+      renderHours();
+      renderPreview();
+    });
+
     const label = document.createElement("span");
     label.className = "hour-time";
     label.textContent = slot.time;
-    row.appendChild(label);
 
     const select = buildCompanySelect(slot.company, (val) => {
       state.hours[i].company = val;
       saveState();
       renderPreview();
     });
-    row.appendChild(select);
+    select.disabled = !slot.selected;
 
+    row.appendChild(check);
+    row.appendChild(label);
+    row.appendChild(select);
     hourGrid.appendChild(row);
   });
 }
@@ -220,7 +238,7 @@ function renderExtras() {
 }
 
 addExtraBtn.addEventListener("click", () => {
-  state.extras.push({ time: "", company: DEFAULT_COMPANY });
+  state.extras.push({ time: "", company: "vip" });
   saveState();
   renderExtras();
 });
@@ -298,7 +316,7 @@ function companyLabel(key) {
 function buildMessage() {
   const auxName = state.auxIndex !== null ? AUXILIARES[state.auxIndex] : "(sin seleccionar)";
 
-  const markedHours = state.hours.filter(h => h.company);
+  const markedHours = state.hours.filter(h => h.selected);
   const markedExtras = state.extras.filter(e => e.company && e.time);
 
   const lines = [];
@@ -376,8 +394,42 @@ function formatExtraTime(t) {
   return `${h12}:${mStr} ${period}`;
 }
 
+function computeCounts() {
+  const markedHours = state.hours.filter(h => h.selected);
+  const markedExtras = state.extras.filter(e => e.company && e.time);
+  const patientTotal = markedHours.length + markedExtras.length;
+
+  let tubeTotal = 0;
+  TUBOS.forEach(tb => {
+    const c = state.tubes[tb.key];
+    tubeTotal += c.vip + c.fsfb + c.poliza;
+  });
+
+  return { patientTotal, tubeTotal };
+}
+
+function renderStats() {
+  const { patientTotal, tubeTotal } = computeCounts();
+  statsStrip.innerHTML = `
+    <div class="stat-chip stat-pax">
+      <span class="stat-icon">👥</span>
+      <div>
+        <div class="stat-value">${patientTotal}</div>
+        <div class="stat-label">Pacientes</div>
+      </div>
+    </div>
+    <div class="stat-chip stat-tubes">
+      <span class="stat-icon">🧪</span>
+      <div>
+        <div class="stat-value">${tubeTotal}</div>
+        <div class="stat-label">Tubos</div>
+      </div>
+    </div>`;
+}
+
 function renderPreview() {
   preview.textContent = buildMessage();
+  renderStats();
 }
 
 // ---------------- Acciones ----------------
