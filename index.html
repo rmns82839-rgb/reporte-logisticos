@@ -29,9 +29,14 @@
         <h1>Reporte Logísticos</h1>
       </div>
     </div>
-    <button id="resetBtn" class="icon-btn" title="Nuevo reporte" aria-label="Nuevo reporte">
-      <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6a6 6 0 0 1-6 6 6 6 0 0 1-6-6H4a8 8 0 0 0 8 8 8 8 0 0 0 8-8 8 8 0 0 0-8-8z"/></svg>
-    </button>
+    <div class="topbar-actions">
+      <button id="installBtn" class="icon-btn install-btn" type="button" title="Instalar app" aria-label="Instalar app" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1zM5 19h14v2H5z"/></svg>
+      </button>
+      <button id="resetBtn" class="icon-btn" type="button" title="Nuevo reporte" aria-label="Nuevo reporte">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6a6 6 0 0 1-6 6 6 6 0 0 1-6-6H4a8 8 0 0 0 8 8 8 8 0 0 0 8-8 8 8 0 0 0-8-8z"/></svg>
+      </button>
+    </div>
   </header>
 
   <div id="statsStrip" class="stats-strip"></div>
@@ -43,6 +48,10 @@
       <section class="card">
         <h2 class="card-title">¿A quién le está recibiendo?</h2>
         <div id="auxGrid" class="aux-grid"></div>
+        <button id="auxOtherBtn" type="button" class="aux-other-btn">+ Otro auxiliar o doctor</button>
+        <div id="auxOtherWrap" class="aux-other-wrap" hidden>
+          <input id="auxOtherInput" type="text" class="text-input" placeholder="Nombre del doctor u otro auxiliar" maxlength="60">
+        </div>
       </section>
 
       <!-- Horas -->
@@ -56,7 +65,15 @@
           </div>
         </div>
         <p class="card-hint">Marca el check de las horas que sí llegaron. El desplegable ya viene en VIP — solo cámbialo si fue FSFB o Poliza.</p>
-        <div id="hourGrid" class="hour-list"></div>
+
+        <details class="hour-group" open>
+          <summary><span class="group-label">5:00 AM – 8:00 AM</span><span id="hourBadgeA" class="group-badge">0/7</span></summary>
+          <div id="hourGridA" class="hour-list"></div>
+        </details>
+        <details class="hour-group">
+          <summary><span class="group-label">8:30 AM en adelante</span><span id="hourBadgeB" class="group-badge">0/6</span></summary>
+          <div id="hourGridB" class="hour-list"></div>
+        </details>
 
         <div id="extraList" class="extra-list"></div>
         <button id="addExtraBtn" class="ghost-btn" type="button">+ Agregar hora extraordinaria</button>
@@ -67,7 +84,30 @@
       <!-- Tubos -->
       <section class="card">
         <h2 class="card-title">Tubos y muestras recibidas</h2>
-        <div id="tubeList" class="tube-list"></div>
+
+        <details class="tube-group" open>
+          <summary><span class="group-label">Tubos comunes</span><span id="tubeBadgeA" class="group-badge">0</span></summary>
+          <div id="tubeListA" class="tube-list"></div>
+        </details>
+        <details class="tube-group">
+          <summary><span class="group-label">Otras muestras</span><span id="tubeBadgeB" class="group-badge">0</span></summary>
+          <div id="tubeListB" class="tube-list"></div>
+        </details>
+      </section>
+
+      <!-- Papelería para doctores -->
+      <section class="card">
+        <h2 class="card-title">📄 Papelería para doctores</h2>
+        <p class="card-hint">Documentos de pacientes de Poliza que se entregan a un doctor: electrocardiograma, rayos X, etc.</p>
+        <div id="papeleriaList" class="papeleria-list"></div>
+        <button id="addPapeleriaBtn" class="ghost-btn" type="button">+ Agregar papelería</button>
+        <datalist id="papeleriaSugerencias">
+          <option value="Electrocardiograma (EKG)"></option>
+          <option value="Rayos X"></option>
+          <option value="Resultado de laboratorio"></option>
+          <option value="Fórmula médica"></option>
+          <option value="Incapacidad"></option>
+        </datalist>
       </section>
 
       <!-- Resumen -->
@@ -96,6 +136,24 @@
 </div>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<div id="installModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="installModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <div class="modal-icon"><img src="icons/icon-192.png" width="60" height="60" alt=""></div>
+    <h3>Instalar Reporte Logísticos</h3>
+    <p>Instálala en tu celular para abrirla más rápido, en pantalla completa y hasta sin conexión.</p>
+    <div id="installModalAndroid" class="modal-actions" hidden>
+      <button id="installConfirmBtn" class="btn btn-primary" type="button">Instalar app</button>
+    </div>
+    <ol id="installModalIOS" class="install-steps" hidden>
+      <li>Toca el botón <strong>Compartir</strong> en Safari</li>
+      <li>Elige <strong>“Agregar a pantalla de inicio”</strong></li>
+      <li>Confirma tocando <strong>“Agregar”</strong></li>
+    </ol>
+    <button id="installModalDismiss" class="ghost-btn" type="button">Ahora no</button>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>

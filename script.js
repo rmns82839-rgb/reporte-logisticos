@@ -1,5 +1,7 @@
 // ============================================================
 // Reporte Logísticos — sin base de datos, todo en memoria/localStorage
+// Cada auxiliar (o doctor escrito a mano) guarda su propio set de
+// horas, tubos y papelería, aislado del resto.
 // ============================================================
 
 const AUXILIARES = [
@@ -7,8 +9,6 @@ const AUXILIARES = [
   "Camilo", "Milena", "Luis", "Edison"
 ];
 
-// Orden de opciones en cada desplegable: VIP primero (preseleccionado),
-// FSFB segunda opción, Poliza tercera. "" = Sin marcar (esa hora no llegó).
 // Emoji cuadrado por compañía: se usa aparte de los emojis circulares de los
 // tubos para que no se confundan visualmente en el texto plano de WhatsApp
 // (ej: 🔴 Rojo tubo vs 🟥 VIP compañía).
@@ -17,6 +17,7 @@ const COMPANIES = [
   { key: "fsfb",   label: "FSFB",   css: "c-fsfb",   emoji: "🟦" },
   { key: "poliza", label: "Poliza", css: "c-poliza", emoji: "🟨" },
 ];
+
 const TUBOS = [
   { key: "Amarillo",                emoji: "🟡", color: "var(--amarillo)",      text: "text-dark" },
   { key: "Lila",                    emoji: "🟣", color: "var(--lila)",          text: "text-dark" },
@@ -30,7 +31,15 @@ const TUBOS = [
   { key: "Otros",                   emoji: "📦", color: "var(--otros)",         text: "text-light" },
 ];
 
-const STORAGE_KEY = "reporte_logisticos_state_v4";
+// División para los dos acordeones de tubos
+const TUBOS_A = TUBOS.slice(0, 5);
+const TUBOS_B = TUBOS.slice(5);
+
+// División de las 13 franjas fijas de horas para los dos acordeones
+const HOURS_SPLIT = 7; // 5:00 AM .. 8:00 AM = 7 franjas; el resto va al segundo grupo
+
+const STORAGE_KEY = "reporte_logisticos_state_v5";
+const INSTALL_DISMISS_KEY = "reporte_logisticos_install_dismissed_v1";
 
 function buildFixedHours() {
   const list = [];
@@ -57,13 +66,22 @@ function emptyTubeState() {
   return t;
 }
 
-function freshState() {
+// ---------------- Estado: uno por auxiliar ----------------
+function freshAuxData() {
   return {
-    auxIndex: null,
     hours: buildFixedHours(),
     extras: [],
     tubes: emptyTubeState(),
     otrosDetalle: "",
+    papeleria: [],
+  };
+}
+
+function freshState() {
+  return {
+    auxIndex: null,   // número (índice en AUXILIARES) | "custom" | null
+    customName: "",
+    byAux: {},        // clave -> freshAuxData()
   };
 }
 
@@ -74,12 +92,23 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed.tubes || !parsed.hours) return null;
-    TUBOS.forEach(tb => {
-      if (!parsed.tubes[tb.key]) parsed.tubes[tb.key] = { vip: 0, fsfb: 0, poliza: 0 };
+    if (!parsed.byAux || typeof parsed.byAux !== "object") return null;
+    if (typeof parsed.customName !== "string") parsed.customName = "";
+    if (typeof parsed.auxIndex !== "number" && parsed.auxIndex !== "custom") parsed.auxIndex = null;
+
+    Object.keys(parsed.byAux).forEach(key => {
+      const d = parsed.byAux[key];
+      if (!d || !d.tubes || !d.hours) { delete parsed.byAux[key]; return; }
+      TUBOS.forEach(tb => {
+        if (!d.tubes[tb.key]) d.tubes[tb.key] = { vip: 0, fsfb: 0, poliza: 0 };
+      });
+      if (typeof d.otrosDetalle !== "string") d.otrosDetalle = "";
+      if (!Array.isArray(d.extras)) d.extras = [];
+      if (!Array.isArray(d.papeleria)) d.papeleria = [];
+      if (!Array.isArray(d.hours) || d.hours.some(h => typeof h.selected === "undefined")) {
+        delete parsed.byAux[key];
+      }
     });
-    if (typeof parsed.otrosDetalle !== "string") parsed.otrosDetalle = "";
-    if (!Array.isArray(parsed.hours) || parsed.hours.some(h => typeof h.selected === "undefined")) return null;
     return parsed;
   } catch (e) {
     return null;
@@ -92,19 +121,62 @@ function saveState() {
   } catch (e) { /* almacenamiento no disponible, seguimos sin persistir */ }
 }
 
+function currentAuxKey() {
+  if (state.auxIndex === "custom") return "custom";
+  if (typeof state.auxIndex === "number") return "fixed:" + AUXILIARES[state.auxIndex];
+  return null;
+}
+
+function currentAuxName() {
+  if (state.auxIndex === "custom") return (state.customName || "").trim() || "(sin nombre)";
+  if (typeof state.auxIndex === "number") return AUXILIARES[state.auxIndex];
+  return "(sin seleccionar)";
+}
+
+// Devuelve (y crea si hace falta) los datos del auxiliar activo.
+// Si no hay auxiliar seleccionado, entrega un set vacío sin persistirlo.
+function currentData() {
+  const key = currentAuxKey();
+  if (!key) return freshAuxData();
+  if (!state.byAux[key]) state.byAux[key] = freshAuxData();
+  return state.byAux[key];
+}
+
 // ---------------- DOM refs ----------------
 const auxGrid = document.getElementById("auxGrid");
-const hourGrid = document.getElementById("hourGrid");
+const auxOtherBtn = document.getElementById("auxOtherBtn");
+const auxOtherWrap = document.getElementById("auxOtherWrap");
+const auxOtherInput = document.getElementById("auxOtherInput");
+
+const hourGridA = document.getElementById("hourGridA");
+const hourGridB = document.getElementById("hourGridB");
+const hourBadgeA = document.getElementById("hourBadgeA");
+const hourBadgeB = document.getElementById("hourBadgeB");
 const extraList = document.getElementById("extraList");
 const addExtraBtn = document.getElementById("addExtraBtn");
-const tubeList = document.getElementById("tubeList");
+
+const tubeListA = document.getElementById("tubeListA");
+const tubeListB = document.getElementById("tubeListB");
+const tubeBadgeA = document.getElementById("tubeBadgeA");
+const tubeBadgeB = document.getElementById("tubeBadgeB");
+
+const papeleriaList = document.getElementById("papeleriaList");
+const addPapeleriaBtn = document.getElementById("addPapeleriaBtn");
+
 const preview = document.getElementById("preview");
 const copyBtn = document.getElementById("copyBtn");
 const sendBtn = document.getElementById("sendBtn");
 const resetBtn = document.getElementById("resetBtn");
 const toast = document.getElementById("toast");
-
 const statsStrip = document.getElementById("statsStrip");
+
+const installBtn = document.getElementById("installBtn");
+const installModal = document.getElementById("installModal");
+const installModalAndroid = document.getElementById("installModalAndroid");
+const installModalIOS = document.getElementById("installModalIOS");
+const installConfirmBtn = document.getElementById("installConfirmBtn");
+const installModalClose = document.getElementById("installModalClose");
+const installModalDismiss = document.getElementById("installModalDismiss");
 
 // ---------------- Render: Auxiliares ----------------
 const AUX_COLORS = ["#4A8DFB", "#F1453B", "#FFB020", "#1FD290", "#C58CF0", "#3FAFA6", "#F0C33C", "#E29A3E", "#8C9BFF"];
@@ -114,6 +186,16 @@ function avatarColor(name) {
   return AUX_COLORS[Math.abs(hash) % AUX_COLORS.length];
 }
 
+function initials(name) {
+  return name.slice(0, 2).toUpperCase();
+}
+
+function selectAux(i) {
+  state.auxIndex = i;
+  saveState();
+  renderAll();
+}
+
 function renderAux() {
   auxGrid.innerHTML = "";
   AUXILIARES.forEach((name, i) => {
@@ -121,19 +203,31 @@ function renderAux() {
     chip.type = "button";
     chip.className = "aux-chip" + (state.auxIndex === i ? " active" : "");
     chip.innerHTML = `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span><span>${name}</span>`;
-    chip.addEventListener("click", () => {
-      state.auxIndex = i;
-      saveState();
-      renderAux();
-      renderPreview();
-    });
+    chip.addEventListener("click", () => selectAux(i));
     auxGrid.appendChild(chip);
   });
+
+  const otherActive = state.auxIndex === "custom";
+  auxOtherBtn.classList.toggle("active", otherActive);
+  auxOtherBtn.setAttribute("aria-pressed", String(otherActive));
+  auxOtherWrap.hidden = !otherActive;
+  if (auxOtherInput.value !== (state.customName || "")) {
+    auxOtherInput.value = state.customName || "";
+  }
 }
 
-function initials(name) {
-  return name.slice(0, 2).toUpperCase();
-}
+auxOtherBtn.addEventListener("click", () => {
+  state.auxIndex = "custom";
+  saveState();
+  renderAll();
+  auxOtherInput.focus();
+});
+
+auxOtherInput.addEventListener("input", () => {
+  state.customName = auxOtherInput.value;
+  saveState();
+  renderPreview();
+});
 
 // ---------------- Select de compañía (VIP por defecto, sin opción vacía) ----------------
 function buildCompanySelect(currentValue, onChange) {
@@ -164,10 +258,11 @@ function applyCompanyClass(select, value) {
   if (found) select.classList.add(found.css);
 }
 
-// ---------------- Render: Horas fijas ----------------
-function renderHours() {
-  hourGrid.innerHTML = "";
-  state.hours.forEach((slot, i) => {
+// ---------------- Render: Horas fijas (dos acordeones) ----------------
+function renderHourGroup(container, data, start, end) {
+  container.innerHTML = "";
+  for (let i = start; i < end; i++) {
+    const slot = data.hours[i];
     const row = document.createElement("div");
     row.className = "hour-row" + (slot.selected ? " is-set" : "");
 
@@ -177,7 +272,7 @@ function renderHours() {
     check.checked = !!slot.selected;
     check.setAttribute("aria-label", `Recibido a las ${slot.time}`);
     check.addEventListener("change", () => {
-      state.hours[i].selected = check.checked;
+      data.hours[i].selected = check.checked;
       saveState();
       renderHours();
       renderPreview();
@@ -188,7 +283,7 @@ function renderHours() {
     label.textContent = slot.time;
 
     const select = buildCompanySelect(slot.company, (val) => {
-      state.hours[i].company = val;
+      data.hours[i].company = val;
       saveState();
       renderPreview();
     });
@@ -197,14 +292,26 @@ function renderHours() {
     row.appendChild(check);
     row.appendChild(label);
     row.appendChild(select);
-    hourGrid.appendChild(row);
-  });
+    container.appendChild(row);
+  }
+}
+
+function renderHours() {
+  const data = currentData();
+  renderHourGroup(hourGridA, data, 0, HOURS_SPLIT);
+  renderHourGroup(hourGridB, data, HOURS_SPLIT, data.hours.length);
+
+  const countA = data.hours.slice(0, HOURS_SPLIT).filter(h => h.selected).length;
+  const countB = data.hours.slice(HOURS_SPLIT).filter(h => h.selected).length;
+  hourBadgeA.textContent = `${countA}/${HOURS_SPLIT}`;
+  hourBadgeB.textContent = `${countB}/${data.hours.length - HOURS_SPLIT}`;
 }
 
 // ---------------- Render: Horas extra ----------------
 function renderExtras() {
+  const data = currentData();
   extraList.innerHTML = "";
-  state.extras.forEach((extra, i) => {
+  data.extras.forEach((extra, i) => {
     const row = document.createElement("div");
     row.className = "extra-row";
 
@@ -212,13 +319,13 @@ function renderExtras() {
     timeInput.type = "time";
     timeInput.value = extra.time || "";
     timeInput.addEventListener("change", () => {
-      state.extras[i].time = timeInput.value;
+      data.extras[i].time = timeInput.value;
       saveState();
       renderPreview();
     });
 
     const select = buildCompanySelect(extra.company, (val) => {
-      state.extras[i].company = val;
+      data.extras[i].company = val;
       saveState();
       renderPreview();
     });
@@ -229,7 +336,7 @@ function renderExtras() {
     delBtn.title = "Eliminar";
     delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H2V5h4l1-2z"/></svg>`;
     delBtn.addEventListener("click", () => {
-      state.extras.splice(i, 1);
+      data.extras.splice(i, 1);
       saveState(); renderExtras(); renderPreview();
     });
 
@@ -241,16 +348,17 @@ function renderExtras() {
 }
 
 addExtraBtn.addEventListener("click", () => {
-  state.extras.push({ time: "", company: "vip" });
+  const data = currentData();
+  data.extras.push({ time: "", company: "vip" });
   saveState();
   renderExtras();
 });
 
-// ---------------- Render: Tubos ----------------
-function renderTubes() {
-  tubeList.innerHTML = "";
-  TUBOS.forEach(tb => {
-    const counts = state.tubes[tb.key];
+// ---------------- Render: Tubos (dos acordeones) ----------------
+function renderTubeGroup(container, data, group) {
+  container.innerHTML = "";
+  group.forEach(tb => {
+    const counts = data.tubes[tb.key];
     const total = counts.vip + counts.fsfb + counts.poliza;
 
     const row = document.createElement("div");
@@ -296,9 +404,9 @@ function renderTubes() {
       const noteInput = document.createElement("input");
       noteInput.type = "text";
       noteInput.placeholder = "¿Qué es? (ej: tubo especial, jeringa...)";
-      noteInput.value = state.otrosDetalle || "";
+      noteInput.value = data.otrosDetalle || "";
       noteInput.addEventListener("input", () => {
-        state.otrosDetalle = noteInput.value;
+        data.otrosDetalle = noteInput.value;
         saveState();
         renderPreview();
       });
@@ -306,9 +414,100 @@ function renderTubes() {
       row.appendChild(noteWrap);
     }
 
-    tubeList.appendChild(row);
+    container.appendChild(row);
   });
 }
+
+function sumTubeGroup(data, group) {
+  let n = 0;
+  group.forEach(tb => {
+    const c = data.tubes[tb.key];
+    n += c.vip + c.fsfb + c.poliza;
+  });
+  return n;
+}
+
+function renderTubes() {
+  const data = currentData();
+  renderTubeGroup(tubeListA, data, TUBOS_A);
+  renderTubeGroup(tubeListB, data, TUBOS_B);
+  tubeBadgeA.textContent = sumTubeGroup(data, TUBOS_A);
+  tubeBadgeB.textContent = sumTubeGroup(data, TUBOS_B);
+}
+
+// ---------------- Render: Papelería para doctores ----------------
+function renderPapeleria() {
+  const data = currentData();
+  papeleriaList.innerHTML = "";
+  data.papeleria.forEach((item, i) => {
+    const row = document.createElement("div");
+    row.className = "papeleria-row";
+
+    const tipoInput = document.createElement("input");
+    tipoInput.type = "text";
+    tipoInput.setAttribute("list", "papeleriaSugerencias");
+    tipoInput.placeholder = "Tipo de documento (ej: Electrocardiograma)";
+    tipoInput.value = item.tipo || "";
+    tipoInput.addEventListener("input", () => {
+      data.papeleria[i].tipo = tipoInput.value;
+      saveState();
+      renderPreview();
+    });
+
+    const subRow = document.createElement("div");
+    subRow.className = "papeleria-sub";
+
+    const doctorInput = document.createElement("input");
+    doctorInput.type = "text";
+    doctorInput.placeholder = "Doctor(a)";
+    doctorInput.value = item.doctor || "";
+    doctorInput.addEventListener("input", () => {
+      data.papeleria[i].doctor = doctorInput.value;
+      saveState();
+      renderPreview();
+    });
+
+    const qtyWrap = document.createElement("div");
+    qtyWrap.className = "stepper-controls";
+    qtyWrap.innerHTML = `
+      <button type="button" class="step-btn minus">–</button>
+      <span class="step-value">${item.cantidad || 1}</span>
+      <button type="button" class="step-btn plus">+</button>`;
+    qtyWrap.querySelector(".minus").addEventListener("click", () => {
+      data.papeleria[i].cantidad = Math.max(1, (data.papeleria[i].cantidad || 1) - 1);
+      saveState(); renderPapeleria(); renderPreview();
+    });
+    qtyWrap.querySelector(".plus").addEventListener("click", () => {
+      data.papeleria[i].cantidad = (data.papeleria[i].cantidad || 1) + 1;
+      saveState(); renderPapeleria(); renderPreview();
+    });
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "del-btn";
+    delBtn.title = "Eliminar";
+    delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H2V5h4l1-2z"/></svg>`;
+    delBtn.addEventListener("click", () => {
+      data.papeleria.splice(i, 1);
+      saveState(); renderPapeleria(); renderPreview();
+    });
+
+    subRow.appendChild(doctorInput);
+    subRow.appendChild(qtyWrap);
+    subRow.appendChild(delBtn);
+
+    row.appendChild(tipoInput);
+    row.appendChild(subRow);
+    papeleriaList.appendChild(row);
+  });
+}
+
+addPapeleriaBtn.addEventListener("click", () => {
+  const data = currentData();
+  data.papeleria.push({ tipo: "", doctor: "", cantidad: 1 });
+  saveState();
+  renderPapeleria();
+});
 
 // ---------------- Mensaje / preview ----------------
 function companyLabel(key) {
@@ -329,10 +528,11 @@ function todayLabel() {
 }
 
 function buildMessage() {
-  const auxName = state.auxIndex !== null ? AUXILIARES[state.auxIndex] : "(sin seleccionar)";
+  const data = currentData();
+  const auxName = currentAuxName();
 
-  const markedHours = state.hours.filter(h => h.selected);
-  const markedExtras = state.extras.filter(e => e.company && e.time);
+  const markedHours = data.hours.filter(h => h.selected);
+  const markedExtras = data.extras.filter(e => e.company && e.time);
 
   const lines = [];
   lines.push("📋 *Reporte de recepción de muestras*");
@@ -355,7 +555,7 @@ function buildMessage() {
   lines.push("");
   lines.push("🧪 *Tubos recibidos:*");
   const tubesWithTotal = TUBOS.map(tb => {
-    const c = state.tubes[tb.key];
+    const c = data.tubes[tb.key];
     return { ...tb, total: c.vip + c.fsfb + c.poliza };
   }).filter(tb => tb.total > 0);
 
@@ -363,8 +563,8 @@ function buildMessage() {
     lines.push("• Sin tubos registrados");
   } else {
     tubesWithTotal.forEach(tb => {
-      if (tb.key === "Otros" && state.otrosDetalle.trim()) {
-        lines.push(`${tb.emoji} ${tb.key}: ${tb.total} (${state.otrosDetalle.trim()})`);
+      if (tb.key === "Otros" && data.otrosDetalle.trim()) {
+        lines.push(`${tb.emoji} ${tb.key}: ${tb.total} (${data.otrosDetalle.trim()})`);
       } else {
         lines.push(`${tb.emoji} ${tb.key}: ${tb.total}`);
       }
@@ -377,7 +577,7 @@ function buildMessage() {
 
   const tubeTotals = { vip: 0, fsfb: 0, poliza: 0 };
   TUBOS.forEach(tb => {
-    const c = state.tubes[tb.key];
+    const c = data.tubes[tb.key];
     tubeTotals.vip += c.vip;
     tubeTotals.fsfb += c.fsfb;
     tubeTotals.poliza += c.poliza;
@@ -392,8 +592,8 @@ function buildMessage() {
     .filter(c => tubeTotals[c.key] > 0)
     .map(c => {
       const detail = TUBOS
-        .filter(tb => state.tubes[tb.key][c.key] > 0)
-        .map(tb => `   ${tb.emoji} ${tb.key}: ${state.tubes[tb.key][c.key]}`)
+        .filter(tb => data.tubes[tb.key][c.key] > 0)
+        .map(tb => `   ${tb.emoji} ${tb.key}: ${data.tubes[tb.key][c.key]}`)
         .join("\n");
       return `${c.emoji} ${c.label} — Total: ${tubeTotals[c.key]}\n${detail}`;
     });
@@ -405,6 +605,16 @@ function buildMessage() {
   lines.push("");
   lines.push("🧪 Tubos:");
   lines.push(tubeBlocks.length ? tubeBlocks.join("\n\n") : "• sin datos");
+
+  const papeleriaItems = data.papeleria.filter(p => p.tipo && p.tipo.trim());
+  if (papeleriaItems.length > 0) {
+    lines.push("");
+    lines.push("📄 *Papelería entregada a doctores:*");
+    papeleriaItems.forEach(p => {
+      const doc = p.doctor && p.doctor.trim() ? ` — ${p.doctor.trim()}` : "";
+      lines.push(`• ${p.tipo.trim()} x${p.cantidad || 1}${doc}`);
+    });
+  }
 
   return lines.join("\n");
 }
@@ -419,13 +629,14 @@ function formatExtraTime(t) {
 }
 
 function computeCounts() {
-  const markedHours = state.hours.filter(h => h.selected);
-  const markedExtras = state.extras.filter(e => e.company && e.time);
+  const data = currentData();
+  const markedHours = data.hours.filter(h => h.selected);
+  const markedExtras = data.extras.filter(e => e.company && e.time);
   const patientTotal = markedHours.length + markedExtras.length;
 
   let tubeTotal = 0;
   TUBOS.forEach(tb => {
-    const c = state.tubes[tb.key];
+    const c = data.tubes[tb.key];
     tubeTotal += c.vip + c.fsfb + c.poliza;
   });
 
@@ -459,10 +670,12 @@ function renderStats() {
 }
 
 function renderPreview() {
+  const data = currentData();
   const hasData = state.auxIndex !== null
-    || state.hours.some(h => h.selected)
-    || state.extras.some(e => e.company && e.time)
-    || Object.values(state.tubes).some(c => c.vip + c.fsfb + c.poliza > 0);
+    || data.hours.some(h => h.selected)
+    || data.extras.some(e => e.company && e.time)
+    || Object.values(data.tubes).some(c => c.vip + c.fsfb + c.poliza > 0)
+    || data.papeleria.some(p => p.tipo && p.tipo.trim());
 
   preview.textContent = buildMessage();
   preview.classList.toggle("is-empty", !hasData);
@@ -500,8 +713,11 @@ sendBtn.addEventListener("click", () => {
 });
 
 resetBtn.addEventListener("click", () => {
-  if (!confirm("¿Iniciar un nuevo reporte? Se perderá lo que no hayas enviado.")) return;
-  state = freshState();
+  if (!confirm("¿Iniciar un nuevo reporte para este auxiliar? Se perderá lo que no hayas enviado.")) return;
+  const key = currentAuxKey();
+  if (key) delete state.byAux[key];
+  state.auxIndex = null;
+  state.customName = "";
   saveState();
   renderAll();
 });
@@ -512,6 +728,7 @@ function renderAll() {
   renderHours();
   renderExtras();
   renderTubes();
+  renderPapeleria();
   renderPreview();
 }
 
@@ -523,3 +740,77 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
+
+// ---------------- PWA: instalación (botón + modal) ----------------
+let deferredInstallPrompt = null;
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+}
+
+function openInstallModal() {
+  if (deferredInstallPrompt) {
+    installModalAndroid.hidden = false;
+    installModalIOS.hidden = true;
+  } else {
+    installModalAndroid.hidden = true;
+    installModalIOS.hidden = false;
+  }
+  installModal.hidden = false;
+}
+
+function closeInstallModal(dismissForGood) {
+  installModal.hidden = true;
+  if (dismissForGood) {
+    try { localStorage.setItem(INSTALL_DISMISS_KEY, "1"); } catch (e) {}
+  }
+}
+
+if (!isStandalone()) {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installBtn.hidden = false;
+    maybeAutoShowInstall();
+  });
+
+  if (isIOS()) {
+    installBtn.hidden = false;
+    maybeAutoShowInstall();
+  }
+}
+
+function maybeAutoShowInstall() {
+  let dismissed = false;
+  try { dismissed = !!localStorage.getItem(INSTALL_DISMISS_KEY); } catch (e) {}
+  if (dismissed || isStandalone()) return;
+  setTimeout(() => {
+    if (!isStandalone()) openInstallModal();
+  }, 1400);
+}
+
+installBtn.addEventListener("click", openInstallModal);
+
+installConfirmBtn.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) { closeInstallModal(false); return; }
+  deferredInstallPrompt.prompt();
+  try { await deferredInstallPrompt.userChoice; } catch (e) {}
+  deferredInstallPrompt = null;
+  closeInstallModal(true);
+  installBtn.hidden = true;
+});
+
+installModalClose.addEventListener("click", () => closeInstallModal(true));
+installModalDismiss.addEventListener("click", () => closeInstallModal(true));
+installModal.addEventListener("click", (e) => {
+  if (e.target === installModal) closeInstallModal(true);
+});
+
+window.addEventListener("appinstalled", () => {
+  installBtn.hidden = true;
+  closeInstallModal(true);
+});
