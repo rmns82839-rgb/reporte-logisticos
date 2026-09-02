@@ -38,43 +38,47 @@
 
   <main>
 
-    <!-- Auxiliar -->
-    <section class="card">
-      <h2 class="card-title">¿A quién le está recibiendo?</h2>
-      <div id="auxGrid" class="aux-grid"></div>
-    </section>
+    <div class="col col-left">
+      <!-- Auxiliar -->
+      <section class="card">
+        <h2 class="card-title">¿A quién le está recibiendo?</h2>
+        <div id="auxGrid" class="aux-grid"></div>
+      </section>
 
-    <!-- Horas -->
-    <section class="card">
-      <div class="card-head-row">
-        <h2 class="card-title">Horas recibidas</h2>
-        <div class="legend">
-          <span class="legend-item"><i class="dot dot-vip"></i>VIP</span>
-          <span class="legend-item"><i class="dot dot-fsfb"></i>FSFB</span>
-          <span class="legend-item"><i class="dot dot-poliza"></i>Poliza</span>
+      <!-- Horas -->
+      <section class="card">
+        <div class="card-head-row">
+          <h2 class="card-title">Horas recibidas</h2>
+          <div class="legend">
+            <span class="legend-item"><i class="dot dot-vip"></i>VIP</span>
+            <span class="legend-item"><i class="dot dot-fsfb"></i>FSFB</span>
+            <span class="legend-item"><i class="dot dot-poliza"></i>Poliza</span>
+          </div>
         </div>
-      </div>
-      <p class="card-hint">Marca el check de las horas que sí llegaron. El desplegable ya viene en VIP — solo cámbialo si fue FSFB o Poliza.</p>
-      <div id="hourGrid" class="hour-list"></div>
+        <p class="card-hint">Marca el check de las horas que sí llegaron. El desplegable ya viene en VIP — solo cámbialo si fue FSFB o Poliza.</p>
+        <div id="hourGrid" class="hour-list"></div>
 
-      <div id="extraList" class="extra-list"></div>
-      <button id="addExtraBtn" class="ghost-btn" type="button">+ Agregar hora extraordinaria</button>
-    </section>
+        <div id="extraList" class="extra-list"></div>
+        <button id="addExtraBtn" class="ghost-btn" type="button">+ Agregar hora extraordinaria</button>
+      </section>
+    </div>
 
-    <!-- Tubos -->
-    <section class="card">
-      <h2 class="card-title">Tubos y muestras recibidas</h2>
-      <div id="tubeList" class="tube-list"></div>
-    </section>
+    <div class="col col-right">
+      <!-- Tubos -->
+      <section class="card">
+        <h2 class="card-title">Tubos y muestras recibidas</h2>
+        <div id="tubeList" class="tube-list"></div>
+      </section>
 
-    <!-- Resumen -->
-    <section class="card summary-card">
-      <div class="summary-head">
-        <h2 class="card-title">Vista previa del reporte</h2>
-        <span class="summary-tag">WhatsApp</span>
-      </div>
-      <pre id="preview" class="preview"></pre>
-    </section>
+      <!-- Resumen -->
+      <section class="card summary-card">
+        <div class="summary-head">
+          <h2 class="card-title">Vista previa del reporte</h2>
+          <span class="summary-tag">WhatsApp</span>
+        </div>
+        <pre id="preview" class="preview"></pre>
+      </section>
+    </div>
 
   </main>
 

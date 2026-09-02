@@ -9,10 +9,13 @@ const AUXILIARES = [
 
 // Orden de opciones en cada desplegable: VIP primero (preseleccionado),
 // FSFB segunda opción, Poliza tercera. "" = Sin marcar (esa hora no llegó).
+// Emoji cuadrado por compañía: se usa aparte de los emojis circulares de los
+// tubos para que no se confundan visualmente en el texto plano de WhatsApp
+// (ej: 🔴 Rojo tubo vs 🟥 VIP compañía).
 const COMPANIES = [
-  { key: "vip",    label: "VIP",    css: "c-vip" },
-  { key: "fsfb",   label: "FSFB",   css: "c-fsfb" },
-  { key: "poliza", label: "Poliza", css: "c-poliza" },
+  { key: "vip",    label: "VIP",    css: "c-vip",    emoji: "🟥" },
+  { key: "fsfb",   label: "FSFB",   css: "c-fsfb",   emoji: "🟦" },
+  { key: "poliza", label: "Poliza", css: "c-poliza", emoji: "🟨" },
 ];
 const TUBOS = [
   { key: "Amarillo",                emoji: "🟡", color: "var(--amarillo)",      text: "text-dark" },
@@ -313,6 +316,18 @@ function companyLabel(key) {
   return found ? found.label : key;
 }
 
+function companyEmoji(key) {
+  const found = COMPANIES.find(c => c.key === key);
+  return found ? found.emoji : "";
+}
+
+function todayLabel() {
+  const raw = new Date().toLocaleDateString("es-CO", {
+    weekday: "long", day: "numeric", month: "long",
+  });
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
 function buildMessage() {
   const auxName = state.auxIndex !== null ? AUXILIARES[state.auxIndex] : "(sin seleccionar)";
 
@@ -320,24 +335,25 @@ function buildMessage() {
   const markedExtras = state.extras.filter(e => e.company && e.time);
 
   const lines = [];
-  lines.push("*Reporte de recepción de muestras*");
+  lines.push("📋 *Reporte de recepción de muestras*");
+  lines.push(`📅 ${todayLabel()}`);
   lines.push(`👤 Auxiliar: ${auxName}`);
   lines.push("");
-  lines.push("⏰ Horas:");
+  lines.push("⏰ *Horas:*");
 
   if (markedHours.length === 0 && markedExtras.length === 0) {
     lines.push("• Sin horas marcadas");
   } else {
     markedHours.forEach(h => {
-      lines.push(`• ${h.time} — ${companyLabel(h.company).toUpperCase()}`);
+      lines.push(`• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`);
     });
     markedExtras.forEach(e => {
-      lines.push(`• ${formatExtraTime(e.time)} — ${companyLabel(e.company).toUpperCase()} (extra)`);
+      lines.push(`• ${formatExtraTime(e.time)} — ${companyEmoji(e.company)} ${companyLabel(e.company).toUpperCase()} (extra)`);
     });
   }
 
   lines.push("");
-  lines.push("🧪 Tubos recibidos:");
+  lines.push("🧪 *Tubos recibidos:*");
   const tubesWithTotal = TUBOS.map(tb => {
     const c = state.tubes[tb.key];
     return { ...tb, total: c.vip + c.fsfb + c.poliza };
@@ -369,16 +385,16 @@ function buildMessage() {
 
   const patientLine = COMPANIES
     .filter(c => patientTotals[c.key] > 0)
-    .map(c => `${c.label}: ${patientTotals[c.key]}`)
+    .map(c => `${c.emoji} ${c.label}: ${patientTotals[c.key]}`)
     .join(" · ");
 
   const tubeLine = COMPANIES
     .filter(c => tubeTotals[c.key] > 0)
-    .map(c => `${c.label}: ${tubeTotals[c.key]}`)
+    .map(c => `${c.emoji} ${c.label}: ${tubeTotals[c.key]}`)
     .join(" · ");
 
   lines.push("");
-  lines.push("*Totales por compañía:*");
+  lines.push("📊 *Totales por compañía:*");
   lines.push(`👥 Pacientes — ${patientLine || "sin datos"}`);
   lines.push(`🧪 Tubos — ${tubeLine || "sin datos"}`);
 
@@ -408,27 +424,40 @@ function computeCounts() {
   return { patientTotal, tubeTotal };
 }
 
+let lastStats = { patientTotal: -1, tubeTotal: -1 };
+
 function renderStats() {
   const { patientTotal, tubeTotal } = computeCounts();
+  const paxChanged = patientTotal !== lastStats.patientTotal && lastStats.patientTotal !== -1;
+  const tubeChanged = tubeTotal !== lastStats.tubeTotal && lastStats.tubeTotal !== -1;
+
   statsStrip.innerHTML = `
     <div class="stat-chip stat-pax">
       <span class="stat-icon">👥</span>
       <div>
-        <div class="stat-value">${patientTotal}</div>
+        <div class="stat-value${paxChanged ? " bump" : ""}">${patientTotal}</div>
         <div class="stat-label">Pacientes</div>
       </div>
     </div>
     <div class="stat-chip stat-tubes">
       <span class="stat-icon">🧪</span>
       <div>
-        <div class="stat-value">${tubeTotal}</div>
+        <div class="stat-value${tubeChanged ? " bump" : ""}">${tubeTotal}</div>
         <div class="stat-label">Tubos</div>
       </div>
     </div>`;
+
+  lastStats = { patientTotal, tubeTotal };
 }
 
 function renderPreview() {
+  const hasData = state.auxIndex !== null
+    || state.hours.some(h => h.selected)
+    || state.extras.some(e => e.company && e.time)
+    || Object.values(state.tubes).some(c => c.vip + c.fsfb + c.poliza > 0);
+
   preview.textContent = buildMessage();
+  preview.classList.toggle("is-empty", !hasData);
   renderStats();
 }
 
