@@ -459,7 +459,7 @@ function renderPapeleria() {
 
     const doctorInput = document.createElement("input");
     doctorInput.type = "text";
-    doctorInput.placeholder = "Doctor(a)";
+    doctorInput.placeholder = "Doctor(a) que entrega";
     doctorInput.value = item.doctor || "";
     doctorInput.addEventListener("input", () => {
       data.papeleria[i].doctor = doctorInput.value;
@@ -609,9 +609,9 @@ function buildMessage() {
   const papeleriaItems = data.papeleria.filter(p => p.tipo && p.tipo.trim());
   if (papeleriaItems.length > 0) {
     lines.push("");
-    lines.push("📄 *Papelería entregada a doctores:*");
+    lines.push("📄 *Papelería recibida de doctores:*");
     papeleriaItems.forEach(p => {
-      const doc = p.doctor && p.doctor.trim() ? ` — ${p.doctor.trim()}` : "";
+      const doc = p.doctor && p.doctor.trim() ? ` — de ${p.doctor.trim()}` : "";
       lines.push(`• ${p.tipo.trim()} x${p.cantidad || 1}${doc}`);
     });
   }
