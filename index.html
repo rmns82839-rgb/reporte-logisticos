@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#10131A">
+<title>Reporte Logísticos</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Recepción de muestras</span>
+      <h1>Reporte Logísticos</h1>
+    </div>
+    <button id="resetBtn" class="icon-btn" title="Nuevo reporte" aria-label="Nuevo reporte">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6a6 6 0 0 1-6 6 6 6 0 0 1-6-6H4a8 8 0 0 0 8 8 8 8 0 0 0 8-8 8 8 0 0 0-8-8z"/></svg>
+    </button>
+  </header>
+
+  <main>
+
+    <!-- Auxiliar -->
+    <section class="card">
+      <h2 class="card-title">¿A quién le está recibiendo?</h2>
+      <div id="auxGrid" class="aux-grid"></div>
+    </section>
+
+    <!-- Horas -->
+    <section class="card">
+      <div class="card-head-row">
+        <h2 class="card-title">Horas recibidas</h2>
+        <div class="legend">
+          <span class="legend-item"><i class="dot dot-vip"></i>VIP</span>
+          <span class="legend-item"><i class="dot dot-fsfb"></i>FSFB</span>
+          <span class="legend-item"><i class="dot dot-poliza"></i>Poliza</span>
+        </div>
+      </div>
+      <p class="card-hint">Cada hora viene en VIP por defecto — cámbiala si el paciente fue FSFB, Poliza, o marca "Sin marcar" si esa hora no llegó.</p>
+      <div id="hourGrid" class="hour-list"></div>
+
+      <div id="extraList" class="extra-list"></div>
+      <button id="addExtraBtn" class="ghost-btn" type="button">+ Agregar hora extraordinaria</button>
+    </section>
+
+    <!-- Tubos -->
+    <section class="card">
+      <h2 class="card-title">Tubos y muestras recibidas</h2>
+      <div id="tubeList" class="tube-list"></div>
+    </section>
+
+    <!-- Resumen -->
+    <section class="card summary-card">
+      <h2 class="card-title">Vista previa del reporte</h2>
+      <pre id="preview" class="preview"></pre>
+    </section>
+
+  </main>
+
+  <footer class="action-bar">
+    <button id="copyBtn" class="btn btn-secondary" type="button">Copiar</button>
+    <button id="sendBtn" class="btn btn-primary" type="button">Enviar por WhatsApp</button>
+  </footer>
+
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
