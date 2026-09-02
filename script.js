@@ -267,9 +267,9 @@ function renderTubes() {
 
     COMPANIES.forEach(c => {
       const box = document.createElement("div");
-      box.className = "stepper";
+      box.className = `stepper co-${c.key}`;
       box.innerHTML = `
-        <span class="stepper-label">${c.label}</span>
+        <span class="stepper-label"><i class="co-dot co-dot-${c.key}"></i>${c.label}</span>
         <div class="stepper-controls">
           <button type="button" class="step-btn minus">–</button>
           <span class="step-value">${counts[c.key]}</span>
@@ -386,17 +386,25 @@ function buildMessage() {
   const patientLine = COMPANIES
     .filter(c => patientTotals[c.key] > 0)
     .map(c => `${c.emoji} ${c.label}: ${patientTotals[c.key]}`)
-    .join(" · ");
+    .join("\n");
 
-  const tubeLine = COMPANIES
+  const tubeBlocks = COMPANIES
     .filter(c => tubeTotals[c.key] > 0)
-    .map(c => `${c.emoji} ${c.label}: ${tubeTotals[c.key]}`)
-    .join(" · ");
+    .map(c => {
+      const detail = TUBOS
+        .filter(tb => state.tubes[tb.key][c.key] > 0)
+        .map(tb => `   ${tb.emoji} ${tb.key}: ${state.tubes[tb.key][c.key]}`)
+        .join("\n");
+      return `${c.emoji} ${c.label} — Total: ${tubeTotals[c.key]}\n${detail}`;
+    });
 
   lines.push("");
   lines.push("📊 *Totales por compañía:*");
-  lines.push(`👥 Pacientes — ${patientLine || "sin datos"}`);
-  lines.push(`🧪 Tubos — ${tubeLine || "sin datos"}`);
+  lines.push("👥 Pacientes:");
+  lines.push(patientLine || "• sin datos");
+  lines.push("");
+  lines.push("🧪 Tubos:");
+  lines.push(tubeBlocks.length ? tubeBlocks.join("\n\n") : "• sin datos");
 
   return lines.join("\n");
 }
