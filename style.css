@@ -938,6 +938,41 @@ main{
 }
 
 /* ---------- toast ---------- */
+/* burbuja con el número grande, flotando arriba del dedo mientras se
+   mantiene presionado un stepper, para que el dedo nunca lo tape */
+.hold-bubble{
+  position:fixed;
+  transform:translate(-50%, calc(-100% - 14px));
+  background:var(--surface-3);
+  border:1.5px solid var(--send);
+  color:var(--text);
+  font-size:24px;
+  font-weight:800;
+  font-variant-numeric:tabular-nums;
+  min-width:44px;
+  text-align:center;
+  padding:8px 16px;
+  border-radius:14px;
+  box-shadow:0 10px 30px -8px rgba(0,0,0,0.75);
+  z-index:60;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .12s ease;
+}
+.hold-bubble::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  bottom:-6px;
+  width:12px;
+  height:12px;
+  background:var(--surface-3);
+  border-right:1.5px solid var(--send);
+  border-bottom:1.5px solid var(--send);
+  transform:translateX(-50%) rotate(45deg);
+}
+.hold-bubble.show{opacity:1;}
+
 .toast{
   position:fixed;
   left:50%;

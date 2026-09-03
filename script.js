@@ -547,6 +547,33 @@ addExtraBtn.addEventListener("click", () => {
 // directamente en el DOM (sin reconstruir la lista) para no perder el
 // botón que se está tocando; el guardado y el re-render completo (con el
 // "pop" de feedback) ocurren al soltar.
+// Burbuja flotante que muestra el número grande ARRIBA del dedo mientras
+// se mantiene presionado, para que el dedo nunca tape el conteo.
+let holdBubble = null;
+
+function showHoldBubble(btn, text) {
+  if (!holdBubble) {
+    holdBubble = document.createElement("div");
+    holdBubble.className = "hold-bubble";
+    document.body.appendChild(holdBubble);
+  }
+  const rect = btn.getBoundingClientRect();
+  holdBubble.style.left = (rect.left + rect.width / 2) + "px";
+  holdBubble.style.top = rect.top + "px";
+  holdBubble.textContent = text;
+  holdBubble.classList.add("show");
+}
+
+function updateHoldBubble(text) {
+  if (holdBubble && holdBubble.classList.contains("show")) {
+    holdBubble.textContent = text;
+  }
+}
+
+function hideHoldBubble() {
+  if (holdBubble) holdBubble.classList.remove("show");
+}
+
 function bindHoldStepper(btn, step, getCount, setCount, valueEl, totalEl, getTotal, onRelease) {
   let holdTimeout = null;
   let holdInterval = null;
@@ -556,12 +583,14 @@ function bindHoldStepper(btn, step, getCount, setCount, valueEl, totalEl, getTot
     setCount(Math.max(0, getCount() + step));
     valueEl.textContent = getCount();
     if (totalEl) totalEl.textContent = `Total: ${getTotal()}`;
+    updateHoldBubble(String(getCount()));
     changed = true;
   }
 
   function start(e) {
     e.preventDefault();
     tick();
+    showHoldBubble(btn, String(getCount()));
     holdTimeout = setTimeout(() => {
       holdInterval = setInterval(tick, 100);
     }, 420);
@@ -572,6 +601,7 @@ function bindHoldStepper(btn, step, getCount, setCount, valueEl, totalEl, getTot
     clearInterval(holdInterval);
     holdTimeout = null;
     holdInterval = null;
+    hideHoldBubble();
     if (changed) {
       changed = false;
       onRelease();
