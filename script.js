@@ -398,19 +398,18 @@ function renderHourGroup(container, data, start, end) {
     toggle.appendChild(receivedBtn);
     toggle.appendChild(cancelBtn);
 
-    // desplegable de compañía (recibido) o etiqueta roja (cancelado) — comparten la misma celda
+    // desplegable de compañía (recibido) o etiqueta roja (cancelado) — comparten la misma celda;
+    // la visibilidad la controla el CSS según la clase .is-cancelled de la fila
     const select = buildCompanySelect(slot.company, (val) => {
       data.hours[i].company = val;
       saveState();
       renderPreview();
     });
     select.disabled = !slot.selected;
-    select.hidden = !!slot.cancelled;
 
     const cancelLabel = document.createElement("span");
     cancelLabel.className = "cancel-label";
     cancelLabel.textContent = "🚫 Cancelado";
-    cancelLabel.hidden = !slot.cancelled;
 
     row.appendChild(label);
     row.appendChild(toggle);

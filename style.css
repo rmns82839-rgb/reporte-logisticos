@@ -521,7 +521,7 @@ main{
 
 .cancel-label{
   grid-column:3;
-  display:flex;
+  display:none;
   align-items:center;
   justify-content:center;
   gap:6px;
@@ -536,6 +536,8 @@ main{
   letter-spacing:.01em;
 }
 .hour-row .company-select{grid-column:3;}
+.hour-row.is-cancelled .company-select{display:none;}
+.hour-row.is-cancelled .cancel-label{display:flex;}
 .pickup-tag{
   display:inline-flex;
   align-items:center;
