@@ -457,9 +457,9 @@ main{
 }
 .hour-row{
   display:grid;
-  grid-template-columns:52px 76px 1fr;
+  grid-template-columns:48px 37px 1fr 37px;
   align-items:center;
-  gap:8px;
+  gap:7px;
   padding:9px 10px;
   border-radius:var(--radius-m);
   border:1.5px solid var(--border);
@@ -485,18 +485,13 @@ main{
   color:var(--text-faint);
 }
 
-/* toggle Recibido / Cancelado, agrupado y simétrico */
-.status-toggle{
-  display:flex;
-  border-radius:var(--radius-s);
-  overflow:hidden;
-  border:1.5px solid var(--border);
-  flex-shrink:0;
-}
+/* botones Recibido y Cancelado, separados, con la compañía entre medio */
 .status-btn{
+  grid-row:1;
   width:37px;
   height:37px;
-  border:none;
+  border-radius:var(--radius-s);
+  border:1.5px solid var(--border);
   background:var(--surface-3);
   color:var(--text-faint);
   font-size:15px;
@@ -508,14 +503,17 @@ main{
   line-height:1;
   flex-shrink:0;
 }
-.status-btn + .status-btn{border-left:1.5px solid var(--border);}
-.status-btn:active{filter:brightness(0.92);}
+.status-btn:active{transform:scale(0.94);}
+.hour-row .status-received{grid-column:2;}
+.hour-row .status-cancel{grid-column:4;}
 .status-btn.status-received.active{
   background:var(--send);
+  border-color:var(--send);
   color:#062017;
 }
 .status-btn.status-cancel.active{
   background:var(--danger);
+  border-color:var(--danger);
   color:#fff;
 }
 
@@ -966,7 +964,7 @@ main{
 
 @media (max-width:340px){
   .aux-grid{grid-template-columns:repeat(2,1fr);}
-  .hour-row{grid-template-columns:44px 66px 1fr; gap:6px;}
+  .hour-row{grid-template-columns:40px 32px 1fr 32px; gap:5px;}
   .status-btn{width:32px; height:32px; font-size:13px;}
   .stats-strip{grid-template-columns:1fr 1fr;}
 }

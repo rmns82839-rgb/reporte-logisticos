@@ -359,10 +359,8 @@ function renderHourGroup(container, data, start, end) {
       label.appendChild(tag);
     }
 
-    // toggle de dos posiciones: ✓ Recibido / ✕ Cancelado (mutuamente excluyentes)
-    const toggle = document.createElement("div");
-    toggle.className = "status-toggle";
-
+    // dos botones separados: ✓ Recibido / ✕ Cancelado (mutuamente excluyentes),
+    // con el desplegable de compañía (o la etiqueta de cancelado) entre medio
     const receivedBtn = document.createElement("button");
     receivedBtn.type = "button";
     receivedBtn.className = "status-btn status-received" + (slot.selected ? " active" : "");
@@ -395,9 +393,6 @@ function renderHourGroup(container, data, start, end) {
       renderPreview();
     });
 
-    toggle.appendChild(receivedBtn);
-    toggle.appendChild(cancelBtn);
-
     // desplegable de compañía (recibido) o etiqueta roja (cancelado) — comparten la misma celda;
     // la visibilidad la controla el CSS según la clase .is-cancelled de la fila
     const select = buildCompanySelect(slot.company, (val) => {
@@ -412,9 +407,10 @@ function renderHourGroup(container, data, start, end) {
     cancelLabel.textContent = "🚫 Cancelado";
 
     row.appendChild(label);
-    row.appendChild(toggle);
+    row.appendChild(receivedBtn);
     row.appendChild(select);
     row.appendChild(cancelLabel);
+    row.appendChild(cancelBtn);
     container.appendChild(row);
   }
 }
