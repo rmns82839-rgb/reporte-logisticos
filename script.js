@@ -190,6 +190,35 @@ function registerSendBatch(data) {
   data.hours.forEach(h => { if (h.cancelled) h.cancelReported = true; });
 }
 
+// ---------------- Efecto ripple (delegado, cubre botones creados dinámicamente) ----------------
+const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function spawnRipple(el, x, y) {
+  if (prefersReducedMotion) return;
+  const rect = el.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 1.5;
+  const ripple = document.createElement("span");
+  ripple.className = "ripple";
+  ripple.style.width = ripple.style.height = size + "px";
+  ripple.style.left = (x - rect.left - size / 2) + "px";
+  ripple.style.top = (y - rect.top - size / 2) + "px";
+  el.appendChild(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove());
+  setTimeout(() => ripple.remove(), 700);
+}
+
+document.addEventListener("pointerdown", (e) => {
+  const el = e.target.closest(".btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn");
+  if (!el || el.disabled) return;
+  spawnRipple(el, e.clientX, e.clientY);
+});
+
+// Pequeño "kick" de escala para dar feedback físico al marcar/cancelar algo.
+// Como cada render reconstruye el DOM desde cero, guardamos cuál fue la
+// última hora/tubo tocado y le aplicamos la animación justo en su recreación.
+let lastToggledHourIndex = null;
+let lastToggledTube = null; // { key, company }
+
 // ---------------- DOM refs ----------------
 const auxGrid = document.getElementById("auxGrid");
 const auxOtherBtn = document.getElementById("auxOtherBtn");
@@ -239,8 +268,11 @@ function initials(name) {
   return name.slice(0, 2).toUpperCase();
 }
 
+let lastSelectedAux = null; // recuerda el chip recién tocado para el efecto "pop"
+
 function selectAux(i) {
   state.auxIndex = i;
+  lastSelectedAux = i;
   saveState();
   renderAll();
 }
@@ -250,7 +282,7 @@ function renderAux() {
   AUXILIARES.forEach((name, i) => {
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "aux-chip" + (state.auxIndex === i ? " active" : "");
+    chip.className = "aux-chip" + (state.auxIndex === i ? " active" : "") + (i === lastSelectedAux ? " pop" : "");
     chip.innerHTML = `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span><span>${name}</span>`;
     chip.addEventListener("click", () => selectAux(i));
     auxGrid.appendChild(chip);
@@ -263,6 +295,7 @@ function renderAux() {
   if (auxOtherInput.value !== (state.customName || "")) {
     auxOtherInput.value = state.customName || "";
   }
+  lastSelectedAux = null;
 }
 
 auxOtherBtn.addEventListener("click", () => {
@@ -313,21 +346,7 @@ function renderHourGroup(container, data, start, end) {
   for (let i = start; i < end; i++) {
     const slot = data.hours[i];
     const row = document.createElement("div");
-    row.className = "hour-row" + (slot.selected ? " is-set" : "") + (slot.cancelled ? " is-cancelled" : "");
-
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.className = "hour-check";
-    check.checked = !!slot.selected;
-    check.disabled = !!slot.cancelled;
-    check.setAttribute("aria-label", `Recibido a las ${slot.time}`);
-    check.addEventListener("change", () => {
-      data.hours[i].selected = check.checked;
-      if (check.checked) data.hours[i].cancelled = false;
-      saveState();
-      renderHours();
-      renderPreview();
-    });
+    row.className = "hour-row" + (slot.selected ? " is-set" : "") + (slot.cancelled ? " is-cancelled" : "") + (i === lastToggledHourIndex ? " pop" : "");
 
     const label = document.createElement("span");
     label.className = "hour-time";
@@ -340,32 +359,63 @@ function renderHourGroup(container, data, start, end) {
       label.appendChild(tag);
     }
 
-    const select = buildCompanySelect(slot.company, (val) => {
-      data.hours[i].company = val;
-      saveState();
-      renderPreview();
-    });
-    select.disabled = !slot.selected || !!slot.cancelled;
+    // toggle de dos posiciones: ✓ Recibido / ✕ Cancelado (mutuamente excluyentes)
+    const toggle = document.createElement("div");
+    toggle.className = "status-toggle";
 
-    const cancelBtn = document.createElement("button");
-    cancelBtn.type = "button";
-    cancelBtn.className = "cancel-btn" + (slot.cancelled ? " active" : "");
-    cancelBtn.title = slot.cancelled ? "Marcado como cancelado — toca para deshacer" : "Marcar como cancelado";
-    cancelBtn.setAttribute("aria-pressed", String(!!slot.cancelled));
-    cancelBtn.textContent = "🚫";
-    cancelBtn.addEventListener("click", () => {
-      const nowCancelled = !data.hours[i].cancelled;
-      data.hours[i].cancelled = nowCancelled;
-      if (nowCancelled) data.hours[i].selected = false;
+    const receivedBtn = document.createElement("button");
+    receivedBtn.type = "button";
+    receivedBtn.className = "status-btn status-received" + (slot.selected ? " active" : "");
+    receivedBtn.setAttribute("aria-pressed", String(!!slot.selected));
+    receivedBtn.title = slot.selected ? "Recibido — toca para deshacer" : "Marcar como recibido";
+    receivedBtn.textContent = "✓";
+    receivedBtn.addEventListener("click", () => {
+      const nowSelected = !data.hours[i].selected;
+      data.hours[i].selected = nowSelected;
+      if (nowSelected) data.hours[i].cancelled = false;
+      lastToggledHourIndex = i;
       saveState();
       renderHours();
       renderPreview();
     });
 
-    row.appendChild(check);
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "status-btn status-cancel" + (slot.cancelled ? " active" : "");
+    cancelBtn.setAttribute("aria-pressed", String(!!slot.cancelled));
+    cancelBtn.title = slot.cancelled ? "Cancelado — toca para deshacer" : "Marcar como cancelado";
+    cancelBtn.textContent = "✕";
+    cancelBtn.addEventListener("click", () => {
+      const nowCancelled = !data.hours[i].cancelled;
+      data.hours[i].cancelled = nowCancelled;
+      if (nowCancelled) data.hours[i].selected = false;
+      lastToggledHourIndex = i;
+      saveState();
+      renderHours();
+      renderPreview();
+    });
+
+    toggle.appendChild(receivedBtn);
+    toggle.appendChild(cancelBtn);
+
+    // desplegable de compañía (recibido) o etiqueta roja (cancelado) — comparten la misma celda
+    const select = buildCompanySelect(slot.company, (val) => {
+      data.hours[i].company = val;
+      saveState();
+      renderPreview();
+    });
+    select.disabled = !slot.selected;
+    select.hidden = !!slot.cancelled;
+
+    const cancelLabel = document.createElement("span");
+    cancelLabel.className = "cancel-label";
+    cancelLabel.textContent = "🚫 Cancelado";
+    cancelLabel.hidden = !slot.cancelled;
+
     row.appendChild(label);
+    row.appendChild(toggle);
     row.appendChild(select);
-    row.appendChild(cancelBtn);
+    row.appendChild(cancelLabel);
     container.appendChild(row);
   }
 }
@@ -374,6 +424,7 @@ function renderHours() {
   const data = currentData();
   renderHourGroup(hourGridA, data, 0, HOURS_SPLIT);
   renderHourGroup(hourGridB, data, HOURS_SPLIT, data.hours.length);
+  lastToggledHourIndex = null;
 
   const countA = data.hours.slice(0, HOURS_SPLIT).filter(h => h.selected).length;
   const countB = data.hours.slice(HOURS_SPLIT).filter(h => h.selected).length;
@@ -457,7 +508,7 @@ function renderTubeGroup(container, data, group) {
 
     COMPANIES.forEach(c => {
       const box = document.createElement("div");
-      box.className = `stepper co-${c.key}`;
+      box.className = `stepper co-${c.key}` + (lastToggledTube && lastToggledTube.key === tb.key && lastToggledTube.company === c.key ? " pop" : "");
       box.innerHTML = `
         <span class="stepper-label"><i class="co-dot co-dot-${c.key}"></i>${c.label}</span>
         <div class="stepper-controls">
@@ -468,10 +519,12 @@ function renderTubeGroup(container, data, group) {
 
       box.querySelector(".minus").addEventListener("click", () => {
         counts[c.key] = Math.max(0, counts[c.key] - 1);
+        lastToggledTube = { key: tb.key, company: c.key };
         saveState(); renderTubes(); renderPreview();
       });
       box.querySelector(".plus").addEventListener("click", () => {
         counts[c.key] += 1;
+        lastToggledTube = { key: tb.key, company: c.key };
         saveState(); renderTubes(); renderPreview();
       });
 
@@ -513,6 +566,7 @@ function renderTubes() {
   const data = currentData();
   renderTubeGroup(tubeListA, data, TUBOS_A);
   renderTubeGroup(tubeListB, data, TUBOS_B);
+  lastToggledTube = null;
   tubeBadgeA.textContent = sumTubeGroup(data, TUBOS_A);
   tubeBadgeB.textContent = sumTubeGroup(data, TUBOS_B);
 }
