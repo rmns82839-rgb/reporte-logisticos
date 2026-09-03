@@ -190,6 +190,26 @@ function registerSendBatch(data) {
   data.hours.forEach(h => { if (h.cancelled) h.cancelReported = true; });
 }
 
+// Antes de copiar/enviar: si hay horas nuevas marcadas como recibidas pero
+// no se ha registrado ningún tubo, algo probablemente quedó a medias —
+// se bloquea el envío y se pide completar o marcar la hora como cancelada.
+function validateBeforeSend(data) {
+  const pendingReceived = data.hours.filter(h => h.selected && !h.pickup)
+    .concat(data.extras.filter(e => e.company && e.time && !e.pickup));
+
+  if (pendingReceived.length === 0) return null;
+
+  const totalTubes = TUBOS.reduce((sum, tb) => {
+    const c = data.tubes[tb.key];
+    return sum + c.vip + c.fsfb + c.poliza;
+  }, 0);
+
+  if (totalTubes === 0) {
+    return "Registra al menos un tubo antes de enviar, o marca esa hora como cancelada (✕).";
+  }
+  return null;
+}
+
 // ---------------- Efecto ripple (delegado, cubre botones creados dinámicamente) ----------------
 const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -346,17 +366,27 @@ function renderHourGroup(container, data, start, end) {
   for (let i = start; i < end; i++) {
     const slot = data.hours[i];
     const row = document.createElement("div");
-    row.className = "hour-row" + (slot.selected ? " is-set" : "") + (slot.cancelled ? " is-cancelled" : "") + (i === lastToggledHourIndex ? " pop" : "");
+    row.className = "hour-row"
+      + (slot.selected ? " is-set" : "")
+      + (slot.cancelled ? " is-cancelled" : "")
+      + (slot.pickup ? " is-reported" : "")
+      + (i === lastToggledHourIndex ? " pop" : "");
 
     const label = document.createElement("span");
     label.className = "hour-time";
     label.textContent = slot.time;
+
+    let cornerTag = null;
     if (slot.pickup) {
-      const tag = document.createElement("span");
-      tag.className = "pickup-tag";
-      tag.title = `Recogida ${slot.pickup}`;
-      tag.textContent = slot.pickup;
-      label.appendChild(tag);
+      cornerTag = document.createElement("span");
+      cornerTag.className = "pickup-tag";
+      cornerTag.title = `Ya se envió en la recogida ${slot.pickup}`;
+      cornerTag.textContent = `R${slot.pickup}`;
+    } else if (slot.cancelled && slot.cancelReported) {
+      cornerTag = document.createElement("span");
+      cornerTag.className = "pickup-tag pickup-tag-cancel";
+      cornerTag.title = "Esta cancelación ya se informó en un reporte anterior";
+      cornerTag.textContent = "✔";
     }
 
     // dos botones separados: ✓ Recibido / ✕ Cancelado (mutuamente excluyentes),
@@ -393,24 +423,20 @@ function renderHourGroup(container, data, start, end) {
       renderPreview();
     });
 
-    // desplegable de compañía (recibido) o etiqueta roja (cancelado) — comparten la misma celda;
-    // la visibilidad la controla el CSS según la clase .is-cancelled de la fila
+    // desplegable de compañía: siempre elegible, sin importar si ya está
+    // recibida, cancelada, o aún sin tocar — así se puede escoger la
+    // compañía antes de confirmar o incluso para una hora cancelada
     const select = buildCompanySelect(slot.company, (val) => {
       data.hours[i].company = val;
       saveState();
       renderPreview();
     });
-    select.disabled = !slot.selected;
-
-    const cancelLabel = document.createElement("span");
-    cancelLabel.className = "cancel-label";
-    cancelLabel.textContent = "🚫 Cancelado";
 
     row.appendChild(label);
     row.appendChild(receivedBtn);
     row.appendChild(select);
-    row.appendChild(cancelLabel);
     row.appendChild(cancelBtn);
+    if (cornerTag) row.appendChild(cornerTag);
     container.appendChild(row);
   }
 }
@@ -427,9 +453,14 @@ function renderHours() {
   hourBadgeB.textContent = `${countB}/${data.hours.length - HOURS_SPLIT}`;
 
   ensurePickupsToday(data);
+  const pendingNew = data.hours.filter(h => h.selected && !h.pickup).length
+    + data.extras.filter(e => e.company && e.time && !e.pickup).length;
+
   if (data.pickupsToday.count > 0) {
     pickupInfo.hidden = false;
-    pickupInfo.textContent = `🔁 Recogidas registradas hoy: ${data.pickupsToday.count}`;
+    pickupInfo.textContent = pendingNew > 0
+      ? `✅ Recogida ${data.pickupsToday.count} ya enviada — lo que marques ahora será la recogida ${data.pickupsToday.count + 1}`
+      : `✅ Recogida ${data.pickupsToday.count} ya enviada — al día, nada pendiente por enviar`;
   } else {
     pickupInfo.hidden = true;
   }
@@ -869,15 +900,17 @@ function renderPreview() {
 }
 
 // ---------------- Acciones ----------------
-function showToast(msg) {
+function showToast(msg, duration) {
   toast.textContent = msg;
   toast.classList.add("show");
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toast.classList.remove("show"), 1800);
+  showToast._t = setTimeout(() => toast.classList.remove("show"), duration || 1800);
 }
 
 copyBtn.addEventListener("click", async () => {
   const data = currentData();
+  const warning = validateBeforeSend(data);
+  if (warning) { showToast(warning, 3400); return; }
   const text = buildMessage(data, { forSend: true });
   registerSendBatch(data);
   saveState();
@@ -898,6 +931,8 @@ copyBtn.addEventListener("click", async () => {
 
 sendBtn.addEventListener("click", () => {
   const data = currentData();
+  const warning = validateBeforeSend(data);
+  if (warning) { showToast(warning, 3400); return; }
   const text = buildMessage(data, { forSend: true });
   registerSendBatch(data);
   saveState();

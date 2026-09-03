@@ -456,6 +456,7 @@ main{
   gap:9px;
 }
 .hour-row{
+  position:relative;
   display:grid;
   grid-template-columns:48px 37px 1fr 37px;
   align-items:center;
@@ -484,6 +485,13 @@ main{
   text-decoration:line-through;
   color:var(--text-faint);
 }
+
+/* hora que ya se envió en un reporte anterior (recogida pasada) */
+.hour-row.is-reported{
+  border-color:rgba(31,210,144,0.6);
+  box-shadow:0 0 0 1px rgba(31,210,144,0.18) inset, 0 4px 14px -8px rgba(0,0,0,0.6);
+}
+.hour-row.is-reported .hour-time{color:var(--send);}
 
 /* botones Recibido y Cancelado, separados, con la compañía entre medio */
 .status-btn{
@@ -517,39 +525,30 @@ main{
   color:#fff;
 }
 
-.cancel-label{
-  grid-column:3;
-  display:none;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  min-height:44px;
-  padding:0 10px;
-  border-radius:var(--radius-s);
-  border:1.5px solid rgba(255,92,92,0.4);
-  background:rgba(255,92,92,0.14);
-  color:var(--danger);
-  font-size:13px;
+.hour-row .company-select{grid-column:3;}
+.pickup-tag{
+  position:absolute;
+  top:-7px;
+  right:-6px;
+  min-width:19px;
+  height:19px;
+  padding:0 5px;
+  border-radius:999px;
+  background:var(--send);
+  color:#062017;
+  font-size:9.5px;
   font-weight:800;
   letter-spacing:.01em;
-}
-.hour-row .company-select{grid-column:3;}
-.hour-row.is-cancelled .company-select{display:none;}
-.hour-row.is-cancelled .cancel-label{display:flex;}
-.pickup-tag{
-  display:inline-flex;
+  display:flex;
   align-items:center;
   justify-content:center;
-  min-width:15px;
-  height:15px;
-  padding:0 3px;
-  margin-left:4px;
-  border-radius:6px;
-  background:var(--send-soft);
-  color:var(--send);
-  font-size:9px;
-  font-weight:800;
-  vertical-align:middle;
+  box-shadow:0 2px 6px -1px rgba(0,0,0,0.55), 0 0 0 2px var(--surface);
+  z-index:2;
+  white-space:nowrap;
+}
+.pickup-tag.pickup-tag-cancel{
+  background:var(--danger);
+  color:#fff;
 }
 .pickup-info{
   margin:-6px 0 12px;
@@ -947,10 +946,13 @@ main{
   background:var(--surface-3);
   border:1px solid var(--border);
   color:var(--text);
-  padding:10px 16px;
-  border-radius:999px;
+  padding:11px 18px;
+  border-radius:18px;
   font-size:13px;
   font-weight:600;
+  line-height:1.4;
+  max-width:min(340px, calc(100% - 32px));
+  text-align:center;
   opacity:0;
   pointer-events:none;
   transition:opacity .18s ease, transform .18s ease;
