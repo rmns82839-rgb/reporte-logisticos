@@ -66,6 +66,16 @@ function emptyTubeState() {
   return t;
 }
 
+function mergeTubeCounts(a, b) {
+  const merged = emptyTubeState();
+  TUBOS.forEach(tb => {
+    merged[tb.key].vip = (a[tb.key]?.vip || 0) + (b[tb.key]?.vip || 0);
+    merged[tb.key].fsfb = (a[tb.key]?.fsfb || 0) + (b[tb.key]?.fsfb || 0);
+    merged[tb.key].poliza = (a[tb.key]?.poliza || 0) + (b[tb.key]?.poliza || 0);
+  });
+  return merged;
+}
+
 // ---------------- Estado: uno por auxiliar ----------------
 function localDateKey(d) {
   d = d || new Date();
@@ -80,6 +90,7 @@ function freshAuxData() {
     hours: buildFixedHours(),
     extras: [],
     tubes: emptyTubeState(),
+    tubesReported: emptyTubeState(), // acumulado de recogidas ya enviadas hoy
     otrosDetalle: "",
     papeleria: [],
     pickupsToday: { date: localDateKey(), count: 0 },
@@ -110,6 +121,10 @@ function loadState() {
       if (!d || !d.tubes || !d.hours) { delete parsed.byAux[key]; return; }
       TUBOS.forEach(tb => {
         if (!d.tubes[tb.key]) d.tubes[tb.key] = { vip: 0, fsfb: 0, poliza: 0 };
+      });
+      if (!d.tubesReported) d.tubesReported = emptyTubeState();
+      TUBOS.forEach(tb => {
+        if (!d.tubesReported[tb.key]) d.tubesReported[tb.key] = { vip: 0, fsfb: 0, poliza: 0 };
       });
       if (typeof d.otrosDetalle !== "string") d.otrosDetalle = "";
       if (!Array.isArray(d.extras)) d.extras = [];
@@ -188,6 +203,17 @@ function registerSendBatch(data) {
   }
 
   data.hours.forEach(h => { if (h.cancelled) h.cancelReported = true; });
+
+  // los tubos de esta recogida pasan al acumulado del día y el contador
+  // visible se reinicia en 0 para la siguiente recogida
+  TUBOS.forEach(tb => {
+    const c = data.tubes[tb.key];
+    const r = data.tubesReported[tb.key];
+    r.vip += c.vip;
+    r.fsfb += c.fsfb;
+    r.poliza += c.poliza;
+  });
+  data.tubes = emptyTubeState();
 }
 
 // Antes de copiar/enviar: si hay horas nuevas marcadas como recibidas pero
@@ -257,6 +283,7 @@ const tubeListA = document.getElementById("tubeListA");
 const tubeListB = document.getElementById("tubeListB");
 const tubeBadgeA = document.getElementById("tubeBadgeA");
 const tubeBadgeB = document.getElementById("tubeBadgeB");
+const tubesInfo = document.getElementById("tubesInfo");
 
 const papeleriaList = document.getElementById("papeleriaList");
 const addPapeleriaBtn = document.getElementById("addPapeleriaBtn");
@@ -514,6 +541,49 @@ addExtraBtn.addEventListener("click", () => {
 });
 
 // ---------------- Render: Tubos (dos acordeones) ----------------
+// Toque normal = suma/resta de a 1 (preciso). Mantener presionado = repite
+// solo, cada vez más rápido, para contar cantidades grandes sin tocar
+// muchas veces. Mientras se mantiene presionado se actualiza el número
+// directamente en el DOM (sin reconstruir la lista) para no perder el
+// botón que se está tocando; el guardado y el re-render completo (con el
+// "pop" de feedback) ocurren al soltar.
+function bindHoldStepper(btn, step, getCount, setCount, valueEl, totalEl, getTotal, onRelease) {
+  let holdTimeout = null;
+  let holdInterval = null;
+  let changed = false;
+
+  function tick() {
+    setCount(Math.max(0, getCount() + step));
+    valueEl.textContent = getCount();
+    if (totalEl) totalEl.textContent = `Total: ${getTotal()}`;
+    changed = true;
+  }
+
+  function start(e) {
+    e.preventDefault();
+    tick();
+    holdTimeout = setTimeout(() => {
+      holdInterval = setInterval(tick, 100);
+    }, 420);
+  }
+
+  function stop() {
+    clearTimeout(holdTimeout);
+    clearInterval(holdInterval);
+    holdTimeout = null;
+    holdInterval = null;
+    if (changed) {
+      changed = false;
+      onRelease();
+    }
+  }
+
+  btn.addEventListener("pointerdown", start);
+  btn.addEventListener("pointerup", stop);
+  btn.addEventListener("pointerleave", stop);
+  btn.addEventListener("pointercancel", stop);
+}
+
 function renderTubeGroup(container, data, group) {
   container.innerHTML = "";
   group.forEach(tb => {
@@ -527,6 +597,7 @@ function renderTubeGroup(container, data, group) {
     const head = document.createElement("div");
     head.className = "tube-head";
     head.innerHTML = `<span>${tb.emoji} ${tb.key}</span><span class="tube-total">Total: ${total}</span>`;
+    const totalEl = head.querySelector(".tube-total");
     row.appendChild(head);
 
     const trio = document.createElement("div");
@@ -543,16 +614,25 @@ function renderTubeGroup(container, data, group) {
           <button type="button" class="step-btn plus">+</button>
         </div>`;
 
-      box.querySelector(".minus").addEventListener("click", () => {
-        counts[c.key] = Math.max(0, counts[c.key] - 1);
+      const valueEl = box.querySelector(".step-value");
+      const getTotal = () => counts.vip + counts.fsfb + counts.poliza;
+      const onRelease = () => {
         lastToggledTube = { key: tb.key, company: c.key };
-        saveState(); renderTubes(); renderPreview();
-      });
-      box.querySelector(".plus").addEventListener("click", () => {
-        counts[c.key] += 1;
-        lastToggledTube = { key: tb.key, company: c.key };
-        saveState(); renderTubes(); renderPreview();
-      });
+        saveState();
+        renderTubes();
+        renderPreview();
+      };
+
+      bindHoldStepper(
+        box.querySelector(".minus"), -1,
+        () => counts[c.key], (v) => { counts[c.key] = v; },
+        valueEl, totalEl, getTotal, onRelease
+      );
+      bindHoldStepper(
+        box.querySelector(".plus"), 1,
+        () => counts[c.key], (v) => { counts[c.key] = v; },
+        valueEl, totalEl, getTotal, onRelease
+      );
 
       trio.appendChild(box);
     });
@@ -595,6 +675,18 @@ function renderTubes() {
   lastToggledTube = null;
   tubeBadgeA.textContent = sumTubeGroup(data, TUBOS_A);
   tubeBadgeB.textContent = sumTubeGroup(data, TUBOS_B);
+
+  let reportedTotal = 0;
+  TUBOS.forEach(tb => {
+    const r = data.tubesReported[tb.key];
+    reportedTotal += r.vip + r.fsfb + r.poliza;
+  });
+  if (reportedTotal > 0) {
+    tubesInfo.hidden = false;
+    tubesInfo.textContent = `✅ Ya enviaste ${reportedTotal} tubos hoy — el contador de abajo se reinició para la siguiente recogida`;
+  } else {
+    tubesInfo.hidden = true;
+  }
 }
 
 // ---------------- Render: Papelería para doctores ----------------
@@ -695,6 +787,11 @@ function buildMessage(data, opts) {
   data = data || currentData();
   const auxName = currentAuxName();
 
+  // en la vista previa del día se suman los tubos ya enviados en recogidas
+  // pasadas + lo que llevas contado ahora; al enviar, solo se reporta lo
+  // que llevas contado en este momento (la recogida actual)
+  const tubesSource = forSend ? data.tubes : mergeTubeCounts(data.tubesReported, data.tubes);
+
   const relevantHours = forSend
     ? data.hours.filter(h => h.selected && !h.pickup)
     : data.hours.filter(h => h.selected);
@@ -772,7 +869,7 @@ function buildMessage(data, opts) {
   lines.push("");
   lines.push("🧪 *Tubos recibidos:*");
   const tubesWithTotal = TUBOS.map(tb => {
-    const c = data.tubes[tb.key];
+    const c = tubesSource[tb.key];
     return { ...tb, total: c.vip + c.fsfb + c.poliza };
   }).filter(tb => tb.total > 0);
 
@@ -794,7 +891,7 @@ function buildMessage(data, opts) {
 
   const tubeTotals = { vip: 0, fsfb: 0, poliza: 0 };
   TUBOS.forEach(tb => {
-    const c = data.tubes[tb.key];
+    const c = tubesSource[tb.key];
     tubeTotals.vip += c.vip;
     tubeTotals.fsfb += c.fsfb;
     tubeTotals.poliza += c.poliza;
@@ -809,8 +906,8 @@ function buildMessage(data, opts) {
     .filter(c => tubeTotals[c.key] > 0)
     .map(c => {
       const detail = TUBOS
-        .filter(tb => data.tubes[tb.key][c.key] > 0)
-        .map(tb => `   ${tb.emoji} ${tb.key}: ${data.tubes[tb.key][c.key]}`)
+        .filter(tb => tubesSource[tb.key][c.key] > 0)
+        .map(tb => `   ${tb.emoji} ${tb.key}: ${tubesSource[tb.key][c.key]}`)
         .join("\n");
       return `${c.emoji} ${c.label} — Total: ${tubeTotals[c.key]}\n${detail}`;
     });
@@ -853,8 +950,9 @@ function computeCounts() {
 
   let tubeTotal = 0;
   TUBOS.forEach(tb => {
-    const c = data.tubes[tb.key];
-    tubeTotal += c.vip + c.fsfb + c.poliza;
+    const current = data.tubes[tb.key];
+    const reported = data.tubesReported[tb.key];
+    tubeTotal += current.vip + current.fsfb + current.poliza + reported.vip + reported.fsfb + reported.poliza;
   });
 
   return { patientTotal, tubeTotal };
