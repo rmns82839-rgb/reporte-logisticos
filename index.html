@@ -64,7 +64,8 @@
             <span class="legend-item"><i class="dot dot-poliza"></i>Poliza</span>
           </div>
         </div>
-        <p class="card-hint">Marca el check de las horas que sí llegaron. El desplegable ya viene en VIP — solo cámbialo si fue FSFB o Poliza.</p>
+        <p class="card-hint">Marca el check de las horas que sí llegaron, o toca 🚫 si esa hora fue cancelada. El desplegable ya viene en VIP — solo cámbialo si fue FSFB o Poliza.</p>
+        <p id="pickupInfo" class="pickup-info" hidden></p>
 
         <details class="hour-group" open>
           <summary><span class="group-label">5:00 AM – 8:00 AM</span><span id="hourBadgeA" class="group-badge">0/7</span></summary>
@@ -116,6 +117,7 @@
           <h2 class="card-title">Vista previa del reporte</h2>
           <span class="summary-tag">WhatsApp</span>
         </div>
+        <p class="card-hint" style="margin-top:-4px;">Aquí ves todo el día. Al copiar o enviar, solo se manda lo nuevo desde la última recogida.</p>
         <pre id="preview" class="preview"></pre>
       </section>
     </div>

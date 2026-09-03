@@ -45,7 +45,7 @@ function buildFixedHours() {
   const list = [];
   let h = 5, m = 0;
   for (let i = 0; i < 13; i++) {
-    list.push({ time: formatTime(h, m), selected: false, company: "vip" });
+    list.push({ time: formatTime(h, m), selected: false, company: "vip", cancelled: false, pickup: null, cancelReported: false });
     m += 30;
     if (m >= 60) { m = 0; h += 1; }
   }
@@ -67,6 +67,14 @@ function emptyTubeState() {
 }
 
 // ---------------- Estado: uno por auxiliar ----------------
+function localDateKey(d) {
+  d = d || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function freshAuxData() {
   return {
     hours: buildFixedHours(),
@@ -74,6 +82,7 @@ function freshAuxData() {
     tubes: emptyTubeState(),
     otrosDetalle: "",
     papeleria: [],
+    pickupsToday: { date: localDateKey(), count: 0 },
   };
 }
 
@@ -107,6 +116,18 @@ function loadState() {
       if (!Array.isArray(d.papeleria)) d.papeleria = [];
       if (!Array.isArray(d.hours) || d.hours.some(h => typeof h.selected === "undefined")) {
         delete parsed.byAux[key];
+        return;
+      }
+      d.hours.forEach(h => {
+        if (typeof h.cancelled !== "boolean") h.cancelled = false;
+        if (typeof h.pickup === "undefined") h.pickup = null;
+        if (typeof h.cancelReported !== "boolean") h.cancelReported = false;
+      });
+      d.extras.forEach(e => {
+        if (typeof e.pickup === "undefined") e.pickup = null;
+      });
+      if (!d.pickupsToday || typeof d.pickupsToday.count !== "number") {
+        d.pickupsToday = { date: localDateKey(), count: 0 };
       }
     });
     return parsed;
@@ -142,6 +163,33 @@ function currentData() {
   return state.byAux[key];
 }
 
+function ensurePickupsToday(data) {
+  const today = localDateKey();
+  if (!data.pickupsToday || data.pickupsToday.date !== today) {
+    data.pickupsToday = { date: today, count: 0 };
+  }
+}
+
+// Se llama al copiar/enviar el reporte: todo lo que esté marcado como
+// recibido pero que aún no pertenezca a ninguna recogida pasa a formar
+// la siguiente (1ra, 2da, 3ra... del día), y los cancelados pendientes
+// quedan marcados como ya informados. Así el próximo reporte que se
+// envíe no repite lo que ya se mandó en este.
+function registerSendBatch(data) {
+  ensurePickupsToday(data);
+  const pendingReceived = [];
+  data.hours.forEach(h => { if (h.selected && !h.pickup) pendingReceived.push(h); });
+  data.extras.forEach(e => { if (e.company && e.time && !e.pickup) pendingReceived.push(e); });
+
+  if (pendingReceived.length > 0) {
+    data.pickupsToday.count += 1;
+    const num = data.pickupsToday.count;
+    pendingReceived.forEach(h => { h.pickup = num; });
+  }
+
+  data.hours.forEach(h => { if (h.cancelled) h.cancelReported = true; });
+}
+
 // ---------------- DOM refs ----------------
 const auxGrid = document.getElementById("auxGrid");
 const auxOtherBtn = document.getElementById("auxOtherBtn");
@@ -152,6 +200,7 @@ const hourGridA = document.getElementById("hourGridA");
 const hourGridB = document.getElementById("hourGridB");
 const hourBadgeA = document.getElementById("hourBadgeA");
 const hourBadgeB = document.getElementById("hourBadgeB");
+const pickupInfo = document.getElementById("pickupInfo");
 const extraList = document.getElementById("extraList");
 const addExtraBtn = document.getElementById("addExtraBtn");
 
@@ -264,15 +313,17 @@ function renderHourGroup(container, data, start, end) {
   for (let i = start; i < end; i++) {
     const slot = data.hours[i];
     const row = document.createElement("div");
-    row.className = "hour-row" + (slot.selected ? " is-set" : "");
+    row.className = "hour-row" + (slot.selected ? " is-set" : "") + (slot.cancelled ? " is-cancelled" : "");
 
     const check = document.createElement("input");
     check.type = "checkbox";
     check.className = "hour-check";
     check.checked = !!slot.selected;
+    check.disabled = !!slot.cancelled;
     check.setAttribute("aria-label", `Recibido a las ${slot.time}`);
     check.addEventListener("change", () => {
       data.hours[i].selected = check.checked;
+      if (check.checked) data.hours[i].cancelled = false;
       saveState();
       renderHours();
       renderPreview();
@@ -281,17 +332,40 @@ function renderHourGroup(container, data, start, end) {
     const label = document.createElement("span");
     label.className = "hour-time";
     label.textContent = slot.time;
+    if (slot.pickup) {
+      const tag = document.createElement("span");
+      tag.className = "pickup-tag";
+      tag.title = `Recogida ${slot.pickup}`;
+      tag.textContent = slot.pickup;
+      label.appendChild(tag);
+    }
 
     const select = buildCompanySelect(slot.company, (val) => {
       data.hours[i].company = val;
       saveState();
       renderPreview();
     });
-    select.disabled = !slot.selected;
+    select.disabled = !slot.selected || !!slot.cancelled;
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "cancel-btn" + (slot.cancelled ? " active" : "");
+    cancelBtn.title = slot.cancelled ? "Marcado como cancelado — toca para deshacer" : "Marcar como cancelado";
+    cancelBtn.setAttribute("aria-pressed", String(!!slot.cancelled));
+    cancelBtn.textContent = "🚫";
+    cancelBtn.addEventListener("click", () => {
+      const nowCancelled = !data.hours[i].cancelled;
+      data.hours[i].cancelled = nowCancelled;
+      if (nowCancelled) data.hours[i].selected = false;
+      saveState();
+      renderHours();
+      renderPreview();
+    });
 
     row.appendChild(check);
     row.appendChild(label);
     row.appendChild(select);
+    row.appendChild(cancelBtn);
     container.appendChild(row);
   }
 }
@@ -305,6 +379,14 @@ function renderHours() {
   const countB = data.hours.slice(HOURS_SPLIT).filter(h => h.selected).length;
   hourBadgeA.textContent = `${countA}/${HOURS_SPLIT}`;
   hourBadgeB.textContent = `${countB}/${data.hours.length - HOURS_SPLIT}`;
+
+  ensurePickupsToday(data);
+  if (data.pickupsToday.count > 0) {
+    pickupInfo.hidden = false;
+    pickupInfo.textContent = `🔁 Recogidas registradas hoy: ${data.pickupsToday.count}`;
+  } else {
+    pickupInfo.hidden = true;
+  }
 }
 
 // ---------------- Render: Horas extra ----------------
@@ -349,7 +431,7 @@ function renderExtras() {
 
 addExtraBtn.addEventListener("click", () => {
   const data = currentData();
-  data.extras.push({ time: "", company: "vip" });
+  data.extras.push({ time: "", company: "vip", pickup: null });
   saveState();
   renderExtras();
 });
@@ -527,12 +609,21 @@ function todayLabel() {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-function buildMessage() {
-  const data = currentData();
+function buildMessage(data, opts) {
+  opts = opts || {};
+  const forSend = !!opts.forSend;
+  data = data || currentData();
   const auxName = currentAuxName();
 
-  const markedHours = data.hours.filter(h => h.selected);
-  const markedExtras = data.extras.filter(e => e.company && e.time);
+  const relevantHours = forSend
+    ? data.hours.filter(h => h.selected && !h.pickup)
+    : data.hours.filter(h => h.selected);
+  const relevantExtras = forSend
+    ? data.extras.filter(e => e.company && e.time && !e.pickup)
+    : data.extras.filter(e => e.company && e.time);
+  const relevantCancelled = forSend
+    ? data.hours.filter(h => h.cancelled && !h.cancelReported)
+    : data.hours.filter(h => h.cancelled);
 
   const lines = [];
   lines.push("📋 *Reporte de recepción de muestras*");
@@ -541,14 +632,60 @@ function buildMessage() {
   lines.push("");
   lines.push("⏰ *Horas:*");
 
-  if (markedHours.length === 0 && markedExtras.length === 0) {
-    lines.push("• Sin horas marcadas");
-  } else {
-    markedHours.forEach(h => {
+  if (relevantHours.length === 0 && relevantExtras.length === 0) {
+    lines.push(forSend ? "• Nada nuevo por reportar" : "• Sin horas marcadas");
+  } else if (forSend) {
+    // reporte de una sola recogida (la actual): lista simple, sin agrupar
+    relevantHours.forEach(h => {
       lines.push(`• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`);
     });
-    markedExtras.forEach(e => {
+    relevantExtras.forEach(e => {
       lines.push(`• ${formatExtraTime(e.time)} — ${companyEmoji(e.company)} ${companyLabel(e.company).toUpperCase()} (extra)`);
+    });
+  } else {
+    // vista previa completa del día: agrupar por número de recogida;
+    // lo marcado pero aún no enviado queda como "pendiente"
+    const groups = {};
+    const pendingLines = [];
+
+    relevantHours.forEach(h => {
+      const line = `• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`;
+      if (h.pickup) { (groups[h.pickup] = groups[h.pickup] || []).push(line); }
+      else pendingLines.push(line);
+    });
+    relevantExtras.forEach(e => {
+      const line = `• ${formatExtraTime(e.time)} — ${companyEmoji(e.company)} ${companyLabel(e.company).toUpperCase()} (extra)`;
+      if (e.pickup) { (groups[e.pickup] = groups[e.pickup] || []).push(line); }
+      else pendingLines.push(line);
+    });
+
+    const pickupNums = Object.keys(groups).map(Number).sort((a, b) => a - b);
+    const multiPickup = pickupNums.length > 1 || (pickupNums.length >= 1 && pendingLines.length > 0);
+
+    if (!multiPickup) {
+      const only = pickupNums.length ? groups[pickupNums[0]] : [];
+      [...only, ...pendingLines].forEach(l => lines.push(l));
+    } else {
+      pickupNums.forEach(num => {
+        lines.push(`🔁 *Recogida ${num}:*`);
+        groups[num].forEach(l => lines.push(l));
+        lines.push("");
+      });
+      if (pendingLines.length) {
+        const nextNum = (pickupNums[pickupNums.length - 1] || 0) + 1;
+        lines.push(`🕓 *Sin enviar aún (será la recogida ${nextNum}):*`);
+        pendingLines.forEach(l => lines.push(l));
+      } else {
+        lines.pop();
+      }
+    }
+  }
+
+  if (relevantCancelled.length > 0) {
+    lines.push("");
+    lines.push("❌ *Cancelados:*");
+    relevantCancelled.forEach(h => {
+      lines.push(`• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`);
     });
   }
 
@@ -572,8 +709,8 @@ function buildMessage() {
   }
 
   const patientTotals = { vip: 0, fsfb: 0, poliza: 0 };
-  markedHours.forEach(h => patientTotals[h.company]++);
-  markedExtras.forEach(e => patientTotals[e.company]++);
+  relevantHours.forEach(h => patientTotals[h.company]++);
+  relevantExtras.forEach(e => patientTotals[e.company]++);
 
   const tubeTotals = { vip: 0, fsfb: 0, poliza: 0 };
   TUBOS.forEach(tb => {
@@ -691,7 +828,11 @@ function showToast(msg) {
 }
 
 copyBtn.addEventListener("click", async () => {
-  const text = buildMessage();
+  const data = currentData();
+  const text = buildMessage(data, { forSend: true });
+  registerSendBatch(data);
+  saveState();
+  renderAll();
   try {
     await navigator.clipboard.writeText(text);
     showToast("Reporte copiado");
@@ -707,7 +848,11 @@ copyBtn.addEventListener("click", async () => {
 });
 
 sendBtn.addEventListener("click", () => {
-  const text = buildMessage();
+  const data = currentData();
+  const text = buildMessage(data, { forSend: true });
+  registerSendBatch(data);
+  saveState();
+  renderAll();
   const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, "_blank");
 });
