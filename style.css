@@ -112,8 +112,10 @@ html,body{
 /* ---------- topbar ---------- */
 .topbar{
   display:flex;
+  flex-wrap:nowrap;
   align-items:center;
   justify-content:space-between;
+  gap:8px;
   padding:22px 20px 12px;
   position:sticky;
   top:0;
@@ -124,19 +126,24 @@ html,body{
 .topbar-brand{
   display:flex;
   align-items:center;
-  gap:12px;
+  gap:10px;
+  min-width:0;
+  flex:1 1 auto;
+  overflow:hidden;
+}
+.topbar-title{
   min-width:0;
   overflow:hidden;
 }
 .topbar-actions{
   display:flex;
   align-items:center;
-  gap:8px;
-  flex-shrink:0;
+  gap:6px;
+  flex:0 0 auto;
 }
 .logo-mark{
-  width:40px;
-  height:40px;
+  width:38px;
+  height:38px;
   border-radius:50%;
   display:flex;
   align-items:center;
@@ -190,8 +197,8 @@ html,body{
   text-overflow:ellipsis;
 }
 .icon-btn{
-  width:40px;
-  height:40px;
+  width:36px;
+  height:36px;
   border-radius:50%;
   border:1px solid var(--border);
   background:var(--surface);
@@ -200,6 +207,7 @@ html,body{
   align-items:center;
   justify-content:center;
   cursor:pointer;
+  flex-shrink:0;
 }
 .icon-btn:active{background:var(--surface-2); transform:scale(0.95);}
 .icon-btn.install-btn{color:var(--send); border-color:rgba(31,210,144,0.35);}
@@ -1172,14 +1180,20 @@ main{
   transform:translateX(-50%) translateY(0);
 }
 
+@media (max-width:400px){
+  .topbar-eyebrow{display:none;}
+  .topbar h1{font-size:18px;}
+  .logo-mark{width:34px; height:34px;}
+}
+
 @media (max-width:340px){
   .aux-grid{grid-template-columns:repeat(2,1fr);}
   .hour-row{grid-template-columns:40px 32px 1fr 32px; gap:5px;}
   .status-btn{width:32px; height:32px; font-size:13px;}
   .stats-strip{grid-template-columns:1fr 1fr;}
-  .topbar-actions{gap:5px;}
-  .icon-btn{width:34px; height:34px;}
-  .topbar h1{font-size:17px;}
+  .topbar-actions{gap:4px;}
+  .icon-btn{width:32px; height:32px;}
+  .topbar h1{font-size:16px;}
 }
 
 /* ---------- tablet / escritorio ---------- */

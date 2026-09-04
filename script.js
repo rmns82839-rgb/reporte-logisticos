@@ -23,9 +23,9 @@ const TUBOS = [
   { key: "Lila",                    emoji: "🟣", color: "var(--lila)",          text: "text-dark" },
   { key: "Azul",                    emoji: "🔵", color: "var(--azul)",          text: "text-light" },
   { key: "Orina",                   emoji: "💧", color: "var(--orina)",         text: "text-dark" },
-  { key: "Orina 24h",               emoji: "⏳", color: "var(--orina24)",       text: "text-light" },
-  { key: "Rojo",                    emoji: "🔴", color: "var(--rojo)",          text: "text-light" },
   { key: "Materia fecal",           emoji: "🟤", color: "var(--materia-fecal)", text: "text-light" },
+  { key: "Rojo",                    emoji: "🔴", color: "var(--rojo)",          text: "text-light" },
+  { key: "Orina 24h",               emoji: "⏳", color: "var(--orina24)",       text: "text-light" },
   { key: "Saliva",                  emoji: "💦", color: "var(--saliva)",        text: "text-light" },
   { key: "Transparente tapa perlada", emoji: "⚪", color: "var(--transparente)", text: "text-dark" },
   { key: "Otros",                   emoji: "📦", color: "var(--otros)",         text: "text-light" },
@@ -937,6 +937,13 @@ function todayLabel() {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
+// Hora exacta (solo hora y minutos, hora de Colombia), en el mismo
+// formato "6:45 AM" que ya usa el resto de la app.
+function nowTimeLabel() {
+  const now = new Date();
+  return formatTime(now.getHours(), now.getMinutes());
+}
+
 function buildMessage(data, opts) {
   opts = opts || {};
   const forSend = !!opts.forSend;
@@ -960,7 +967,7 @@ function buildMessage(data, opts) {
 
   const lines = [];
   lines.push("📋 *Reporte de recepción de muestras*");
-  lines.push(`📅 ${todayLabel()}`);
+  lines.push(`📅 ${todayLabel()} — 🕐 ${nowTimeLabel()}`);
   lines.push(`👤 Auxiliar: ${auxName}`);
   lines.push("");
   lines.push("⏰ *Horas:*");
