@@ -102,6 +102,7 @@ function freshAuxData() {
     papeleria: [],
     pickupsToday: { date: localDateKey(), count: 0 },
     pickupLog: [], // historial de lo enviado, para poder deshacer la última recogida
+    sentReports: [], // texto exacto de cada reporte copiado/enviado (para consultar después)
   };
 }
 
@@ -154,6 +155,7 @@ function loadState() {
         d.pickupsToday = { date: localDateKey(), count: 0 };
       }
       if (!Array.isArray(d.pickupLog)) d.pickupLog = [];
+      if (!Array.isArray(d.sentReports)) d.sentReports = [];
       if (typeof d.activeDate !== "string") d.activeDate = localDateKey();
     });
     return parsed;
@@ -332,7 +334,7 @@ function spawnRipple(el, x, y) {
 }
 
 document.addEventListener("pointerdown", (e) => {
-  const el = e.target.closest(".btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn, .place-btn, .btn-secondary-sm, .status-btn");
+  const el = e.target.closest(".btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn, .place-action, .btn-secondary-sm, .status-btn, .history-copy-btn");
   if (!el || el.disabled) return;
   spawnRipple(el, e.clientX, e.clientY);
 });
@@ -386,6 +388,11 @@ const summaryBtn = document.getElementById("summaryBtn");
 const summaryModal = document.getElementById("summaryModal");
 const summaryModalClose = document.getElementById("summaryModalClose");
 const summaryContent = document.getElementById("summaryContent");
+
+const historyBtn = document.getElementById("historyBtn");
+const historyModal = document.getElementById("historyModal");
+const historyModalClose = document.getElementById("historyModalClose");
+const historyContent = document.getElementById("historyContent");
 
 const exportBtn = document.getElementById("exportBtn");
 const importBtn = document.getElementById("importBtn");
@@ -476,7 +483,34 @@ function applyCompanyClass(select, value) {
 }
 
 // ---------------- Render: Horas fijas (dos acordeones) ----------------
-function renderHourGroup(container, data, start, end) {
+
+// Convierte "5:00 AM" -> 300 (minutos desde medianoche), para poder
+// comparar contra la hora actual y resaltar la franja "en curso".
+function timeToMinutes(timeStr) {
+  const m = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const period = m[3].toUpperCase();
+  if (period === "PM" && h !== 12) h += 12;
+  if (period === "AM" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+// Índice de la franja que corresponde a la hora del reloj en este momento
+// (-1 si el reloj está fuera del rango de horas fijas, ej. de noche).
+function findCurrentSlotIndex(hours) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  for (let i = 0; i < hours.length; i++) {
+    const start = timeToMinutes(hours[i].time);
+    const end = i + 1 < hours.length ? timeToMinutes(hours[i + 1].time) : start + 30;
+    if (start !== null && nowMin >= start && nowMin < end) return i;
+  }
+  return -1;
+}
+
+function renderHourGroup(container, data, start, end, currentIdx) {
   container.innerHTML = "";
   for (let i = start; i < end; i++) {
     const slot = data.hours[i];
@@ -485,6 +519,7 @@ function renderHourGroup(container, data, start, end) {
       + (slot.selected ? " is-set" : "")
       + (slot.cancelled ? " is-cancelled" : "")
       + (slot.pickup ? " is-reported" : "")
+      + (i === currentIdx ? " is-now" : "")
       + (i === lastToggledHourIndex ? " pop" : "");
 
     const label = document.createElement("span");
@@ -558,8 +593,9 @@ function renderHourGroup(container, data, start, end) {
 
 function renderHours() {
   const data = currentData();
-  renderHourGroup(hourGridA, data, 0, HOURS_SPLIT);
-  renderHourGroup(hourGridB, data, HOURS_SPLIT, data.hours.length);
+  const currentIdx = findCurrentSlotIndex(data.hours);
+  renderHourGroup(hourGridA, data, 0, HOURS_SPLIT, currentIdx);
+  renderHourGroup(hourGridB, data, HOURS_SPLIT, data.hours.length, currentIdx);
   lastToggledHourIndex = null;
 
   const countA = data.hours.slice(0, HOURS_SPLIT).filter(h => h.selected).length;
@@ -1142,6 +1178,69 @@ function renderSummaryModal() {
     </div>`;
 }
 
+function formatHistoryTime(ts) {
+  return new Date(ts).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Se arma con el DOM (no innerHTML con texto interpolado) porque el
+// reporte puede incluir texto libre que escribió el usuario (nombre de
+// "Otro" auxiliar, doctor de papelería, detalle de "Otros" tubo, etc.)
+function renderHistoryModal() {
+  const data = currentData();
+  historyContent.innerHTML = "";
+  const reports = data.sentReports || [];
+
+  if (reports.length === 0) {
+    const p = document.createElement("p");
+    p.className = "summary-empty";
+    p.textContent = `Todavía no se ha copiado ni enviado nada hoy para ${currentAuxName()}.`;
+    historyContent.appendChild(p);
+    return;
+  }
+
+  reports.forEach(r => {
+    const item = document.createElement("div");
+    item.className = "history-item";
+
+    const head = document.createElement("div");
+    head.className = "history-item-head";
+
+    const time = document.createElement("span");
+    time.className = "history-time";
+    time.textContent = "🕓 " + formatHistoryTime(r.sentAt);
+
+    const copyAgainBtn = document.createElement("button");
+    copyAgainBtn.type = "button";
+    copyAgainBtn.className = "history-copy-btn";
+    copyAgainBtn.textContent = "Copiar de nuevo";
+    copyAgainBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(r.text);
+      } catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = r.text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      buzz(90);
+      showToast("Reporte copiado");
+    });
+
+    head.appendChild(time);
+    head.appendChild(copyAgainBtn);
+
+    const pre = document.createElement("pre");
+    pre.className = "history-text";
+    pre.textContent = r.text;
+
+    item.appendChild(head);
+    item.appendChild(pre);
+    historyContent.appendChild(item);
+  });
+}
+
 let lastStats = { patientTotal: -1, tubeTotal: -1 };
 
 function renderStats() {
@@ -1189,16 +1288,35 @@ function showToast(msg, duration) {
   showToast._t = setTimeout(() => toast.classList.remove("show"), duration || 1800);
 }
 
+// Vibración corta de confirmación. Solo funciona en Android/Chrome — iOS
+// Safari no soporta la API de vibración, así que ahí simplemente no pasa nada.
+function buzz(pattern) {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(pattern || 120); } catch (e) {}
+  }
+}
+
+// Guarda el texto exacto que se copió/envió, para poder consultarlo o
+// volver a copiarlo después desde "Historial de reportes". Se guardan
+// como máximo los últimos 30 por auxiliar para no crecer sin límite.
+function logSentReport(data, text) {
+  if (!Array.isArray(data.sentReports)) data.sentReports = [];
+  data.sentReports.unshift({ text, sentAt: Date.now() });
+  if (data.sentReports.length > 30) data.sentReports.length = 30;
+}
+
 copyBtn.addEventListener("click", async () => {
   const data = currentData();
   const warning = validateBeforeSend(data);
   if (warning) { showToast(warning, 3400); return; }
   const text = buildMessage(data, { forSend: true });
+  logSentReport(data, text);
   registerSendBatch(data);
   saveState();
   renderAll();
   try {
     await navigator.clipboard.writeText(text);
+    buzz(90);
     showToast("Reporte copiado");
   } catch (e) {
     const ta = document.createElement("textarea");
@@ -1207,6 +1325,7 @@ copyBtn.addEventListener("click", async () => {
     ta.select();
     document.execCommand("copy");
     document.body.removeChild(ta);
+    buzz(90);
     showToast("Reporte copiado");
   }
 });
@@ -1216,9 +1335,11 @@ sendBtn.addEventListener("click", () => {
   const warning = validateBeforeSend(data);
   if (warning) { showToast(warning, 3400); return; }
   const text = buildMessage(data, { forSend: true });
+  logSentReport(data, text);
   registerSendBatch(data);
   saveState();
   renderAll();
+  buzz([80, 60, 80]);
   const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, "_blank");
 });
@@ -1257,6 +1378,11 @@ function renderAll() {
 }
 
 renderAll();
+
+// Refresca la marca de "hora actual" cada minuto, aunque el usuario no
+// toque nada — así no se queda pegada en una franja vieja si la app se
+// deja abierta un rato.
+setInterval(() => { renderHours(); }, 60000);
 
 // ---------------- PWA: service worker ----------------
 if ("serviceWorker" in navigator) {
@@ -1339,6 +1465,29 @@ window.addEventListener("appinstalled", () => {
   closeInstallModal(true);
 });
 
+// ---------------- Aviso antes de perder datos sin enviar ----------------
+function hasUnsentData(data) {
+  const pendingHours = data.hours.some(h => (h.selected && !h.pickup) || (h.cancelled && !h.cancelReported));
+  const pendingExtras = data.extras.some(e => e.company && e.time && !e.pickup);
+  const pendingTubes = TUBOS.some(tb => {
+    const c = data.tubes[tb.key];
+    return c.vip > 0 || c.fsfb > 0 || c.poliza > 0;
+  });
+  return pendingHours || pendingExtras || pendingTubes;
+}
+
+function anyUnsentDataToday() {
+  const today = localDateKey();
+  return Object.values(state.byAux).some(d => d.activeDate === today && hasUnsentData(d));
+}
+
+window.addEventListener("beforeunload", (e) => {
+  if (anyUnsentDataToday()) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
 // ---------------- Resumen del día ----------------
 summaryBtn.addEventListener("click", () => {
   renderSummaryModal();
@@ -1347,6 +1496,15 @@ summaryBtn.addEventListener("click", () => {
 summaryModalClose.addEventListener("click", () => { summaryModal.hidden = true; });
 summaryModal.addEventListener("click", (e) => {
   if (e.target === summaryModal) summaryModal.hidden = true;
+});
+
+historyBtn.addEventListener("click", () => {
+  renderHistoryModal();
+  historyModal.hidden = false;
+});
+historyModalClose.addEventListener("click", () => { historyModal.hidden = true; });
+historyModal.addEventListener("click", (e) => {
+  if (e.target === historyModal) historyModal.hidden = true;
 });
 
 // ---------------- Respaldo: exportar / restaurar ----------------

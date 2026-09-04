@@ -30,6 +30,9 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <button id="historyBtn" class="icon-btn" type="button" title="Historial de reportes" aria-label="Historial de reportes">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+      </button>
       <button id="summaryBtn" class="icon-btn" type="button" title="Resumen del día" aria-label="Resumen del día">
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M5 21V10h3v11H5zm7.5 0V3h3v18h-3zM19 21v-7h3v7h-3z"/></svg>
       </button>
@@ -130,13 +133,58 @@
       <!-- Ir a... -->
       <section class="card">
         <h2 class="card-title">📍 Ir a...</h2>
-        <div class="places-grid">
-          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ Alsacia</a>
-          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Cra.%2019b%20%23168-35%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ Toberín</a>
-          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Calle%2097%20%2323-10%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ Clínica VIP</a>
-          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Calle%20117%20%237-65%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ FSFB</a>
+        <div class="legend" style="margin-bottom:10px;">
+          <span class="legend-item"><i class="dot" style="background:var(--send);"></i>Emermédica</span>
+          <span class="legend-item"><i class="dot dot-vip"></i>Clínica VIP</span>
+          <span class="legend-item"><i class="dot dot-fsfb"></i>FSFB</span>
         </div>
-        <p class="card-hint" style="margin:10px 0 0;">Abren cada botón directo en Google Maps.</p>
+        <div class="places-list">
+
+          <div class="place-row place-company">
+            <div class="place-info">
+              <span class="place-name">Toberín</span>
+              <span class="place-tag">🏢 Sede principal</span>
+            </div>
+            <div class="place-actions">
+              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Cra.%2019b%20%23168-35%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+              <a class="place-action" href="https://waze.com/ul?q=Cra.%2019b%20%23168-35%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+            </div>
+          </div>
+
+          <div class="place-row place-company place-company-secondary">
+            <div class="place-info">
+              <span class="place-name">Alsacia</span>
+              <span class="place-tag">🏢 Sede secundaria</span>
+            </div>
+            <div class="place-actions">
+              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+              <a class="place-action" href="https://waze.com/ul?q=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+            </div>
+          </div>
+
+          <div class="place-row place-vip">
+            <div class="place-info">
+              <span class="place-name">Clínica VIP</span>
+              <span class="place-tag">🏥 Clínica cliente</span>
+            </div>
+            <div class="place-actions">
+              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Calle%2097%20%2323-10%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+              <a class="place-action" href="https://waze.com/ul?q=Calle%2097%20%2323-10%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+            </div>
+          </div>
+
+          <div class="place-row place-fsfb">
+            <div class="place-info">
+              <span class="place-name">FSFB</span>
+              <span class="place-tag">🏥 Clínica cliente</span>
+            </div>
+            <div class="place-actions">
+              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Calle%20117%20%237-65%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+              <a class="place-action" href="https://waze.com/ul?q=Calle%20117%20%237-65%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+            </div>
+          </div>
+
+        </div>
       </section>
 
       <!-- Respaldo -->
@@ -192,6 +240,15 @@
     <h3>📊 Resumen del día</h3>
     <p class="card-hint" style="margin-top:-4px;">Suma de todos los auxiliares con datos registrados hoy.</p>
     <div id="summaryContent" class="summary-content"></div>
+  </div>
+</div>
+
+<div id="historyModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="historyModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>🕓 Historial de reportes</h3>
+    <p class="card-hint" style="margin-top:-4px;">Lo que se copió/envió hoy para el auxiliar actual, del más reciente al más antiguo.</p>
+    <div id="historyContent" class="history-content"></div>
   </div>
 </div>
 

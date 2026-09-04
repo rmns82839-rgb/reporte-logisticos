@@ -125,6 +125,8 @@ html,body{
   display:flex;
   align-items:center;
   gap:12px;
+  min-width:0;
+  overflow:hidden;
 }
 .topbar-actions{
   display:flex;
@@ -173,6 +175,9 @@ html,body{
   letter-spacing:.03em;
   text-transform:uppercase;
   margin-bottom:2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .topbar h1{
   margin:0;
@@ -180,6 +185,9 @@ html,body{
   font-size:20px;
   font-weight:700;
   letter-spacing:-0.01em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .icon-btn{
   width:40px;
@@ -493,6 +501,22 @@ main{
 }
 .hour-row.is-reported .hour-time{color:var(--send);}
 
+/* franja horaria que corresponde a la hora del reloj en este momento */
+.hour-row.is-now{
+  border-color:rgba(255,176,32,0.7);
+  background:rgba(255,176,32,0.08);
+}
+.hour-row.is-now .hour-time::before{
+  content:"🕐 ";
+}
+@media (prefers-reduced-motion: no-preference){
+  .hour-row.is-now{animation:now-pulse 2.4s ease-in-out infinite;}
+  @keyframes now-pulse{
+    0%, 100%{box-shadow:0 0 0 0 rgba(255,176,32,0.35);}
+    50%{box-shadow:0 0 0 4px rgba(255,176,32,0);}
+  }
+}
+
 /* botones Recibido y Cancelado, separados, con la compañía entre medio */
 .status-btn{
   grid-row:1;
@@ -677,29 +701,97 @@ main{
   padding:20px 0;
 }
 
-/* ---------- Ir a... (accesos directos a Google Maps) ---------- */
-.places-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
+/* ---------- Historial de reportes enviados ---------- */
+.history-content{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.history-item{
+  border-radius:var(--radius-m);
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  padding:12px;
+}
+.history-item-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
   gap:8px;
 }
-.place-btn{
+.history-time{
+  font-size:12px;
+  font-weight:800;
+  color:var(--send);
+}
+.history-copy-btn{
+  padding:6px 12px;
+  border-radius:999px;
+  border:1.5px solid var(--border);
+  background:var(--surface-3);
+  color:var(--text);
+  font-size:11.5px;
+  font-weight:700;
+  cursor:pointer;
+  flex-shrink:0;
+}
+.history-copy-btn:active{background:var(--surface-2);}
+.history-text{
+  margin:0;
+  white-space:pre-wrap;
+  word-break:break-word;
+  font-family:var(--font-body);
+  font-size:12px;
+  line-height:1.6;
+  color:var(--text-dim);
+  max-height:140px;
+  overflow-y:auto;
+}
+
+/* ---------- Ir a... (Maps + Waze, con color según a quién pertenece) ---------- */
+.places-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.place-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:var(--radius-m);
+  border:1.5px solid var(--border);
+  border-left:4px solid var(--border);
+  background:var(--surface-2);
+}
+.place-row.place-company{border-left-color:var(--send);}
+.place-row.place-company-secondary{border-left-style:dashed;}
+.place-row.place-vip{border-left-color:var(--vip);}
+.place-row.place-fsfb{border-left-color:var(--fsfb);}
+
+.place-info{display:flex; flex-direction:column; gap:2px;}
+.place-name{font-size:14px; font-weight:800; color:var(--text);}
+.place-tag{font-size:11px; font-weight:700; color:var(--text-faint);}
+
+.place-actions{display:flex; gap:6px; flex-shrink:0;}
+.place-action{
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:6px;
-  min-height:46px;
-  padding:10px;
+  min-height:38px;
+  padding:0 12px;
   border-radius:var(--radius-s);
   border:1.5px solid var(--border);
-  background:var(--surface-2);
+  background:var(--surface-3);
   color:var(--text);
-  font-size:13px;
+  font-size:12px;
   font-weight:700;
   text-decoration:none;
-  text-align:center;
+  white-space:nowrap;
 }
-.place-btn:active{background:var(--surface-3); transform:scale(0.98);}
+.place-action:active{background:var(--surface-2); transform:scale(0.96);}
 
 /* ---------- Respaldo ---------- */
 .backup-actions{
@@ -986,7 +1078,7 @@ main{
 }
 
 /* ---------- efecto ripple universal ---------- */
-.btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn, .place-btn, .btn-secondary-sm, .status-btn{
+.btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn, .place-action, .btn-secondary-sm, .status-btn, .history-copy-btn{
   position:relative;
   overflow:hidden;
 }
@@ -1085,6 +1177,9 @@ main{
   .hour-row{grid-template-columns:40px 32px 1fr 32px; gap:5px;}
   .status-btn{width:32px; height:32px; font-size:13px;}
   .stats-strip{grid-template-columns:1fr 1fr;}
+  .topbar-actions{gap:5px;}
+  .icon-btn{width:34px; height:34px;}
+  .topbar h1{font-size:17px;}
 }
 
 /* ---------- tablet / escritorio ---------- */
