@@ -85,8 +85,15 @@ function localDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
+let extraIdCounter = 0;
+function nextExtraId() {
+  extraIdCounter += 1;
+  return "e" + Date.now() + "_" + extraIdCounter;
+}
+
 function freshAuxData() {
   return {
+    activeDate: localDateKey(),
     hours: buildFixedHours(),
     extras: [],
     tubes: emptyTubeState(),
@@ -94,6 +101,7 @@ function freshAuxData() {
     otrosDetalle: "",
     papeleria: [],
     pickupsToday: { date: localDateKey(), count: 0 },
+    pickupLog: [], // historial de lo enviado, para poder deshacer la última recogida
   };
 }
 
@@ -140,10 +148,13 @@ function loadState() {
       });
       d.extras.forEach(e => {
         if (typeof e.pickup === "undefined") e.pickup = null;
+        if (!e.id) e.id = nextExtraId();
       });
       if (!d.pickupsToday || typeof d.pickupsToday.count !== "number") {
         d.pickupsToday = { date: localDateKey(), count: 0 };
       }
+      if (!Array.isArray(d.pickupLog)) d.pickupLog = [];
+      if (typeof d.activeDate !== "string") d.activeDate = localDateKey();
     });
     return parsed;
   } catch (e) {
@@ -171,11 +182,22 @@ function currentAuxName() {
 
 // Devuelve (y crea si hace falta) los datos del auxiliar activo.
 // Si no hay auxiliar seleccionado, entrega un set vacío sin persistirlo.
+// Si los datos guardados son de un día anterior, se reinician solos para
+// que nunca se mezclen horas/tubos de ayer con los de hoy.
+let dayResetHappened = false;
 function currentData() {
   const key = currentAuxKey();
   if (!key) return freshAuxData();
   if (!state.byAux[key]) state.byAux[key] = freshAuxData();
-  return state.byAux[key];
+  const data = state.byAux[key];
+  const today = localDateKey();
+  if (data.activeDate !== today) {
+    state.byAux[key] = freshAuxData();
+    dayResetHappened = true;
+    saveState();
+    return state.byAux[key];
+  }
+  return data;
 }
 
 function ensurePickupsToday(data) {
@@ -189,31 +211,87 @@ function ensurePickupsToday(data) {
 // recibido pero que aún no pertenezca a ninguna recogida pasa a formar
 // la siguiente (1ra, 2da, 3ra... del día), y los cancelados pendientes
 // quedan marcados como ya informados. Así el próximo reporte que se
-// envíe no repite lo que ya se mandó en este.
+// envíe no repite lo que ya se mandó en este. Queda un registro de todo
+// lo que cambió para poder deshacerlo con "Deshacer última recogida".
 function registerSendBatch(data) {
   ensurePickupsToday(data);
-  const pendingReceived = [];
-  data.hours.forEach(h => { if (h.selected && !h.pickup) pendingReceived.push(h); });
-  data.extras.forEach(e => { if (e.company && e.time && !e.pickup) pendingReceived.push(e); });
 
-  if (pendingReceived.length > 0) {
+  const hourIndices = [];
+  data.hours.forEach((h, i) => { if (h.selected && !h.pickup) hourIndices.push(i); });
+  const extraIds = [];
+  data.extras.forEach(e => { if (e.company && e.time && !e.pickup) extraIds.push(e.id); });
+
+  let pickupNum = null;
+  if (hourIndices.length > 0 || extraIds.length > 0) {
     data.pickupsToday.count += 1;
-    const num = data.pickupsToday.count;
-    pendingReceived.forEach(h => { h.pickup = num; });
+    pickupNum = data.pickupsToday.count;
+    hourIndices.forEach(i => { data.hours[i].pickup = pickupNum; });
+    data.extras.forEach(e => { if (extraIds.includes(e.id)) e.pickup = pickupNum; });
   }
 
-  data.hours.forEach(h => { if (h.cancelled) h.cancelReported = true; });
+  const cancelledHourIndices = [];
+  data.hours.forEach((h, i) => {
+    if (h.cancelled && !h.cancelReported) {
+      h.cancelReported = true;
+      cancelledHourIndices.push(i);
+    }
+  });
 
   // los tubos de esta recogida pasan al acumulado del día y el contador
   // visible se reinicia en 0 para la siguiente recogida
+  const tubeDelta = {};
+  let tubesNonZero = false;
   TUBOS.forEach(tb => {
     const c = data.tubes[tb.key];
+    tubeDelta[tb.key] = { vip: c.vip, fsfb: c.fsfb, poliza: c.poliza };
+    if (c.vip || c.fsfb || c.poliza) tubesNonZero = true;
     const r = data.tubesReported[tb.key];
     r.vip += c.vip;
     r.fsfb += c.fsfb;
     r.poliza += c.poliza;
   });
   data.tubes = emptyTubeState();
+
+  if (hourIndices.length > 0 || extraIds.length > 0 || cancelledHourIndices.length > 0 || tubesNonZero) {
+    if (!Array.isArray(data.pickupLog)) data.pickupLog = [];
+    data.pickupLog.push({ pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta });
+  }
+}
+
+// Revierte exactamente lo que registró el último envío/copia: desasigna
+// el número de recogida de esas horas, regresa los tubos de esa recogida
+// al contador visible (restándolos del acumulado), y desmarca los
+// cancelados que se habían dado por informados. Devuelve true si deshizo algo.
+function undoLastPickup(data) {
+  if (!Array.isArray(data.pickupLog) || data.pickupLog.length === 0) return false;
+  const last = data.pickupLog.pop();
+
+  last.hourIndices.forEach(i => {
+    if (data.hours[i]) data.hours[i].pickup = null;
+  });
+  last.extraIds.forEach(id => {
+    const e = data.extras.find(x => x.id === id);
+    if (e) e.pickup = null;
+  });
+  last.cancelledHourIndices.forEach(i => {
+    if (data.hours[i]) data.hours[i].cancelReported = false;
+  });
+
+  TUBOS.forEach(tb => {
+    const d = last.tubeDelta[tb.key];
+    if (!d) return;
+    data.tubesReported[tb.key].vip -= d.vip;
+    data.tubesReported[tb.key].fsfb -= d.fsfb;
+    data.tubesReported[tb.key].poliza -= d.poliza;
+    data.tubes[tb.key].vip += d.vip;
+    data.tubes[tb.key].fsfb += d.fsfb;
+    data.tubes[tb.key].poliza += d.poliza;
+  });
+
+  if (typeof last.pickupNum === "number" && data.pickupsToday.count === last.pickupNum) {
+    data.pickupsToday.count -= 1;
+  }
+  return true;
 }
 
 // Antes de copiar/enviar: si hay horas nuevas marcadas como recibidas pero
@@ -254,7 +332,7 @@ function spawnRipple(el, x, y) {
 }
 
 document.addEventListener("pointerdown", (e) => {
-  const el = e.target.closest(".btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn");
+  const el = e.target.closest(".btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn, .place-btn, .btn-secondary-sm, .status-btn");
   if (!el || el.disabled) return;
   spawnRipple(el, e.clientX, e.clientY);
 });
@@ -276,6 +354,7 @@ const hourGridB = document.getElementById("hourGridB");
 const hourBadgeA = document.getElementById("hourBadgeA");
 const hourBadgeB = document.getElementById("hourBadgeB");
 const pickupInfo = document.getElementById("pickupInfo");
+const undoPickupBtn = document.getElementById("undoPickupBtn");
 const extraList = document.getElementById("extraList");
 const addExtraBtn = document.getElementById("addExtraBtn");
 
@@ -302,6 +381,15 @@ const installModalIOS = document.getElementById("installModalIOS");
 const installConfirmBtn = document.getElementById("installConfirmBtn");
 const installModalClose = document.getElementById("installModalClose");
 const installModalDismiss = document.getElementById("installModalDismiss");
+
+const summaryBtn = document.getElementById("summaryBtn");
+const summaryModal = document.getElementById("summaryModal");
+const summaryModalClose = document.getElementById("summaryModalClose");
+const summaryContent = document.getElementById("summaryContent");
+
+const exportBtn = document.getElementById("exportBtn");
+const importBtn = document.getElementById("importBtn");
+const importFile = document.getElementById("importFile");
 
 // ---------------- Render: Auxiliares ----------------
 const AUX_COLORS = ["#4A8DFB", "#F1453B", "#FFB020", "#1FD290", "#C58CF0", "#3FAFA6", "#F0C33C", "#E29A3E", "#8C9BFF"];
@@ -491,6 +579,8 @@ function renderHours() {
   } else {
     pickupInfo.hidden = true;
   }
+
+  undoPickupBtn.hidden = !(Array.isArray(data.pickupLog) && data.pickupLog.length > 0);
 }
 
 // ---------------- Render: Horas extra ----------------
@@ -535,7 +625,7 @@ function renderExtras() {
 
 addExtraBtn.addEventListener("click", () => {
   const data = currentData();
-  data.extras.push({ time: "", company: "vip", pickup: null });
+  data.extras.push({ time: "", company: "vip", pickup: null, id: nextExtraId() });
   saveState();
   renderExtras();
 });
@@ -988,6 +1078,70 @@ function computeCounts() {
   return { patientTotal, tubeTotal };
 }
 
+// Nombre legible para una clave de auxiliar guardada (usada en el resumen del día)
+function labelForAuxKey(key) {
+  if (key === "custom") return "Otro / doctor";
+  if (key.startsWith("fixed:")) return key.slice(6);
+  return key;
+}
+
+// Suma pacientes y tubos de TODOS los auxiliares con datos de HOY.
+// Si un auxiliar no se ha abierto hoy, sus datos guardados son de un día
+// anterior y todavía no se reiniciaron (el reinicio es perezoso, ocurre
+// al entrar a esa persona) — por eso aquí se filtran explícitamente por
+// activeDate, para no sumar números viejos por accidente.
+function buildDailySummary() {
+  const today = localDateKey();
+  const rows = [];
+  let grandPatients = 0;
+  let grandTubes = 0;
+
+  Object.keys(state.byAux).forEach(key => {
+    const d = state.byAux[key];
+    if (!d || d.activeDate !== today) return;
+
+    const patientTotal = d.hours.filter(h => h.selected).length
+      + d.extras.filter(e => e.company && e.time).length;
+
+    let tubeTotal = 0;
+    TUBOS.forEach(tb => {
+      const c = d.tubes[tb.key];
+      const r = d.tubesReported[tb.key];
+      tubeTotal += c.vip + c.fsfb + c.poliza + r.vip + r.fsfb + r.poliza;
+    });
+
+    if (patientTotal === 0 && tubeTotal === 0) return;
+
+    rows.push({ name: labelForAuxKey(key), patientTotal, tubeTotal });
+    grandPatients += patientTotal;
+    grandTubes += tubeTotal;
+  });
+
+  rows.sort((a, b) => a.name.localeCompare(b.name, "es"));
+  return { rows, grandPatients, grandTubes };
+}
+
+function renderSummaryModal() {
+  const { rows, grandPatients, grandTubes } = buildDailySummary();
+
+  if (rows.length === 0) {
+    summaryContent.innerHTML = `<p class="summary-empty">Todavía no hay datos registrados hoy.</p>`;
+    return;
+  }
+
+  const rowsHtml = rows.map(r => `
+    <div class="summary-row">
+      <span class="summary-name">${r.name}</span>
+      <span class="summary-nums">👥 ${r.patientTotal} · 🧪 ${r.tubeTotal}</span>
+    </div>`).join("");
+
+  summaryContent.innerHTML = rowsHtml + `
+    <div class="summary-row summary-total">
+      <span class="summary-name">Total del día</span>
+      <span class="summary-nums">👥 ${grandPatients} · 🧪 ${grandTubes}</span>
+    </div>`;
+}
+
 let lastStats = { patientTotal: -1, tubeTotal: -1 };
 
 function renderStats() {
@@ -1079,6 +1233,15 @@ resetBtn.addEventListener("click", () => {
   renderAll();
 });
 
+undoPickupBtn.addEventListener("click", () => {
+  const data = currentData();
+  if (!confirm("¿Deshacer la última recogida enviada? Las horas y tubos de ese envío volverán a quedar pendientes.")) return;
+  const undone = undoLastPickup(data);
+  saveState();
+  renderAll();
+  if (undone) showToast("Última recogida deshecha");
+});
+
 // ---------------- Init ----------------
 function renderAll() {
   renderAux();
@@ -1087,6 +1250,10 @@ function renderAll() {
   renderTubes();
   renderPapeleria();
   renderPreview();
+  if (dayResetHappened) {
+    dayResetHappened = false;
+    showToast("🗓️ Nuevo día — se reinició el reporte de " + currentAuxName(), 3200);
+  }
 }
 
 renderAll();
@@ -1170,4 +1337,66 @@ installModal.addEventListener("click", (e) => {
 window.addEventListener("appinstalled", () => {
   installBtn.hidden = true;
   closeInstallModal(true);
+});
+
+// ---------------- Resumen del día ----------------
+summaryBtn.addEventListener("click", () => {
+  renderSummaryModal();
+  summaryModal.hidden = false;
+});
+summaryModalClose.addEventListener("click", () => { summaryModal.hidden = true; });
+summaryModal.addEventListener("click", (e) => {
+  if (e.target === summaryModal) summaryModal.hidden = true;
+});
+
+// ---------------- Respaldo: exportar / restaurar ----------------
+exportBtn.addEventListener("click", () => {
+  try {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reporte-logisticos-respaldo-${localDateKey()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Respaldo descargado");
+  } catch (e) {
+    showToast("No se pudo exportar el respaldo");
+  }
+});
+
+importBtn.addEventListener("click", () => {
+  importFile.value = "";
+  importFile.click();
+});
+
+importFile.addEventListener("change", () => {
+  const file = importFile.files && importFile.files[0];
+  if (!file) return;
+
+  if (!confirm("¿Restaurar este respaldo? Se reemplazarán todos los datos actuales de la app.")) {
+    importFile.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed || typeof parsed !== "object" || typeof parsed.byAux !== "object") {
+        showToast("Ese archivo no parece ser un respaldo válido");
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      state = loadState() || freshState();
+      renderAll();
+      showToast("Respaldo restaurado");
+    } catch (e) {
+      showToast("No se pudo leer el archivo de respaldo");
+    }
+  };
+  reader.onerror = () => showToast("No se pudo leer el archivo de respaldo");
+  reader.readAsText(file);
 });

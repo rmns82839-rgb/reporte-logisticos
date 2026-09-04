@@ -30,6 +30,9 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <button id="summaryBtn" class="icon-btn" type="button" title="Resumen del día" aria-label="Resumen del día">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M5 21V10h3v11H5zm7.5 0V3h3v18h-3zM19 21v-7h3v7h-3z"/></svg>
+      </button>
       <button id="installBtn" class="icon-btn install-btn" type="button" title="Instalar app" aria-label="Instalar app" hidden>
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1zM5 19h14v2H5z"/></svg>
       </button>
@@ -66,6 +69,7 @@
         </div>
         <p class="card-hint">Toca ✓ si la hora llegó, o ✕ si esa recogida fue cancelada. El desplegable ya viene en VIP — solo cámbialo si fue FSFB o Poliza. Antes de enviar necesitas al menos un tubo registrado, salvo que canceles la hora.</p>
         <p id="pickupInfo" class="pickup-info" hidden></p>
+        <button id="undoPickupBtn" class="ghost-btn ghost-btn-danger" type="button" hidden>↩️ Deshacer última recogida</button>
 
         <details class="hour-group" open>
           <summary><span class="group-label">5:00 AM – 8:00 AM</span><span id="hourBadgeA" class="group-badge">0/7</span></summary>
@@ -122,6 +126,29 @@
         <p class="card-hint" style="margin-top:-4px;">Aquí ves todo el día. Al copiar o enviar, solo se manda lo nuevo desde la última recogida.</p>
         <pre id="preview" class="preview"></pre>
       </section>
+
+      <!-- Ir a... -->
+      <section class="card">
+        <h2 class="card-title">📍 Ir a...</h2>
+        <div class="places-grid">
+          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ Alsacia</a>
+          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Toberin%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ Toberín</a>
+          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Calle%2097%20%2323-10%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ Clínica VIP</a>
+          <a class="place-btn" href="https://www.google.com/maps/search/?api=1&query=Calle%20117%20%237-65%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🏍️ FSFB</a>
+        </div>
+        <p class="card-hint" style="margin:10px 0 0;">Toberín está con una dirección aproximada — dame la exacta y la ajusto.</p>
+      </section>
+
+      <!-- Respaldo -->
+      <section class="card">
+        <h2 class="card-title">💾 Respaldo</h2>
+        <p class="card-hint">Guarda una copia de todos los auxiliares y su historial de hoy, o restaura una copia anterior.</p>
+        <div class="backup-actions">
+          <button id="exportBtn" class="btn-secondary-sm" type="button">⬇️ Exportar respaldo</button>
+          <button id="importBtn" class="btn-secondary-sm" type="button">⬆️ Restaurar respaldo</button>
+        </div>
+        <input id="importFile" type="file" accept="application/json" hidden>
+      </section>
     </div>
 
   </main>
@@ -156,6 +183,15 @@
       <li>Confirma tocando <strong>“Agregar”</strong></li>
     </ol>
     <button id="installModalDismiss" class="ghost-btn" type="button">Ahora no</button>
+  </div>
+</div>
+
+<div id="summaryModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="summaryModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>📊 Resumen del día</h3>
+    <p class="card-hint" style="margin-top:-4px;">Suma de todos los auxiliares con datos registrados hoy.</p>
+    <div id="summaryContent" class="summary-content"></div>
   </div>
 </div>
 

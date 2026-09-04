@@ -639,6 +639,87 @@ main{
   cursor:pointer;
 }
 .ghost-btn:active{background:var(--surface-2);}
+.ghost-btn-danger{
+  border-color:rgba(255,92,92,0.45);
+  color:var(--danger);
+  margin-top:8px;
+}
+.ghost-btn-danger:active{background:rgba(255,92,92,0.12);}
+
+/* ---------- Resumen del día ---------- */
+.summary-content{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.summary-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:var(--radius-s);
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  font-size:13px;
+}
+.summary-row .summary-name{font-weight:800; color:var(--text);}
+.summary-row .summary-nums{color:var(--text-dim); font-weight:600; white-space:nowrap;}
+.summary-row.summary-total{
+  background:var(--send-soft);
+  border-color:rgba(31,210,144,0.35);
+  font-weight:800;
+}
+.summary-empty{
+  text-align:center;
+  color:var(--text-faint);
+  font-size:13px;
+  padding:20px 0;
+}
+
+/* ---------- Ir a... (accesos directos a Google Maps) ---------- */
+.places-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.place-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height:46px;
+  padding:10px;
+  border-radius:var(--radius-s);
+  border:1.5px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text);
+  font-size:13px;
+  font-weight:700;
+  text-decoration:none;
+  text-align:center;
+}
+.place-btn:active{background:var(--surface-3); transform:scale(0.98);}
+
+/* ---------- Respaldo ---------- */
+.backup-actions{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.btn-secondary-sm{
+  width:100%;
+  padding:12px;
+  border-radius:var(--radius-s);
+  border:1.5px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text);
+  font-family:inherit;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+.btn-secondary-sm:active{background:var(--surface-3);}
 
 /* ---------- papelería para doctores ---------- */
 .papeleria-list{
@@ -905,7 +986,7 @@ main{
 }
 
 /* ---------- efecto ripple universal ---------- */
-.btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn{
+.btn, .icon-btn, .aux-chip, .step-btn, .cancel-btn, .ghost-btn, .del-btn, .aux-other-btn, .place-btn, .btn-secondary-sm, .status-btn{
   position:relative;
   overflow:hidden;
 }
@@ -1070,6 +1151,13 @@ main{
   box-shadow:0 -10px 40px -12px rgba(0,0,0,0.7);
   text-align:center;
 }
+.modal-card-wide{
+  max-width:520px;
+  max-height:80vh;
+  overflow-y:auto;
+  text-align:left;
+}
+.modal-card-wide h3{text-align:center;}
 @media (prefers-reduced-motion: no-preference){
   .modal-card{animation:modal-in .25s cubic-bezier(.22,.9,.32,1) both;}
   @keyframes modal-in{
