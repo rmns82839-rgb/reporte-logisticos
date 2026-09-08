@@ -568,97 +568,46 @@ function renderHourGroup(container, data, start, end, currentIdx) {
       cornerTag.textContent = "✔";
     }
 
-    let countTag = null;
-    if (slot.selected && slot.count > 1) {
-      countTag = document.createElement("span");
-      countTag.className = "count-tag";
-      countTag.title = `${slot.count} pacientes en esta hora (misma hora, distinta solicitud)`;
-      countTag.textContent = `×${slot.count}`;
-    }
-
-    // dos botones separados: ✓ Recibido / ✕ Cancelado (mutuamente excluyentes),
-    // con el desplegable de compañía (o la etiqueta de cancelado) entre medio.
-    // El ✓ además soporta mantenerlo presionado: un toque normal
-    // marca/desmarca recibido; mantenerlo presionado sube el conteo
-    // (×2, ×3...) para cuando el mismo paciente tiene dos números de
-    // solicitud a la misma hora.
+    // ✓ Recibido / ✕ Cancelado (mutuamente excluyentes) — dos toques
+    // simples, sin gestos raros que se puedan disparar sin querer.
     const receivedBtn = document.createElement("button");
     receivedBtn.type = "button";
     receivedBtn.className = "status-btn status-received" + (slot.selected ? " active" : "");
     receivedBtn.setAttribute("aria-pressed", String(!!slot.selected));
-    receivedBtn.title = slot.selected
-      ? (slot.count > 1
-          ? `×${slot.count} pacientes — toca para bajar de a uno, mantén presionado para subir más`
-          : "Recibido — toca para deshacer, mantén presionado para sumar ×2, ×3...")
-      : "Marcar como recibido (mantén presionado para varios pacientes a la misma hora)";
+    receivedBtn.title = slot.selected ? "Recibido — toca para deshacer" : "Marcar como recibido";
     receivedBtn.textContent = "✓";
+    receivedBtn.addEventListener("click", () => {
+      const nowSelected = !data.hours[i].selected;
+      data.hours[i].selected = nowSelected;
+      if (nowSelected) data.hours[i].cancelled = false;
+      lastToggledHourIndex = i;
+      saveState();
+      renderHours();
+      renderPreview();
+    });
 
-    (function bindReceivedHold() {
-      let holdTimeout = null;
-      let holdInterval = null;
-      let holdFired = false;
-
-      function countTick() {
-        data.hours[i].selected = true;
-        data.hours[i].cancelled = false;
-        data.hours[i].count = (data.hours[i].count || 1) + 1;
-        showHoldBubble(receivedBtn, "×" + data.hours[i].count);
-      }
-
-      function start(e) {
-        e.preventDefault();
-        holdFired = false;
-        // "captura" el puntero: así el mantener-presionado no se cancela
-        // si el dedo o el mouse se mueve un poco fuera del botón mientras
-        // se sostiene — todos los eventos siguen llegando a este botón
-        try { receivedBtn.setPointerCapture(e.pointerId); } catch (err) { /* no soportado, sigue igual */ }
-        // señal visual inmediata: confirma que el toque se registró,
-        // aunque el conteo todavía no haya arrancado
-        receivedBtn.classList.add("charging");
-        holdTimeout = setTimeout(() => {
-          holdFired = true;
-          countTick();
-          holdInterval = setInterval(countTick, 260);
-        }, 320);
-      }
-
-      function stop() {
-        clearTimeout(holdTimeout);
-        clearInterval(holdInterval);
-        holdTimeout = null;
-        holdInterval = null;
-        hideHoldBubble();
-        receivedBtn.classList.remove("charging");
-
-        if (holdFired) {
-          lastToggledHourIndex = i;
-          saveState();
-          renderHours();
-          renderPreview();
-        } else if (data.hours[i].selected && (data.hours[i].count || 1) > 1) {
-          // ya estaba marcada con varios pacientes: un toque normal
-          // baja de a uno, sin tener que desmarcar y volver a empezar
-          data.hours[i].count -= 1;
-          lastToggledHourIndex = i;
-          saveState();
-          renderHours();
-          renderPreview();
-        } else {
-          const nowSelected = !data.hours[i].selected;
-          data.hours[i].selected = nowSelected;
-          data.hours[i].count = 1;
-          if (nowSelected) data.hours[i].cancelled = false;
-          lastToggledHourIndex = i;
-          saveState();
-          renderHours();
-          renderPreview();
-        }
-      }
-
-      receivedBtn.addEventListener("pointerdown", start);
-      receivedBtn.addEventListener("pointerup", stop);
-      receivedBtn.addEventListener("pointercancel", stop);
-    })();
+    // Botón aparte, chiquito, solo visible cuando ya está recibido: para
+    // cuando el mismo paciente tiene dos números de solicitud a la misma
+    // hora. Es un botón independiente a propósito — así nunca se activa
+    // sin querer por dejar el dedo un poco más de tiempo sobre el ✓.
+    // Cada toque suma un paciente (×2, ×3...); al llegar a ×5 vuelve a ×1.
+    let countBtn = null;
+    if (slot.selected) {
+      countBtn = document.createElement("button");
+      countBtn.type = "button";
+      countBtn.className = "count-tag" + (slot.count > 1 ? " active" : "");
+      countBtn.title = "Toca para sumar otro paciente a esta misma hora (×2, ×3...)";
+      countBtn.textContent = `×${slot.count || 1}`;
+      countBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const current = data.hours[i].count || 1;
+        data.hours[i].count = current >= 5 ? 1 : current + 1;
+        lastToggledHourIndex = i;
+        saveState();
+        renderHours();
+        renderPreview();
+      });
+    }
 
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
@@ -690,7 +639,7 @@ function renderHourGroup(container, data, start, end, currentIdx) {
     row.appendChild(select);
     row.appendChild(cancelBtn);
     if (cornerTag) row.appendChild(cornerTag);
-    if (countTag) row.appendChild(countTag);
+    if (countBtn) row.appendChild(countBtn);
     container.appendChild(row);
   }
 }
