@@ -1,9 +1,11 @@
-const CACHE_NAME = "reporte-logisticos-v17";
+const CACHE_NAME = "reporte-logisticos-v20";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./script.js",
+  "./sync.js",
+  "./people.js",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -29,6 +31,14 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  // Solo controlamos los archivos propios de la app (mismo origen).
+  // Las peticiones a Firebase/Firestore/Google Fonts deben ir directo
+  // a la red sin pasar por este caché — si las interceptáramos, se
+  // podría romper la sincronización en tiempo real del coordinador.
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;

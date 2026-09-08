@@ -45,7 +45,7 @@ function buildFixedHours() {
   const list = [];
   let h = 5, m = 0;
   for (let i = 0; i < 13; i++) {
-    list.push({ time: formatTime(h, m), selected: false, company: "vip", cancelled: false, pickup: null, cancelReported: false });
+    list.push({ time: formatTime(h, m), selected: false, company: "vip", cancelled: false, pickup: null, cancelReported: false, count: 1 });
     m += 30;
     if (m >= 60) { m = 0; h += 1; }
   }
@@ -146,6 +146,7 @@ function loadState() {
         if (typeof h.cancelled !== "boolean") h.cancelled = false;
         if (typeof h.pickup === "undefined") h.pickup = null;
         if (typeof h.cancelReported !== "boolean") h.cancelReported = false;
+        if (typeof h.count !== "number" || h.count < 1) h.count = 1;
       });
       d.extras.forEach(e => {
         if (typeof e.pickup === "undefined") e.pickup = null;
@@ -168,6 +169,34 @@ function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) { /* almacenamiento no disponible, seguimos sin persistir */ }
+  pushCoordinatorSync();
+}
+
+// Manda un resumen liviano del auxiliar activo al panel de coordinador
+// (si sync.js cargó y ya sabe quién es este logístico). Si algo de esto
+// no está disponible, simplemente no hace nada — la app sigue 100% local.
+function pushCoordinatorSync() {
+  if (!window.ReporteSync) return;
+  const auxKey = currentAuxKey();
+  if (!auxKey) return;
+  const data = state.byAux[auxKey];
+  if (!data) return;
+
+  const patientTotal = data.hours.filter(h => h.selected).reduce((sum, h) => sum + (h.count || 1), 0)
+    + data.extras.filter(e => e.company && e.time).length;
+
+  let tubeTotal = 0;
+  TUBOS.forEach(tb => {
+    const c = data.tubes[tb.key];
+    const r = data.tubesReported[tb.key];
+    tubeTotal += c.vip + c.fsfb + c.poliza + r.vip + r.fsfb + r.poliza;
+  });
+
+  window.ReporteSync.syncAux(auxKey, currentAuxName(), {
+    patientTotal,
+    tubeTotal,
+    pickupsToday: data.pickupsToday ? data.pickupsToday.count : 0,
+  });
 }
 
 function currentAuxKey() {
@@ -539,23 +568,80 @@ function renderHourGroup(container, data, start, end, currentIdx) {
       cornerTag.textContent = "✔";
     }
 
+    let countTag = null;
+    if (slot.selected && slot.count > 1) {
+      countTag = document.createElement("span");
+      countTag.className = "count-tag";
+      countTag.title = `${slot.count} pacientes en esta hora (misma hora, distinta solicitud)`;
+      countTag.textContent = `×${slot.count}`;
+    }
+
     // dos botones separados: ✓ Recibido / ✕ Cancelado (mutuamente excluyentes),
-    // con el desplegable de compañía (o la etiqueta de cancelado) entre medio
+    // con el desplegable de compañía (o la etiqueta de cancelado) entre medio.
+    // El ✓ además soporta mantenerlo presionado: un toque normal
+    // marca/desmarca recibido; mantenerlo presionado sube el conteo
+    // (×2, ×3...) para cuando el mismo paciente tiene dos números de
+    // solicitud a la misma hora.
     const receivedBtn = document.createElement("button");
     receivedBtn.type = "button";
     receivedBtn.className = "status-btn status-received" + (slot.selected ? " active" : "");
     receivedBtn.setAttribute("aria-pressed", String(!!slot.selected));
-    receivedBtn.title = slot.selected ? "Recibido — toca para deshacer" : "Marcar como recibido";
+    receivedBtn.title = slot.selected
+      ? "Recibido — toca para deshacer, mantén presionado para sumar ×2, ×3..."
+      : "Marcar como recibido (mantén presionado para varios pacientes a la misma hora)";
     receivedBtn.textContent = "✓";
-    receivedBtn.addEventListener("click", () => {
-      const nowSelected = !data.hours[i].selected;
-      data.hours[i].selected = nowSelected;
-      if (nowSelected) data.hours[i].cancelled = false;
-      lastToggledHourIndex = i;
-      saveState();
-      renderHours();
-      renderPreview();
-    });
+
+    (function bindReceivedHold() {
+      let holdTimeout = null;
+      let holdInterval = null;
+      let holdFired = false;
+
+      function countTick() {
+        data.hours[i].selected = true;
+        data.hours[i].cancelled = false;
+        data.hours[i].count = (data.hours[i].count || 1) + 1;
+        showHoldBubble(receivedBtn, "×" + data.hours[i].count);
+      }
+
+      function start(e) {
+        e.preventDefault();
+        holdFired = false;
+        holdTimeout = setTimeout(() => {
+          holdFired = true;
+          countTick();
+          holdInterval = setInterval(countTick, 260);
+        }, 420);
+      }
+
+      function stop() {
+        clearTimeout(holdTimeout);
+        clearInterval(holdInterval);
+        holdTimeout = null;
+        holdInterval = null;
+        hideHoldBubble();
+
+        if (holdFired) {
+          lastToggledHourIndex = i;
+          saveState();
+          renderHours();
+          renderPreview();
+        } else {
+          const nowSelected = !data.hours[i].selected;
+          data.hours[i].selected = nowSelected;
+          data.hours[i].count = 1;
+          if (nowSelected) data.hours[i].cancelled = false;
+          lastToggledHourIndex = i;
+          saveState();
+          renderHours();
+          renderPreview();
+        }
+      }
+
+      receivedBtn.addEventListener("pointerdown", start);
+      receivedBtn.addEventListener("pointerup", stop);
+      receivedBtn.addEventListener("pointerleave", stop);
+      receivedBtn.addEventListener("pointercancel", stop);
+    })();
 
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
@@ -587,6 +673,7 @@ function renderHourGroup(container, data, start, end, currentIdx) {
     row.appendChild(select);
     row.appendChild(cancelBtn);
     if (cornerTag) row.appendChild(cornerTag);
+    if (countTag) row.appendChild(countTag);
     container.appendChild(row);
   }
 }
@@ -972,12 +1059,14 @@ function buildMessage(data, opts) {
   lines.push("");
   lines.push("⏰ *Horas:*");
 
+  const hourLine = h => `• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}${h.count > 1 ? ` ×${h.count}` : ""}`;
+
   if (relevantHours.length === 0 && relevantExtras.length === 0) {
     lines.push(forSend ? "• Nada nuevo por reportar" : "• Sin horas marcadas");
   } else if (forSend) {
     // reporte de una sola recogida (la actual): lista simple, sin agrupar
     relevantHours.forEach(h => {
-      lines.push(`• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`);
+      lines.push(hourLine(h));
     });
     relevantExtras.forEach(e => {
       lines.push(`• ${formatExtraTime(e.time)} — ${companyEmoji(e.company)} ${companyLabel(e.company).toUpperCase()} (extra)`);
@@ -989,7 +1078,7 @@ function buildMessage(data, opts) {
     const pendingLines = [];
 
     relevantHours.forEach(h => {
-      const line = `• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`;
+      const line = hourLine(h);
       if (h.pickup) { (groups[h.pickup] = groups[h.pickup] || []).push(line); }
       else pendingLines.push(line);
     });
@@ -1049,7 +1138,7 @@ function buildMessage(data, opts) {
   }
 
   const patientTotals = { vip: 0, fsfb: 0, poliza: 0 };
-  relevantHours.forEach(h => patientTotals[h.company]++);
+  relevantHours.forEach(h => { patientTotals[h.company] += (h.count || 1); });
   relevantExtras.forEach(e => patientTotals[e.company]++);
 
   const tubeTotals = { vip: 0, fsfb: 0, poliza: 0 };
@@ -1109,7 +1198,7 @@ function computeCounts() {
   const data = currentData();
   const markedHours = data.hours.filter(h => h.selected);
   const markedExtras = data.extras.filter(e => e.company && e.time);
-  const patientTotal = markedHours.length + markedExtras.length;
+  const patientTotal = markedHours.reduce((sum, h) => sum + (h.count || 1), 0) + markedExtras.length;
 
   let tubeTotal = 0;
   TUBOS.forEach(tb => {
@@ -1143,7 +1232,7 @@ function buildDailySummary() {
     const d = state.byAux[key];
     if (!d || d.activeDate !== today) return;
 
-    const patientTotal = d.hours.filter(h => h.selected).length
+    const patientTotal = d.hours.filter(h => h.selected).reduce((sum, h) => sum + (h.count || 1), 0)
       + d.extras.filter(e => e.company && e.time).length;
 
     let tubeTotal = 0;
@@ -1512,6 +1601,54 @@ historyBtn.addEventListener("click", () => {
 historyModalClose.addEventListener("click", () => { historyModal.hidden = true; });
 historyModal.addEventListener("click", (e) => {
   if (e.target === historyModal) historyModal.hidden = true;
+});
+
+// ---------------- Identidad del logístico (para el panel de coordinador) ----------------
+// Se pregunta una sola vez por celular, apenas se confirma que sync.js
+// cargó correctamente. Si Firebase no está disponible (sin internet,
+// CDN bloqueado, etc.) simplemente no se pregunta nada y la app sigue
+// funcionando exactamente igual que siempre.
+const IDENTITY_SKIPPED_KEY = "reporte_logisticos_identity_skipped";
+
+window.addEventListener("load", () => {
+  if (!window.ReporteSync) return;
+  if (window.ReporteSync.getMyIdentity()) return;
+  let skipped = false;
+  try { skipped = !!localStorage.getItem(IDENTITY_SKIPPED_KEY); } catch (e) {}
+  if (skipped) return;
+
+  const identityModal = document.getElementById("identityModal");
+  const identityInput = document.getElementById("identityInput");
+  const identityError = document.getElementById("identityError");
+  const identitySaveBtn = document.getElementById("identitySaveBtn");
+  const identitySkipBtn = document.getElementById("identitySkipBtn");
+  if (!identityModal || !identityInput || !identitySaveBtn || !identitySkipBtn) return;
+
+  identityModal.hidden = false;
+
+  identitySaveBtn.addEventListener("click", () => {
+    const val = identityInput.value.trim();
+    if (!val) { identityInput.focus(); return; }
+    const person = window.ReporteSync.loginWithPhone(val);
+    if (!person) {
+      identityError.style.display = "block";
+      identityInput.focus();
+      return;
+    }
+    identityModal.hidden = true;
+    pushCoordinatorSync();
+    showToast(`¡Listo, ${person.name}! Ya apareces en el panel de coordinador.`, 2600);
+  });
+
+  identitySkipBtn.addEventListener("click", () => {
+    try { localStorage.setItem(IDENTITY_SKIPPED_KEY, "1"); } catch (e) {}
+    identityModal.hidden = true;
+  });
+
+  identityInput.addEventListener("input", () => { identityError.style.display = "none"; });
+  identityInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") identitySaveBtn.click();
+  });
 });
 
 // ---------------- Respaldo: exportar / restaurar ----------------
