@@ -587,7 +587,9 @@ function renderHourGroup(container, data, start, end, currentIdx) {
     receivedBtn.className = "status-btn status-received" + (slot.selected ? " active" : "");
     receivedBtn.setAttribute("aria-pressed", String(!!slot.selected));
     receivedBtn.title = slot.selected
-      ? "Recibido — toca para deshacer, mantén presionado para sumar ×2, ×3..."
+      ? (slot.count > 1
+          ? `×${slot.count} pacientes — toca para bajar de a uno, mantén presionado para subir más`
+          : "Recibido — toca para deshacer, mantén presionado para sumar ×2, ×3...")
       : "Marcar como recibido (mantén presionado para varios pacientes a la misma hora)";
     receivedBtn.textContent = "✓";
 
@@ -629,6 +631,14 @@ function renderHourGroup(container, data, start, end, currentIdx) {
         receivedBtn.classList.remove("charging");
 
         if (holdFired) {
+          lastToggledHourIndex = i;
+          saveState();
+          renderHours();
+          renderPreview();
+        } else if (data.hours[i].selected && (data.hours[i].count || 1) > 1) {
+          // ya estaba marcada con varios pacientes: un toque normal
+          // baja de a uno, sin tener que desmarcar y volver a empezar
+          data.hours[i].count -= 1;
           lastToggledHourIndex = i;
           saveState();
           renderHours();
