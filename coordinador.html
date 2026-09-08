@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0D16">
+<title>Panel del coordinador — Reporte Logísticos</title>
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0D16;
+    --surface:#12172A;
+    --surface-2:#171E33;
+    --surface-3:#1E2740;
+    --border:#262F49;
+    --text:#F3F5FA;
+    --text-dim:#AEB6CC;
+    --text-faint:#6E7797;
+    --send:#1FD290;
+    --send-soft:rgba(31,210,144,0.14);
+    --vip:#F1453B;
+    --fsfb:#4A8DFB;
+    --poliza:#FFB020;
+    --danger:#FF5C5C;
+    --radius-m:14px;
+    --radius-l:22px;
+    --font-body:'Inter', system-ui, sans-serif;
+    --font-display:'Sora', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    padding:24px 16px 60px;
+    min-height:100vh;
+  }
+  .wrap{max-width:640px; margin:0 auto;}
+  h1{
+    font-family:var(--font-display);
+    font-size:22px;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .subtitle{color:var(--text-faint); font-size:13px; margin:0 0 18px;}
+
+  /* ---------- pantalla de login ---------- */
+  .login-card{
+    max-width:360px;
+    margin:60px auto 0;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:var(--radius-l);
+    padding:26px 22px;
+    text-align:center;
+  }
+  .login-card h2{font-family:var(--font-display); font-size:19px; margin:0 0 8px;}
+  .login-card p{color:var(--text-faint); font-size:13px; margin:0 0 18px; line-height:1.5;}
+  .text-input{
+    width:100%;
+    padding:13px 14px;
+    border-radius:10px;
+    border:1.5px solid var(--border);
+    background:var(--surface-3);
+    color:var(--text);
+    font-family:inherit;
+    font-size:15px;
+    font-weight:700;
+    text-align:center;
+    letter-spacing:.02em;
+    margin-bottom:10px;
+  }
+  .text-input::placeholder{color:var(--text-faint); font-weight:500;}
+  .btn-primary{
+    width:100%;
+    padding:13px;
+    border-radius:10px;
+    border:none;
+    background:var(--send);
+    color:#06251A;
+    font-family:inherit;
+    font-size:14px;
+    font-weight:800;
+    cursor:pointer;
+  }
+  .login-error{color:var(--danger); font-size:12.5px; margin:0 0 10px; display:none;}
+
+  /* ---------- panel ---------- */
+  .status-line{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    color:var(--text-faint);
+    font-weight:600;
+    margin-bottom:20px;
+    padding:10px 14px;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:999px;
+    width:fit-content;
+  }
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--danger); flex-shrink:0;}
+  .dot.online{background:var(--send);}
+  @keyframes pulse-dot{0%,100%{opacity:1;} 50%{opacity:.4;}}
+  .dot.online{animation:pulse-dot 2s ease-in-out infinite;}
+
+  .day-totals{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .day-totals .chip{
+    flex:1;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:var(--radius-m);
+    padding:14px;
+    text-align:center;
+  }
+  .day-totals .chip .num{font-family:var(--font-display); font-size:24px; font-weight:800;}
+  .day-totals .chip .lbl{font-size:11px; color:var(--text-faint); font-weight:700; text-transform:uppercase; letter-spacing:.03em;}
+
+  .cards{display:flex; flex-direction:column; gap:10px;}
+  .card{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-left:4px solid var(--send);
+    border-radius:var(--radius-m);
+    padding:14px 16px;
+    transition:border-color .3s ease;
+  }
+  .card.stale{border-left-color:var(--text-faint); opacity:.72;}
+  .card-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom:9px;
+  }
+  .who{font-weight:800; font-size:15px; min-width:0;}
+  .who .arrow{color:var(--text-faint); font-weight:500; margin:0 5px;}
+  .updated{font-size:11px; color:var(--text-faint); white-space:nowrap; flex-shrink:0; display:flex; align-items:center; gap:5px;}
+
+  /* insignia "EN VIVO" para tarjetas que se actualizaron hace menos de 1 min */
+  .live-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    background:rgba(255,92,92,0.16);
+    color:var(--danger);
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:.03em;
+    padding:2px 7px 2px 5px;
+    border-radius:999px;
+  }
+  .live-badge .live-dot{
+    width:6px; height:6px; border-radius:50%; background:var(--danger);
+  }
+  @keyframes live-blink{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  .live-badge .live-dot{animation:live-blink 1s ease-in-out infinite;}
+
+  .nums{display:flex; gap:16px; font-size:13px; color:var(--text-dim); font-weight:700; flex-wrap:wrap;}
+
+  .empty{
+    text-align:center;
+    color:var(--text-faint);
+    padding:60px 20px;
+    font-size:14px;
+    background:var(--surface-2);
+    border:1px dashed var(--border);
+    border-radius:var(--radius-m);
+  }
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="wrap">
+  <div class="login-card">
+    <h2>👋 Panel del coordinador</h2>
+    <p>Escribe tu número de celular para entrar. Solo los números autorizados como coordinador pueden ver este panel.</p>
+    <input id="loginInput" type="tel" inputmode="numeric" class="text-input" placeholder="Tu número de celular" maxlength="10">
+    <p id="loginError" class="login-error">Ese número no está autorizado como coordinador.</p>
+    <button id="loginBtn" type="button" class="btn-primary">Entrar</button>
+  </div>
+</div>
+
+<div id="panelScreen" class="wrap" hidden>
+
+  <h1>📊 Panel del coordinador</h1>
+  <p class="subtitle" id="welcomeText">Estado en vivo de todos los logísticos — hoy</p>
+  <div class="status-line"><span id="statusDot" class="dot"></span><span id="statusText">Conectando...</span></div>
+
+  <div class="day-totals">
+    <div class="chip"><div id="totalPatients" class="num">0</div><div class="lbl">👥 Pacientes</div></div>
+    <div class="chip"><div id="totalTubes" class="num">0</div><div class="lbl">🧪 Tubos</div></div>
+  </div>
+
+  <div id="cards" class="cards">
+    <p class="empty">Cargando...</p>
+  </div>
+
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+  import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { lookupPerson } from "./people.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
+    authDomain: "reporte-logisticos.firebaseapp.com",
+    projectId: "reporte-logisticos",
+    storageBucket: "reporte-logisticos.firebasestorage.app",
+    messagingSenderId: "382009731060",
+    appId: "1:382009731060:web:b0cd599f69d98bdf1afba1",
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  const loginScreen = document.getElementById("loginScreen");
+  const panelScreen = document.getElementById("panelScreen");
+  const loginInput = document.getElementById("loginInput");
+  const loginError = document.getElementById("loginError");
+  const loginBtn = document.getElementById("loginBtn");
+  const welcomeText = document.getElementById("welcomeText");
+
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+  const cardsEl = document.getElementById("cards");
+  const totalPatientsEl = document.getElementById("totalPatients");
+  const totalTubesEl = document.getElementById("totalTubes");
+
+  const COORD_SESSION_KEY = "reporte_logisticos_coordinador_session";
+
+  function localDateKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function timeAgo(ts) {
+    if (!ts || typeof ts.toMillis !== "function") return "sin datos";
+    const ms = Date.now() - ts.toMillis();
+    const min = Math.floor(ms / 60000);
+    if (min < 1) return "justo ahora";
+    if (min === 1) return "hace 1 min";
+    if (min < 60) return `hace ${min} min`;
+    const h = Math.floor(min / 60);
+    return `hace ${h} h`;
+  }
+
+  function isStale(ts) {
+    if (!ts || typeof ts.toMillis !== "function") return true;
+    return (Date.now() - ts.toMillis()) > 20 * 60 * 1000; // más de 20 min sin actualizar
+  }
+
+  function isLiveNow(ts) {
+    if (!ts || typeof ts.toMillis !== "function") return false;
+    return (Date.now() - ts.toMillis()) < 60 * 1000; // se actualizó hace menos de 1 min
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  let lastDocs = [];
+
+  function render(docs) {
+    lastDocs = docs;
+    if (docs.length === 0) {
+      cardsEl.innerHTML = '<p class="empty">Todavía no hay actividad registrada hoy.</p>';
+      totalPatientsEl.textContent = "0";
+      totalTubesEl.textContent = "0";
+      return;
+    }
+
+    docs.sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
+
+    let sumPatients = 0;
+    let sumTubes = 0;
+    docs.forEach(d => {
+      sumPatients += d.patientTotal || 0;
+      sumTubes += d.tubeTotal || 0;
+    });
+    totalPatientsEl.textContent = sumPatients;
+    totalTubesEl.textContent = sumTubes;
+
+    cardsEl.innerHTML = docs.map(d => `
+      <div class="card${isStale(d.updatedAt) ? " stale" : ""}">
+        <div class="card-top">
+          <span class="who">${escapeHtml(d.logisticoName || "?")}<span class="arrow">→</span>${escapeHtml(d.auxName || "?")}</span>
+          <span class="updated">
+            ${isLiveNow(d.updatedAt) ? '<span class="live-badge"><span class="live-dot"></span>EN VIVO</span>' : ""}
+            ${timeAgo(d.updatedAt)}
+          </span>
+        </div>
+        <div class="nums">
+          <span>👥 ${d.patientTotal || 0} pacientes</span>
+          <span>🧪 ${d.tubeTotal || 0} tubos</span>
+          <span>🔁 recogida ${d.pickupsToday || 0}</span>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function startPanel(person) {
+    loginScreen.hidden = true;
+    panelScreen.hidden = false;
+    welcomeText.textContent = `Hola ${person.name} — estado en vivo de todos los logísticos, hoy`;
+
+    signInAnonymously(auth).catch((e) => {
+      statusText.textContent = "No se pudo conectar";
+      console.error(e);
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      statusDot.classList.add("online");
+      statusText.textContent = "Conectado — actualizando en vivo";
+
+      const today = localDateKey();
+      const q = query(collection(db, "dailyStatus"), where("date", "==", today));
+      onSnapshot(q, (snap) => {
+        const docs = [];
+        snap.forEach(docSnap => docs.push(docSnap.data()));
+        render(docs);
+      }, (err) => {
+        statusDot.classList.remove("online");
+        statusText.textContent = "Error de conexión";
+        console.error(err);
+      });
+    });
+
+    // Refresca "hace X min" / la insignia EN VIVO cada 15s aunque no llegue data nueva
+    setInterval(() => { render(lastDocs); }, 15000);
+  }
+
+  function tryLogin(rawPhone) {
+    const person = lookupPerson(rawPhone);
+    if (!person || !person.coordinador) {
+      loginError.style.display = "block";
+      return;
+    }
+    try { sessionStorage.setItem(COORD_SESSION_KEY, JSON.stringify(person)); } catch (e) {}
+    startPanel(person);
+  }
+
+  loginBtn.addEventListener("click", () => tryLogin(loginInput.value));
+  loginInput.addEventListener("input", () => { loginError.style.display = "none"; });
+  loginInput.addEventListener("keydown", (e) => { if (e.key === "Enter") tryLogin(loginInput.value); });
+
+  // Si ya inició sesión en esta pestaña/sesión del navegador, entra directo
+  try {
+    const saved = sessionStorage.getItem(COORD_SESSION_KEY);
+    if (saved) startPanel(JSON.parse(saved));
+  } catch (e) { /* sin sessionStorage, simplemente pide login de nuevo */ }
+</script>
+</body>
+</html>
