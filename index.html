@@ -36,11 +36,9 @@
       <button id="summaryBtn" class="icon-btn" type="button" title="Resumen del día" aria-label="Resumen del día">
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M5 21V10h3v11H5zm7.5 0V3h3v18h-3zM19 21v-7h3v7h-3z"/></svg>
       </button>
-      <button id="installBtn" class="icon-btn install-btn" type="button" title="Instalar app" aria-label="Instalar app" hidden>
-        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1zM5 19h14v2H5z"/></svg>
-      </button>
-      <button id="resetBtn" class="icon-btn" type="button" title="Nuevo reporte" aria-label="Nuevo reporte">
-        <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6a6 6 0 0 1-6 6 6 6 0 0 1-6-6H4a8 8 0 0 0 8 8 8 8 0 0 0 8-8 8 8 0 0 0-8-8z"/></svg>
+
+      <button id="resetBtn" class="icon-btn" type="button" title="Borrar datos de este auxiliar" aria-label="Borrar datos de este auxiliar">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 7h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7zm3-4h6l1.5 2H19v2H5V5h3.5L10 3zM9.5 9.5v8h1.5v-8H9.5zm3.5 0v8h1.5v-8H13z"/></svg>
       </button>
     </div>
   </header>
@@ -239,24 +237,6 @@
 </div>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-<div id="installModal" class="modal-overlay" hidden>
-  <div class="modal-card">
-    <button id="installModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
-    <div class="modal-icon"><img src="icons/icon-192.png" width="60" height="60" alt=""></div>
-    <h3>Instalar Reporte Logísticos</h3>
-    <p>Instálala en tu celular para abrirla más rápido, en pantalla completa y hasta sin conexión.</p>
-    <div id="installModalAndroid" class="modal-actions" hidden>
-      <button id="installConfirmBtn" class="btn btn-primary" type="button">Instalar app</button>
-    </div>
-    <ol id="installModalIOS" class="install-steps" hidden>
-      <li>Toca el botón <strong>Compartir</strong> en Safari</li>
-      <li>Elige <strong>“Agregar a pantalla de inicio”</strong></li>
-      <li>Confirma tocando <strong>“Agregar”</strong></li>
-    </ol>
-    <button id="installModalDismiss" class="ghost-btn" type="button">Ahora no</button>
-  </div>
-</div>
 
 <div id="summaryModal" class="modal-overlay" hidden>
   <div class="modal-card modal-card-wide">
