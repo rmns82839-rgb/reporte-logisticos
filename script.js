@@ -606,11 +606,18 @@ function renderHourGroup(container, data, start, end, currentIdx) {
       function start(e) {
         e.preventDefault();
         holdFired = false;
+        // "captura" el puntero: así el mantener-presionado no se cancela
+        // si el dedo o el mouse se mueve un poco fuera del botón mientras
+        // se sostiene — todos los eventos siguen llegando a este botón
+        try { receivedBtn.setPointerCapture(e.pointerId); } catch (err) { /* no soportado, sigue igual */ }
+        // señal visual inmediata: confirma que el toque se registró,
+        // aunque el conteo todavía no haya arrancado
+        receivedBtn.classList.add("charging");
         holdTimeout = setTimeout(() => {
           holdFired = true;
           countTick();
           holdInterval = setInterval(countTick, 260);
-        }, 420);
+        }, 320);
       }
 
       function stop() {
@@ -619,6 +626,7 @@ function renderHourGroup(container, data, start, end, currentIdx) {
         holdTimeout = null;
         holdInterval = null;
         hideHoldBubble();
+        receivedBtn.classList.remove("charging");
 
         if (holdFired) {
           lastToggledHourIndex = i;
@@ -639,7 +647,6 @@ function renderHourGroup(container, data, start, end, currentIdx) {
 
       receivedBtn.addEventListener("pointerdown", start);
       receivedBtn.addEventListener("pointerup", stop);
-      receivedBtn.addEventListener("pointerleave", stop);
       receivedBtn.addEventListener("pointercancel", stop);
     })();
 
@@ -802,6 +809,9 @@ function bindHoldStepper(btn, step, getCount, setCount, valueEl, totalEl, getTot
 
   function start(e) {
     e.preventDefault();
+    // "captura" el puntero: el mantener-presionado no se corta si el
+    // dedo/mouse se mueve un poco fuera del botón mientras se sostiene
+    try { btn.setPointerCapture(e.pointerId); } catch (err) { /* no soportado, sigue igual */ }
     tick();
     showHoldBubble(btn, String(getCount()));
     holdTimeout = setTimeout(() => {
@@ -823,7 +833,6 @@ function bindHoldStepper(btn, step, getCount, setCount, valueEl, totalEl, getTot
 
   btn.addEventListener("pointerdown", start);
   btn.addEventListener("pointerup", stop);
-  btn.addEventListener("pointerleave", stop);
   btn.addEventListener("pointercancel", stop);
 }
 
