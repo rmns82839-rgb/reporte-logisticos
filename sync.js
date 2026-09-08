@@ -12,6 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, serverTimestamp,
+  collection, query, where, onSnapshot, updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { lookupPerson } from "./people.js";
 
@@ -137,4 +138,56 @@ function syncAux(auxKey, auxName, summary) {
   }, 1500);
 }
 
-window.ReporteSync = { getMyIdentity, loginWithPhone, logout, syncAux };
+// ---------------- Asignaciones del coordinador ----------------
+// El coordinador crea una asignación (logístico + auxiliar + dirección)
+// desde /coordinador.html. Aquí el logístico la escucha en vivo para
+// mostrarle el aviso dentro de la app normal.
+let assignmentUnsub = null;
+
+function listenMyAssignments(callback) {
+  if (!db) return () => {};
+  const me = getMyIdentity();
+  if (!me) return () => {};
+
+  if (assignmentUnsub) { assignmentUnsub(); assignmentUnsub = null; }
+
+  const dateKey = localDateKey();
+  const q = query(
+    collection(db, "assignments"),
+    where("date", "==", dateKey),
+    where("logisticoPhone", "==", me.phone)
+  );
+
+  whenReady().then(() => {
+    assignmentUnsub = onSnapshot(q, (snap) => {
+      const docs = [];
+      snap.forEach(docSnap => docs.push({ id: docSnap.id, ...docSnap.data() }));
+      callback(docs);
+    }, (e) => {
+      console.warn("[sync.js] No se pudo escuchar asignaciones:", e);
+    });
+  });
+
+  return () => { if (assignmentUnsub) { assignmentUnsub(); assignmentUnsub = null; } };
+}
+
+async function markAssignmentSeen(id) {
+  if (!db) return;
+  try {
+    await whenReady();
+    await updateDoc(doc(db, "assignments", id), { status: "vista", seenAt: serverTimestamp() });
+  } catch (e) { /* si falla, no pasa nada — el coordinador solo no ve el cambio de estado */ }
+}
+
+async function markAssignmentDone(id) {
+  if (!db) return;
+  try {
+    await whenReady();
+    await updateDoc(doc(db, "assignments", id), { status: "hecha", doneAt: serverTimestamp() });
+  } catch (e) { console.warn("[sync.js] No se pudo marcar la asignación como hecha:", e); }
+}
+
+window.ReporteSync = {
+  getMyIdentity, loginWithPhone, logout, syncAux,
+  listenMyAssignments, markAssignmentSeen, markAssignmentDone,
+};

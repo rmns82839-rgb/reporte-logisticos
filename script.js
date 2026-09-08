@@ -138,6 +138,7 @@ function loadState() {
       if (typeof d.otrosDetalle !== "string") d.otrosDetalle = "";
       if (!Array.isArray(d.extras)) d.extras = [];
       if (!Array.isArray(d.papeleria)) d.papeleria = [];
+      d.papeleria.forEach(p => { if (typeof p.pickup === "undefined") p.pickup = null; });
       if (!Array.isArray(d.hours) || d.hours.some(h => typeof h.selected === "undefined")) {
         delete parsed.byAux[key];
         return;
@@ -251,13 +252,16 @@ function registerSendBatch(data) {
   data.hours.forEach((h, i) => { if (h.selected && !h.pickup) hourIndices.push(i); });
   const extraIds = [];
   data.extras.forEach(e => { if (e.company && e.time && !e.pickup) extraIds.push(e.id); });
+  const papeleriaIndices = [];
+  data.papeleria.forEach((p, i) => { if (p.tipo && p.tipo.trim() && !p.pickup) papeleriaIndices.push(i); });
 
   let pickupNum = null;
-  if (hourIndices.length > 0 || extraIds.length > 0) {
+  if (hourIndices.length > 0 || extraIds.length > 0 || papeleriaIndices.length > 0) {
     data.pickupsToday.count += 1;
     pickupNum = data.pickupsToday.count;
     hourIndices.forEach(i => { data.hours[i].pickup = pickupNum; });
     data.extras.forEach(e => { if (extraIds.includes(e.id)) e.pickup = pickupNum; });
+    papeleriaIndices.forEach(i => { data.papeleria[i].pickup = pickupNum; });
   }
 
   const cancelledHourIndices = [];
@@ -283,9 +287,9 @@ function registerSendBatch(data) {
   });
   data.tubes = emptyTubeState();
 
-  if (hourIndices.length > 0 || extraIds.length > 0 || cancelledHourIndices.length > 0 || tubesNonZero) {
+  if (hourIndices.length > 0 || extraIds.length > 0 || cancelledHourIndices.length > 0 || tubesNonZero || papeleriaIndices.length > 0) {
     if (!Array.isArray(data.pickupLog)) data.pickupLog = [];
-    data.pickupLog.push({ pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta });
+    data.pickupLog.push({ pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta, papeleriaIndices });
   }
 }
 
@@ -306,6 +310,9 @@ function undoLastPickup(data) {
   });
   last.cancelledHourIndices.forEach(i => {
     if (data.hours[i]) data.hours[i].cancelReported = false;
+  });
+  (last.papeleriaIndices || []).forEach(i => {
+    if (data.papeleria[i]) data.papeleria[i].pickup = null;
   });
 
   TUBOS.forEach(tb => {
@@ -404,6 +411,17 @@ const sendBtn = document.getElementById("sendBtn");
 const resetBtn = document.getElementById("resetBtn");
 const toast = document.getElementById("toast");
 const statsStrip = document.getElementById("statsStrip");
+
+const assignmentBanner = document.getElementById("assignmentBanner");
+const assignmentBannerTime = document.getElementById("assignmentBannerTime");
+const assignmentBannerText = document.getElementById("assignmentBannerText");
+const assignmentBannerMaps = document.getElementById("assignmentBannerMaps");
+const assignmentBannerWaze = document.getElementById("assignmentBannerWaze");
+const assignmentBannerDoneBtn = document.getElementById("assignmentBannerDoneBtn");
+
+const welcomeStrip = document.getElementById("welcomeStrip");
+const welcomeAvatar = document.getElementById("welcomeAvatar");
+const welcomeGreeting = document.getElementById("welcomeGreeting");
 
 const installBtn = document.getElementById("installBtn");
 const installModal = document.getElementById("installModal");
@@ -590,24 +608,30 @@ function renderHourGroup(container, data, start, end, currentIdx) {
     // cuando el mismo paciente tiene dos números de solicitud a la misma
     // hora. Es un botón independiente a propósito — así nunca se activa
     // sin querer por dejar el dedo un poco más de tiempo sobre el ✓.
-    // Cada toque suma un paciente (×2, ×3...); al llegar a ×5 vuelve a ×1.
+    // Cada toque suma un paciente (×2, ×3); al llegar a ×3 vuelve a ×1.
+    // Va como insignia pegada a la esquina del botón ✓ (no suelta en la fila).
     let countBtn = null;
     if (slot.selected) {
       countBtn = document.createElement("button");
       countBtn.type = "button";
       countBtn.className = "count-tag" + (slot.count > 1 ? " active" : "");
-      countBtn.title = "Toca para sumar otro paciente a esta misma hora (×2, ×3...)";
+      countBtn.title = "Toca para sumar otro paciente a esta misma hora (×2, ×3)";
       countBtn.textContent = `×${slot.count || 1}`;
       countBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const current = data.hours[i].count || 1;
-        data.hours[i].count = current >= 5 ? 1 : current + 1;
+        data.hours[i].count = current >= 3 ? 1 : current + 1;
         lastToggledHourIndex = i;
         saveState();
         renderHours();
         renderPreview();
       });
     }
+
+    const receivedWrap = document.createElement("div");
+    receivedWrap.className = "received-wrap";
+    receivedWrap.appendChild(receivedBtn);
+    if (countBtn) receivedWrap.appendChild(countBtn);
 
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
@@ -635,11 +659,10 @@ function renderHourGroup(container, data, start, end, currentIdx) {
     });
 
     row.appendChild(label);
-    row.appendChild(receivedBtn);
+    row.appendChild(receivedWrap);
     row.appendChild(select);
     row.appendChild(cancelBtn);
     if (cornerTag) row.appendChild(cornerTag);
-    if (countBtn) row.appendChild(countBtn);
     container.appendChild(row);
   }
 }
@@ -969,7 +992,7 @@ function renderPapeleria() {
 
 addPapeleriaBtn.addEventListener("click", () => {
   const data = currentData();
-  data.papeleria.push({ tipo: "", doctor: "", cantidad: 1 });
+  data.papeleria.push({ tipo: "", doctor: "", cantidad: 1, pickup: null });
   saveState();
   renderPapeleria();
 });
@@ -1140,7 +1163,9 @@ function buildMessage(data, opts) {
   lines.push("🧪 Tubos:");
   lines.push(tubeBlocks.length ? tubeBlocks.join("\n\n") : "• sin datos");
 
-  const papeleriaItems = data.papeleria.filter(p => p.tipo && p.tipo.trim());
+  const papeleriaItems = forSend
+    ? data.papeleria.filter(p => p.tipo && p.tipo.trim() && !p.pickup)
+    : data.papeleria.filter(p => p.tipo && p.tipo.trim());
   if (papeleriaItems.length > 0) {
     lines.push("");
     lines.push("📄 *Papelería recibida de doctores:*");
@@ -1537,7 +1562,8 @@ function hasUnsentData(data) {
     const c = data.tubes[tb.key];
     return c.vip > 0 || c.fsfb > 0 || c.poliza > 0;
   });
-  return pendingHours || pendingExtras || pendingTubes;
+  const pendingPapeleria = data.papeleria.some(p => p.tipo && p.tipo.trim() && !p.pickup);
+  return pendingHours || pendingExtras || pendingTubes || pendingPapeleria;
 }
 
 function anyUnsentDataToday() {
@@ -1605,6 +1631,8 @@ window.addEventListener("load", () => {
     }
     identityModal.hidden = true;
     pushCoordinatorSync();
+    startAssignmentListener();
+    renderWelcomeStrip();
     showToast(`¡Listo, ${person.name}! Ya apareces en el panel de coordinador.`, 2600);
   });
 
@@ -1669,4 +1697,65 @@ importFile.addEventListener("change", () => {
   };
   reader.onerror = () => showToast("No se pudo leer el archivo de respaldo");
   reader.readAsText(file);
+});
+
+
+// ---------------- Asignaciones en vivo del coordinador ----------------
+// Muestra un aviso arriba de la app cuando el coordinador le asigna a
+// este logístico una dirección/auxiliar. Se actualiza solo, sin recargar.
+let currentAssignment = null;
+
+function renderAssignmentBanner(list) {
+  const pending = list
+    .filter(a => a.status !== "hecha")
+    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+  const a = pending[0] || null;
+  currentAssignment = a;
+
+  if (!a) {
+    assignmentBanner.hidden = true;
+    return;
+  }
+
+  assignmentBanner.hidden = false;
+  assignmentBannerText.textContent = `Ve donde ${a.auxName} — ${a.address}${a.note ? " · " + a.note : ""}`;
+  assignmentBannerTime.textContent = a.createdAt?.toMillis
+    ? new Date(a.createdAt.toMillis()).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
+    : "";
+
+  const q = encodeURIComponent(a.address);
+  assignmentBannerMaps.href = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  assignmentBannerWaze.href = `https://waze.com/ul?q=${q}&navigate=yes`;
+
+  if (a.status === "pendiente" && window.ReporteSync) {
+    window.ReporteSync.markAssignmentSeen(a.id);
+  }
+}
+
+function startAssignmentListener() {
+  if (!window.ReporteSync || !window.ReporteSync.getMyIdentity()) return;
+  window.ReporteSync.listenMyAssignments(renderAssignmentBanner);
+}
+
+assignmentBannerDoneBtn.addEventListener("click", () => {
+  if (!currentAssignment || !window.ReporteSync) return;
+  window.ReporteSync.markAssignmentDone(currentAssignment.id);
+  assignmentBanner.hidden = true;
+  showToast("Asignación marcada como hecha");
+});
+
+function renderWelcomeStrip() {
+  if (!window.ReporteSync) { welcomeStrip.hidden = true; return; }
+  const me = window.ReporteSync.getMyIdentity();
+  if (!me) { welcomeStrip.hidden = true; return; }
+  welcomeStrip.hidden = false;
+  welcomeAvatar.style.background = avatarColor(me.name);
+  welcomeAvatar.textContent = initials(me.name);
+  welcomeGreeting.textContent = `¡Hola, ${me.name}! 👋`;
+}
+
+window.addEventListener("load", () => {
+  renderWelcomeStrip();
+  setTimeout(startAssignmentListener, 800);
 });

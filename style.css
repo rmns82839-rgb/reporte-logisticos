@@ -557,7 +557,13 @@ main{
   flex-shrink:0;
 }
 .status-btn:active{transform:scale(0.94);}
-.hour-row .status-received{grid-column:2;}
+.hour-row .received-wrap{
+  grid-column:2;
+  position:relative;
+  width:37px;
+  height:37px;
+}
+.received-wrap .status-received{width:100%; height:100%;}
 .hour-row .status-cancel{grid-column:4;}
 .status-btn.status-received.active{
   background:var(--send);
@@ -596,27 +602,26 @@ main{
   color:#fff;
 }
 
-/* insignia ×N cuando una hora tiene más de un paciente (misma hora,
-   distinta solicitud) — esquina inferior derecha, para no chocar con
-   la insignia de recogida que va en la esquina superior derecha */
+/* insignia ×N pegada a la esquina superior derecha del botón ✓ mismo
+   (ya no suelta en la fila) — así queda claro que le pertenece a él */
 .count-tag{
   position:absolute;
-  bottom:-8px;
-  right:-7px;
-  min-width:22px;
-  height:22px;
-  padding:0 6px;
+  top:-8px;
+  right:-8px;
+  min-width:19px;
+  height:19px;
+  padding:0 5px;
   border-radius:999px;
   background:var(--surface-3);
   color:var(--text-faint);
   border:1.5px solid var(--border);
-  font-size:10px;
+  font-size:9.5px;
   font-weight:800;
   display:flex;
   align-items:center;
   justify-content:center;
   box-shadow:0 2px 6px -1px rgba(0,0,0,0.45), 0 0 0 2px var(--surface);
-  z-index:2;
+  z-index:3;
   cursor:pointer;
 }
 .count-tag.active{
@@ -1234,6 +1239,7 @@ main{
   .aux-grid{grid-template-columns:repeat(2,1fr);}
   .hour-row{grid-template-columns:40px 32px 1fr 32px; gap:5px;}
   .status-btn{width:32px; height:32px; font-size:13px;}
+  .hour-row .received-wrap{width:32px; height:32px;}
   .stats-strip{grid-template-columns:1fr 1fr;}
   .topbar-actions{gap:4px;}
   .icon-btn{width:32px; height:32px;}
@@ -1363,3 +1369,49 @@ main{
 @media (min-width:640px){
   .modal-overlay{align-items:center;}
 }
+
+/* ---------------- Aviso de asignación del coordinador ---------------- */
+.assignment-banner{
+  background:linear-gradient(160deg, rgba(31,210,144,0.16), rgba(31,210,144,0.05));
+  border:1px solid rgba(31,210,144,0.4);
+  border-radius:var(--radius-m);
+  padding:14px 16px;
+  margin:0 0 16px;
+}
+.assignment-banner-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+.assignment-banner-tag{font-size:11px; font-weight:800; color:var(--send); text-transform:uppercase; letter-spacing:.03em;}
+.assignment-banner-time{font-size:11px; color:var(--text-faint); font-weight:600;}
+.assignment-banner-text{font-size:14px; font-weight:700; color:var(--text); margin-bottom:12px; line-height:1.4;}
+.assignment-banner-actions{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;}
+.assignment-banner-btn{
+  display:flex; align-items:center; justify-content:center;
+  padding:9px 8px; border-radius:10px; border:none;
+  background:var(--surface-3); color:var(--text);
+  font-family:inherit; font-size:12.5px; font-weight:700;
+  text-decoration:none; cursor:pointer;
+}
+.assignment-banner-done{background:var(--send); color:#06251A;}
+
+/* ---------------- Saludo con avatar del logístico ---------------- */
+.welcome-strip{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:0 0 16px;
+}
+.welcome-avatar{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  font-size:15px;
+  color:#fff;
+  flex-shrink:0;
+  box-shadow:0 4px 12px -4px rgba(0,0,0,0.5);
+}
+.welcome-text{display:flex; flex-direction:column; gap:1px; min-width:0;}
+.welcome-greeting{font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--text);}
+.welcome-sub{font-size:11.5px; color:var(--text-faint); font-weight:600;}
