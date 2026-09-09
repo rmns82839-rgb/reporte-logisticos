@@ -283,6 +283,10 @@ main{
   font-weight:700;
   color:var(--text);
 }
+.card-divider{
+  border-top:1px dashed var(--border);
+  margin:18px 0 16px;
+}
 .card-head-row{
   display:flex;
   align-items:center;
@@ -1031,6 +1035,80 @@ main{
 }
 
 .otros-note{margin-top:10px;}
+
+/* ---------------- Botones de compañía (abren el modal de tubos) ---------------- */
+.company-tube-buttons{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:8px;
+}
+.company-tube-btn{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  padding:14px 8px;
+  border-radius:var(--radius-m);
+  border:1.5px solid var(--border);
+  background:var(--surface-2);
+  cursor:pointer;
+  font-family:inherit;
+}
+.co-btn-label{font-size:13px; font-weight:800; color:var(--text-dim);}
+.co-btn-count{font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--text-faint);}
+.company-tube-btn.co-btn-vip{border-color:rgba(241,69,59,0.4);}
+.company-tube-btn.co-btn-vip .co-btn-count{color:var(--vip);}
+.company-tube-btn.co-btn-fsfb{border-color:rgba(74,141,251,0.4);}
+.company-tube-btn.co-btn-fsfb .co-btn-count{color:var(--fsfb);}
+.company-tube-btn.co-btn-poliza{border-color:rgba(255,176,32,0.4);}
+.company-tube-btn.co-btn-poliza .co-btn-count{color:var(--poliza);}
+
+/* ---------------- Cuadrícula de tubos dentro del modal por compañía ---------------- */
+.tube-company-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+}
+.tube-co-tile{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  padding:10px 6px;
+  border-radius:12px;
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  transition:all .15s;
+}
+.tube-co-tile.active{
+  background:color-mix(in srgb, var(--co-color) 16%, var(--surface-3));
+  border-color:var(--co-color);
+}
+.tube-co-badge{
+  position:absolute; top:-7px; right:-7px;
+  background:var(--co-color); color:#08101f;
+  font-size:11px; font-weight:800;
+  width:20px; height:20px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid var(--surface);
+}
+.tube-co-emoji{font-size:22px; line-height:1;}
+.tube-co-label{font-size:10px; color:var(--text-dim); text-align:center; font-weight:600; min-height:24px;}
+.tube-co-tile.active .tube-co-label{color:var(--co-color);}
+.tube-co-controls{
+  display:flex; align-items:center;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:20px; overflow:hidden;
+}
+.tube-co-tile.active .tube-co-controls{border-color:var(--co-color);}
+.tube-co-step{
+  width:28px; height:28px; border:none; background:transparent;
+  color:var(--text-dim); cursor:pointer; font-size:16px; font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+}
+.tube-co-value{min-width:22px; text-align:center; font-size:14px; font-weight:800; color:var(--text-dim);}
+.tube-co-tile.active .tube-co-value{color:var(--co-color);}
 .otros-note input[type="text"]{
   width:100%;
   padding:10px 12px;

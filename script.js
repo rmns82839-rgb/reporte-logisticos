@@ -19,21 +19,22 @@ const COMPANIES = [
 ];
 
 const TUBOS = [
-  { key: "Amarillo",                emoji: "🟡", color: "var(--amarillo)",      text: "text-dark" },
-  { key: "Lila",                    emoji: "🟣", color: "var(--lila)",          text: "text-dark" },
-  { key: "Azul",                    emoji: "🔵", color: "var(--azul)",          text: "text-light" },
-  { key: "Orina",                   emoji: "💧", color: "var(--orina)",         text: "text-dark" },
-  { key: "Materia fecal",           emoji: "🟤", color: "var(--materia-fecal)", text: "text-light" },
-  { key: "Rojo",                    emoji: "🔴", color: "var(--rojo)",          text: "text-light" },
-  { key: "Orina 24h",               emoji: "⏳", color: "var(--orina24)",       text: "text-light" },
-  { key: "Saliva",                  emoji: "💦", color: "var(--saliva)",        text: "text-light" },
-  { key: "Transparente tapa perlada", emoji: "⚪", color: "var(--transparente)", text: "text-dark" },
-  { key: "Otros",                   emoji: "📦", color: "var(--otros)",         text: "text-light" },
+  { key: "Amarillo",     emoji: "🟡" },
+  { key: "Lila",         emoji: "🟣" },
+  { key: "Azul",         emoji: "🔵" },
+  { key: "Rojo",         emoji: "🔴" },
+  { key: "Azul rey",     emoji: "👑" },
+  { key: "Transparente", emoji: "⚪" },
+  { key: "Orina",        emoji: "💧" },
+  { key: "Orina 24h",    emoji: "🕐" },
+  { key: "Saliva",       emoji: "💦" },
+  { key: "Materia fecal",emoji: "💩" },
+  { key: "Laminas",      emoji: "🩸" },
+  { key: "Hisopo nasal", emoji: "👃" },
 ];
 
-// División para los dos acordeones de tubos
-const TUBOS_A = TUBOS.slice(0, 5);
-const TUBOS_B = TUBOS.slice(5);
+// (los 10 tipos de tubo ahora se muestran todos juntos dentro del modal
+// de cada compañía, sin dividir en dos grupos)
 
 // División de las 13 franjas fijas de horas para los dos acordeones
 const HOURS_SPLIT = 7; // 5:00 AM .. 8:00 AM = 7 franjas; el resto va al segundo grupo
@@ -97,7 +98,6 @@ function freshAuxData() {
     extras: [],
     tubes: emptyTubeState(),
     tubesReported: emptyTubeState(), // acumulado de recogidas ya enviadas hoy
-    otrosDetalle: "",
     papeleria: [],
     pickupsToday: { date: localDateKey(), count: 0 },
     pickupLog: [], // historial de lo enviado, para poder deshacer la última recogida
@@ -134,7 +134,7 @@ function loadState() {
       TUBOS.forEach(tb => {
         if (!d.tubesReported[tb.key]) d.tubesReported[tb.key] = { vip: 0, fsfb: 0, poliza: 0 };
       });
-      if (typeof d.otrosDetalle !== "string") d.otrosDetalle = "";
+      if (typeof d.otrosDetalle === "string") delete d.otrosDetalle; // "Otros" ya no existe como tipo de tubo
       if (!Array.isArray(d.extras)) d.extras = [];
       if (!Array.isArray(d.papeleria)) d.papeleria = [];
       d.papeleria.forEach(p => { if (typeof p.pickup === "undefined") p.pickup = null; });
@@ -429,10 +429,17 @@ const undoPickupBtn = document.getElementById("undoPickupBtn");
 const extraList = document.getElementById("extraList");
 const addExtraBtn = document.getElementById("addExtraBtn");
 
-const tubeListA = document.getElementById("tubeListA");
-const tubeListB = document.getElementById("tubeListB");
-const tubeBadgeA = document.getElementById("tubeBadgeA");
-const tubeBadgeB = document.getElementById("tubeBadgeB");
+const tubeCompanyBtnVip = document.getElementById("tubeCompanyBtnVip");
+const tubeCompanyBtnFsfb = document.getElementById("tubeCompanyBtnFsfb");
+const tubeCompanyBtnPoliza = document.getElementById("tubeCompanyBtnPoliza");
+const tubeCompanyCountVip = document.getElementById("tubeCompanyCountVip");
+const tubeCompanyCountFsfb = document.getElementById("tubeCompanyCountFsfb");
+const tubeCompanyCountPoliza = document.getElementById("tubeCompanyCountPoliza");
+const tubeCompanyModal = document.getElementById("tubeCompanyModal");
+const tubeCompanyModalTitle = document.getElementById("tubeCompanyModalTitle");
+const tubeCompanyModalClose = document.getElementById("tubeCompanyModalClose");
+const tubeCompanyModalDone = document.getElementById("tubeCompanyModalDone");
+const tubeCompanyGrid = document.getElementById("tubeCompanyGrid");
 const tubesInfo = document.getElementById("tubesInfo");
 
 const papeleriaList = document.getElementById("papeleriaList");
@@ -848,97 +855,27 @@ function bindHoldStepper(btn, step, getCount, setCount, valueEl, totalEl, getTot
   btn.addEventListener("pointercancel", stop);
 }
 
-function renderTubeGroup(container, data, group) {
-  container.innerHTML = "";
-  group.forEach(tb => {
-    const counts = data.tubes[tb.key];
-    const total = counts.vip + counts.fsfb + counts.poliza;
+const TUBE_COMPANY_META = {
+  vip:    { label: "VIP",    emoji: "🔴" },
+  fsfb:   { label: "FSFB",   emoji: "🔵" },
+  poliza: { label: "Poliza", emoji: "🟡" },
+};
 
-    const row = document.createElement("div");
-    row.className = `tube-row ${tb.text}`;
-    row.style.backgroundColor = tb.color;
+let openTubeCompany = null; // "vip" | "fsfb" | "poliza" | null mientras el modal está abierto
 
-    const head = document.createElement("div");
-    head.className = "tube-head";
-    head.innerHTML = `<span>${tb.emoji} ${tb.key}</span><span class="tube-total">Total: ${total}</span>`;
-    const totalEl = head.querySelector(".tube-total");
-    row.appendChild(head);
-
-    const trio = document.createElement("div");
-    trio.className = "stepper-trio";
-
-    COMPANIES.forEach(c => {
-      const box = document.createElement("div");
-      box.className = `stepper co-${c.key}` + (lastToggledTube && lastToggledTube.key === tb.key && lastToggledTube.company === c.key ? " pop" : "");
-      box.innerHTML = `
-        <span class="stepper-label"><i class="co-dot co-dot-${c.key}"></i>${c.label}</span>
-        <div class="stepper-controls">
-          <button type="button" class="step-btn minus">–</button>
-          <span class="step-value">${counts[c.key]}</span>
-          <button type="button" class="step-btn plus">+</button>
-        </div>`;
-
-      const valueEl = box.querySelector(".step-value");
-      const getTotal = () => counts.vip + counts.fsfb + counts.poliza;
-      const onRelease = () => {
-        lastToggledTube = { key: tb.key, company: c.key };
-        saveState();
-        renderTubes();
-        renderPreview();
-      };
-
-      bindHoldStepper(
-        box.querySelector(".minus"), -1,
-        () => counts[c.key], (v) => { counts[c.key] = v; },
-        valueEl, totalEl, getTotal, onRelease
-      );
-      bindHoldStepper(
-        box.querySelector(".plus"), 1,
-        () => counts[c.key], (v) => { counts[c.key] = v; },
-        valueEl, totalEl, getTotal, onRelease
-      );
-
-      trio.appendChild(box);
-    });
-
-    row.appendChild(trio);
-
-    if (tb.key === "Otros" && total > 0) {
-      const noteWrap = document.createElement("div");
-      noteWrap.className = "otros-note";
-      const noteInput = document.createElement("input");
-      noteInput.type = "text";
-      noteInput.placeholder = "¿Qué es? (ej: tubo especial, jeringa...)";
-      noteInput.value = data.otrosDetalle || "";
-      noteInput.addEventListener("input", () => {
-        data.otrosDetalle = noteInput.value;
-        saveState();
-        renderPreview();
-      });
-      noteWrap.appendChild(noteInput);
-      row.appendChild(noteWrap);
-    }
-
-    container.appendChild(row);
-  });
-}
-
-function sumTubeGroup(data, group) {
+function sumCompanyTubes(data, company) {
   let n = 0;
-  group.forEach(tb => {
-    const c = data.tubes[tb.key];
-    n += c.vip + c.fsfb + c.poliza;
-  });
+  TUBOS.forEach(tb => { n += data.tubes[tb.key][company] || 0; });
   return n;
 }
 
-function renderTubes() {
+// Botones de compañía: solo muestran el total de cada una (el conteo en
+// detalle vive dentro del modal que abre cada botón).
+function renderTubeCompanyButtons() {
   const data = currentData();
-  renderTubeGroup(tubeListA, data, TUBOS_A);
-  renderTubeGroup(tubeListB, data, TUBOS_B);
-  lastToggledTube = null;
-  tubeBadgeA.textContent = sumTubeGroup(data, TUBOS_A);
-  tubeBadgeB.textContent = sumTubeGroup(data, TUBOS_B);
+  tubeCompanyCountVip.textContent = sumCompanyTubes(data, "vip");
+  tubeCompanyCountFsfb.textContent = sumCompanyTubes(data, "fsfb");
+  tubeCompanyCountPoliza.textContent = sumCompanyTubes(data, "poliza");
 
   let reportedTotal = 0;
   TUBOS.forEach(tb => {
@@ -947,10 +884,90 @@ function renderTubes() {
   });
   if (reportedTotal > 0) {
     tubesInfo.hidden = false;
-    tubesInfo.textContent = `✅ Ya enviaste ${reportedTotal} tubos hoy — el contador de abajo se reinició para la siguiente recogida`;
+    tubesInfo.textContent = `✅ Ya enviaste ${reportedTotal} tubos hoy — el contador se reinició para la siguiente recogida`;
   } else {
     tubesInfo.hidden = true;
   }
+}
+
+// Cuadrícula de los 10 tipos de tubo, con un solo contador cada uno,
+// escogida para la compañía que se abrió (VIP, FSFB o Poliza).
+function renderTubeCompanyGrid(company) {
+  const data = currentData();
+  const meta = TUBE_COMPANY_META[company];
+  tubeCompanyModalTitle.textContent = `${meta.emoji} Tubos — ${meta.label}`;
+  tubeCompanyModal.classList.remove("co-vip", "co-fsfb", "co-poliza");
+  tubeCompanyModal.classList.add(`co-${company}`);
+  tubeCompanyGrid.innerHTML = "";
+
+  TUBOS.forEach(tb => {
+    const counts = data.tubes[tb.key];
+    const qty = counts[company] || 0;
+    const active = qty > 0;
+
+    const tile = document.createElement("div");
+    tile.className = "tube-co-tile" + (active ? " active" : "")
+      + (lastToggledTube && lastToggledTube.key === tb.key && lastToggledTube.company === company ? " pop" : "");
+    tile.style.setProperty("--co-color", `var(--${company})`);
+    tile.innerHTML = `
+      ${active ? `<div class="tube-co-badge">${qty}</div>` : ""}
+      <div class="tube-co-emoji">${tb.emoji}</div>
+      <div class="tube-co-label">${tb.key}</div>
+      <div class="tube-co-controls">
+        <button type="button" class="tube-co-step minus">−</button>
+        <span class="tube-co-value">${qty}</span>
+        <button type="button" class="tube-co-step plus">+</button>
+      </div>`;
+
+    const valueEl = tile.querySelector(".tube-co-value");
+    const onRelease = () => {
+      lastToggledTube = { key: tb.key, company };
+      saveState();
+      renderTubeCompanyButtons();
+      renderTubeCompanyGrid(company);
+      renderPreview();
+    };
+
+    bindHoldStepper(
+      tile.querySelector(".minus"), -1,
+      () => counts[company], (v) => { counts[company] = v; },
+      valueEl, null, () => counts[company], onRelease
+    );
+    bindHoldStepper(
+      tile.querySelector(".plus"), 1,
+      () => counts[company], (v) => { counts[company] = v; },
+      valueEl, null, () => counts[company], onRelease
+    );
+
+    tubeCompanyGrid.appendChild(tile);
+  });
+
+  lastToggledTube = null;
+}
+
+function openTubeCompanyModal(company) {
+  openTubeCompany = company;
+  renderTubeCompanyGrid(company);
+  tubeCompanyModal.hidden = false;
+}
+
+function closeTubeCompanyModal() {
+  tubeCompanyModal.hidden = true;
+  openTubeCompany = null;
+}
+
+tubeCompanyBtnVip.addEventListener("click", () => openTubeCompanyModal("vip"));
+tubeCompanyBtnFsfb.addEventListener("click", () => openTubeCompanyModal("fsfb"));
+tubeCompanyBtnPoliza.addEventListener("click", () => openTubeCompanyModal("poliza"));
+tubeCompanyModalClose.addEventListener("click", closeTubeCompanyModal);
+tubeCompanyModalDone.addEventListener("click", closeTubeCompanyModal);
+tubeCompanyModal.addEventListener("click", (e) => {
+  if (e.target === tubeCompanyModal) closeTubeCompanyModal();
+});
+
+function renderTubes() {
+  renderTubeCompanyButtons();
+  if (openTubeCompany) renderTubeCompanyGrid(openTubeCompany);
 }
 
 // ---------------- Render: Papelería para doctores ----------------
@@ -1152,11 +1169,7 @@ function buildMessage(data, opts) {
     lines.push("• Sin tubos registrados");
   } else {
     tubesWithTotal.forEach(tb => {
-      if (tb.key === "Otros" && data.otrosDetalle.trim()) {
-        lines.push(`${tb.emoji} ${tb.key}: ${tb.total} (${data.otrosDetalle.trim()})`);
-      } else {
-        lines.push(`${tb.emoji} ${tb.key}: ${tb.total}`);
-      }
+      lines.push(`${tb.emoji} ${tb.key}: ${tb.total}`);
     });
   }
 

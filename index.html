@@ -116,23 +116,28 @@
       <!-- Tubos -->
       <section class="card">
         <h2 class="card-title">Tubos y muestras recibidas</h2>
-        <p class="card-hint">Toca + o – para sumar de a 1, o mantenlos presionados para contar más rápido.</p>
+        <p class="card-hint">Toca una compañía para contar sus tubos.</p>
         <p id="tubesInfo" class="pickup-info" hidden></p>
 
-        <details class="tube-group" open>
-          <summary><span class="group-label">Tubos comunes</span><span id="tubeBadgeA" class="group-badge">0</span></summary>
-          <div id="tubeListA" class="tube-list"></div>
-        </details>
-        <details class="tube-group">
-          <summary><span class="group-label">Otras muestras</span><span id="tubeBadgeB" class="group-badge">0</span></summary>
-          <div id="tubeListB" class="tube-list"></div>
-        </details>
-      </section>
+        <div class="company-tube-buttons">
+          <button id="tubeCompanyBtnVip" type="button" class="company-tube-btn co-btn-vip">
+            <span class="co-btn-label">🔴 VIP</span>
+            <span id="tubeCompanyCountVip" class="co-btn-count">0</span>
+          </button>
+          <button id="tubeCompanyBtnFsfb" type="button" class="company-tube-btn co-btn-fsfb">
+            <span class="co-btn-label">🔵 FSFB</span>
+            <span id="tubeCompanyCountFsfb" class="co-btn-count">0</span>
+          </button>
+          <button id="tubeCompanyBtnPoliza" type="button" class="company-tube-btn co-btn-poliza">
+            <span class="co-btn-label">🟡 Poliza</span>
+            <span id="tubeCompanyCountPoliza" class="co-btn-count">0</span>
+          </button>
+        </div>
 
-      <!-- Papelería para doctores -->
-      <section class="card">
+        <!-- Papelería para doctores: va aquí porque solo aplica a Poliza -->
+        <div class="card-divider"></div>
         <h2 class="card-title">📄 Papelería recibida de doctores</h2>
-        <p class="card-hint">Documentos de pacientes de Poliza que un doctor le entrega al logístico: electrocardiograma, rayos X, etc.</p>
+        <p class="card-hint">Solo para pacientes de Poliza: documentos que un doctor le entrega al logístico (electrocardiograma, rayos X, etc.).</p>
         <div id="papeleriaList" class="papeleria-list"></div>
         <button id="addPapeleriaBtn" class="ghost-btn" type="button">+ Agregar papelería</button>
         <datalist id="papeleriaSugerencias">
@@ -254,6 +259,16 @@
 
     <h4 class="network-subtitle">🗒️ Historial de recogidas</h4>
     <div id="networkContent" class="network-list"></div>
+  </div>
+</div>
+
+<div id="tubeCompanyModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="tubeCompanyModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3 id="tubeCompanyModalTitle">🧪 Tubos</h3>
+    <p class="card-hint" style="margin-top:-4px;">Toca + o – para sumar de a 1, o mantenlos presionados para contar más rápido.</p>
+    <div id="tubeCompanyGrid" class="tube-company-grid"></div>
+    <button id="tubeCompanyModalDone" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">Listo</button>
   </div>
 </div>
 
