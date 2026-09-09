@@ -39,7 +39,6 @@ const TUBOS_B = TUBOS.slice(5);
 const HOURS_SPLIT = 7; // 5:00 AM .. 8:00 AM = 7 franjas; el resto va al segundo grupo
 
 const STORAGE_KEY = "reporte_logisticos_state_v5";
-const INSTALL_DISMISS_KEY = "reporte_logisticos_install_dismissed_v1";
 
 function buildFixedHours() {
   const list = [];
@@ -291,6 +290,21 @@ function registerSendBatch(data) {
     if (!Array.isArray(data.pickupLog)) data.pickupLog = [];
     data.pickupLog.push({ pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta, papeleriaIndices });
   }
+
+  return { pickupNum, hourIndices, extraIds, tubeDelta };
+}
+
+// Cuenta pacientes/tubos de la recogida que se acaba de registrar, para
+// mandarlo al historial de la Red de logísticos.
+function pickupEventCounts(data, batch) {
+  const patientCount = batch.hourIndices.reduce((sum, i) => sum + ((data.hours[i] && data.hours[i].count) || 1), 0)
+    + batch.extraIds.length;
+  let tubeCount = 0;
+  TUBOS.forEach(tb => {
+    const d = batch.tubeDelta[tb.key];
+    if (d) tubeCount += d.vip + d.fsfb + d.poliza;
+  });
+  return { patientCount, tubeCount };
 }
 
 // Revierte exactamente lo que registró el último envío/copia: desasigna
@@ -349,6 +363,25 @@ function validateBeforeSend(data) {
   if (totalTubes === 0) {
     return "Registra al menos un tubo antes de enviar, o marca esa hora como cancelada (✕).";
   }
+
+  // Cada compañía que tenga un paciente pendiente debe tener al menos un
+  // tubo registrado de esa misma compañía (si hay VIP y FSFB pendientes
+  // pero solo metiste tubos VIP, algo se quedó sin registrar).
+  const companiesWithPatients = new Set(pendingReceived.map(p => p.company));
+  const tubesByCompany = { vip: 0, fsfb: 0, poliza: 0 };
+  TUBOS.forEach(tb => {
+    const c = data.tubes[tb.key];
+    tubesByCompany.vip += c.vip;
+    tubesByCompany.fsfb += c.fsfb;
+    tubesByCompany.poliza += c.poliza;
+  });
+
+  const missing = [...companiesWithPatients].filter(company => tubesByCompany[company] === 0);
+  if (missing.length > 0) {
+    const nombres = missing.map(c => companyLabel(c).toUpperCase()).join(" y ");
+    return `Tienes paciente(s) de ${nombres} pero no registraste tubos de ${missing.length > 1 ? "esas compañías" : "esa compañía"}. Revisa antes de enviar.`;
+  }
+
   return null;
 }
 
@@ -423,13 +456,10 @@ const welcomeStrip = document.getElementById("welcomeStrip");
 const welcomeAvatar = document.getElementById("welcomeAvatar");
 const welcomeGreeting = document.getElementById("welcomeGreeting");
 
-const installBtn = document.getElementById("installBtn");
-const installModal = document.getElementById("installModal");
-const installModalAndroid = document.getElementById("installModalAndroid");
-const installModalIOS = document.getElementById("installModalIOS");
-const installConfirmBtn = document.getElementById("installConfirmBtn");
-const installModalClose = document.getElementById("installModalClose");
-const installModalDismiss = document.getElementById("installModalDismiss");
+const networkBtn = document.getElementById("networkBtn");
+const networkModal = document.getElementById("networkModal");
+const networkModalClose = document.getElementById("networkModalClose");
+const networkContent = document.getElementById("networkContent");
 
 const summaryBtn = document.getElementById("summaryBtn");
 const summaryModal = document.getElementById("summaryModal");
@@ -1050,14 +1080,16 @@ function buildMessage(data, opts) {
   lines.push("");
   lines.push("⏰ *Horas:*");
 
-  const hourLine = h => `• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}${h.count > 1 ? ` ×${h.count}` : ""}`;
+  const hourLine = h => Array.from({ length: h.count > 1 ? h.count : 1 }, () =>
+    `• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`
+  );
 
   if (relevantHours.length === 0 && relevantExtras.length === 0) {
     lines.push(forSend ? "• Nada nuevo por reportar" : "• Sin horas marcadas");
   } else if (forSend) {
     // reporte de una sola recogida (la actual): lista simple, sin agrupar
     relevantHours.forEach(h => {
-      lines.push(hourLine(h));
+      hourLine(h).forEach(l => lines.push(l));
     });
     relevantExtras.forEach(e => {
       lines.push(`• ${formatExtraTime(e.time)} — ${companyEmoji(e.company)} ${companyLabel(e.company).toUpperCase()} (extra)`);
@@ -1069,9 +1101,9 @@ function buildMessage(data, opts) {
     const pendingLines = [];
 
     relevantHours.forEach(h => {
-      const line = hourLine(h);
-      if (h.pickup) { (groups[h.pickup] = groups[h.pickup] || []).push(line); }
-      else pendingLines.push(line);
+      const linesForHour = hourLine(h);
+      if (h.pickup) { (groups[h.pickup] = groups[h.pickup] || []).push(...linesForHour); }
+      else pendingLines.push(...linesForHour);
     });
     relevantExtras.forEach(e => {
       const line = `• ${formatExtraTime(e.time)} — ${companyEmoji(e.company)} ${companyLabel(e.company).toUpperCase()} (extra)`;
@@ -1400,9 +1432,12 @@ copyBtn.addEventListener("click", async () => {
   if (warning) { showToast(warning, 3400); return; }
   const text = buildMessage(data, { forSend: true });
   logSentReport(data, text);
-  registerSendBatch(data);
+  const batch = registerSendBatch(data);
   saveState();
   renderAll();
+  if (batch.pickupNum && window.ReporteSync) {
+    window.ReporteSync.logPickupEvent(currentAuxKey(), currentAuxName(), pickupEventCounts(data, batch));
+  }
   try {
     await navigator.clipboard.writeText(text);
     buzz(90);
@@ -1425,16 +1460,23 @@ sendBtn.addEventListener("click", () => {
   if (warning) { showToast(warning, 3400); return; }
   const text = buildMessage(data, { forSend: true });
   logSentReport(data, text);
-  registerSendBatch(data);
+  const batch = registerSendBatch(data);
   saveState();
   renderAll();
+  if (batch.pickupNum && window.ReporteSync) {
+    window.ReporteSync.logPickupEvent(currentAuxKey(), currentAuxName(), pickupEventCounts(data, batch));
+  }
+  if (currentAssignment && currentAssignment.auxName === currentAuxName() && window.ReporteSync) {
+    window.ReporteSync.markAssignmentDone(currentAssignment.id);
+    assignmentBanner.hidden = true;
+  }
   buzz([80, 60, 80]);
   const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, "_blank");
 });
 
 resetBtn.addEventListener("click", () => {
-  if (!confirm("¿Iniciar un nuevo reporte para este auxiliar? Se perderá lo que no hayas enviado.")) return;
+  if (!confirm("¿Borrar TODOS los datos de este auxiliar (horas, tubos, papelería, historial de hoy)? No se puede deshacer.")) return;
   const key = currentAuxKey();
   if (key) delete state.byAux[key];
   state.auxIndex = null;
@@ -1480,80 +1522,6 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// ---------------- PWA: instalación (botón + modal) ----------------
-let deferredInstallPrompt = null;
-
-function isStandalone() {
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-}
-
-function isIOS() {
-  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-}
-
-function openInstallModal() {
-  if (deferredInstallPrompt) {
-    installModalAndroid.hidden = false;
-    installModalIOS.hidden = true;
-  } else {
-    installModalAndroid.hidden = true;
-    installModalIOS.hidden = false;
-  }
-  installModal.hidden = false;
-}
-
-function closeInstallModal(dismissForGood) {
-  installModal.hidden = true;
-  if (dismissForGood) {
-    try { localStorage.setItem(INSTALL_DISMISS_KEY, "1"); } catch (e) {}
-  }
-}
-
-if (!isStandalone()) {
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    installBtn.hidden = false;
-    maybeAutoShowInstall();
-  });
-
-  if (isIOS()) {
-    installBtn.hidden = false;
-    maybeAutoShowInstall();
-  }
-}
-
-function maybeAutoShowInstall() {
-  let dismissed = false;
-  try { dismissed = !!localStorage.getItem(INSTALL_DISMISS_KEY); } catch (e) {}
-  if (dismissed || isStandalone()) return;
-  setTimeout(() => {
-    if (!isStandalone()) openInstallModal();
-  }, 1400);
-}
-
-installBtn.addEventListener("click", openInstallModal);
-
-installConfirmBtn.addEventListener("click", async () => {
-  if (!deferredInstallPrompt) { closeInstallModal(false); return; }
-  deferredInstallPrompt.prompt();
-  try { await deferredInstallPrompt.userChoice; } catch (e) {}
-  deferredInstallPrompt = null;
-  closeInstallModal(true);
-  installBtn.hidden = true;
-});
-
-installModalClose.addEventListener("click", () => closeInstallModal(true));
-installModalDismiss.addEventListener("click", () => closeInstallModal(true));
-installModal.addEventListener("click", (e) => {
-  if (e.target === installModal) closeInstallModal(true);
-});
-
-window.addEventListener("appinstalled", () => {
-  installBtn.hidden = true;
-  closeInstallModal(true);
-});
-
 // ---------------- Aviso antes de perder datos sin enviar ----------------
 function hasUnsentData(data) {
   const pendingHours = data.hours.some(h => (h.selected && !h.pickup) || (h.cancelled && !h.cancelReported));
@@ -1595,6 +1563,206 @@ historyBtn.addEventListener("click", () => {
 historyModalClose.addEventListener("click", () => { historyModal.hidden = true; });
 historyModal.addEventListener("click", (e) => {
   if (e.target === historyModal) historyModal.hidden = true;
+});
+
+// ---------------- Aviso de asignación del coordinador ----------------
+// Muestra un aviso arriba de la app cuando el coordinador le asigna a
+// este logístico una dirección/auxiliar. Se actualiza solo, sin recargar.
+let currentAssignment = null;
+
+function renderAssignmentBanner(list) {
+  if (!list) return;
+  const pending = list
+    .filter(a => a.status !== "hecha")
+    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+  const a = pending[0] || null;
+  currentAssignment = a;
+
+  if (!a) {
+    assignmentBanner.hidden = true;
+    return;
+  }
+
+  assignmentBanner.hidden = false;
+  assignmentBannerText.textContent = `Ve donde ${a.auxName} — ${a.address}${a.note ? " · " + a.note : ""}`;
+  assignmentBannerTime.textContent = a.createdAt?.toMillis
+    ? new Date(a.createdAt.toMillis()).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
+    : "";
+
+  const q = encodeURIComponent(a.address);
+  assignmentBannerMaps.href = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  assignmentBannerWaze.href = `https://waze.com/ul?q=${q}&navigate=yes`;
+
+  if (a.status === "pendiente" && window.ReporteSync) {
+    window.ReporteSync.markAssignmentSeen(a.id);
+  }
+}
+
+function startAssignmentListener() {
+  if (!window.ReporteSync || !window.ReporteSync.getMyIdentity()) return;
+  window.ReporteSync.listenMyAssignments(renderAssignmentBanner);
+}
+
+assignmentBannerDoneBtn.addEventListener("click", () => {
+  if (!currentAssignment || !window.ReporteSync) return;
+  window.ReporteSync.markAssignmentDone(currentAssignment.id);
+  assignmentBanner.hidden = true;
+  showToast("Asignación marcada como hecha");
+});
+
+// ---------------- Saludo con avatar del logístico ----------------
+function renderWelcomeStrip() {
+  if (!window.ReporteSync) { welcomeStrip.hidden = true; return; }
+  const me = window.ReporteSync.getMyIdentity();
+  if (!me) { welcomeStrip.hidden = true; return; }
+  welcomeStrip.hidden = false;
+  welcomeAvatar.style.background = avatarColor(me.name);
+  welcomeAvatar.textContent = initials(me.name);
+  welcomeGreeting.textContent = `¡Hola, ${me.name}! 👋`;
+}
+
+window.addEventListener("load", () => {
+  renderWelcomeStrip();
+  setTimeout(startAssignmentListener, 800);
+});
+
+// ---------------- Red de logísticos: quién le recibe a quién, en vivo ----------------
+let networkUnsub = null;
+
+function networkTimeAgo(ts) {
+  if (!ts || typeof ts.toMillis !== "function") return "sin datos";
+  const min = Math.floor((Date.now() - ts.toMillis()) / 60000);
+  if (min < 1) return "justo ahora";
+  if (min === 1) return "hace 1 min";
+  if (min < 60) return `hace ${min} min`;
+  return `hace ${Math.floor(min / 60)} h`;
+}
+
+function escapeHtmlNet(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Agrupa por auxiliar y numera las recogidas en orden real de llegada
+// (sin importar de qué celular vinieron) — así se ve "Recogida 1 = Ferney,
+// Recogida 2 = Giovanni" tal cual pasó, con la dirección de la asignación.
+function renderPickupHistory(events) {
+  if (events === null) {
+    networkContent.innerHTML = '<p class="summary-empty">No se pudo cargar la Red — revisa tu conexión a internet o inténtalo de nuevo en un momento.</p>';
+    return;
+  }
+  if (events.length === 0) {
+    networkContent.innerHTML = '<p class="summary-empty">Todavía no hay recogidas registradas hoy.</p>';
+    return;
+  }
+  events.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+
+  const byAux = {};
+  events.forEach(ev => {
+    const key = ev.auxKey || ev.auxName;
+    (byAux[key] = byAux[key] || { auxName: ev.auxName, list: [] }).list.push(ev);
+  });
+
+  networkContent.innerHTML = Object.values(byAux).map(group => `
+    <div class="network-aux-group">
+      <div class="network-aux-name">${escapeHtmlNet(group.auxName)}</div>
+      ${group.list.map((ev, i) => `
+        <div class="network-item">
+          <div class="network-item-top">
+            <span>Recogida ${i + 1} — ${escapeHtmlNet(ev.logisticoName || "?")}</span>
+            <span class="network-item-time">${networkTimeAgo(ev.createdAt)}</span>
+          </div>
+          <div class="network-item-nums">
+            <span>👥 ${ev.patientCount || 0} pacientes</span>
+            <span>🧪 ${ev.tubeCount || 0} tubos</span>
+            <span class="network-item-loc">📍 ${ev.address ? escapeHtmlNet(ev.address) : "Sin asignación"}</span>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `).join("");
+}
+
+const networkCoordinatorsEl = document.getElementById("networkCoordinators");
+const networkAssignmentsEl = document.getElementById("networkAssignments");
+let assignmentsUnsub = null;
+
+function renderNetworkCoordinators(assignments) {
+  if (assignments === null) {
+    networkCoordinatorsEl.innerHTML = '<p class="summary-empty">No se pudo cargar.</p>';
+    return;
+  }
+  const names = [...new Set(assignments.map(a => a.createdBy).filter(Boolean))];
+  if (names.length === 0) {
+    networkCoordinatorsEl.innerHTML = '<p class="summary-empty">Nadie ha asignado nada hoy.</p>';
+    return;
+  }
+  networkCoordinatorsEl.innerHTML = names.map(n => `<span class="coord-chip">👤 ${escapeHtmlNet(n)}</span>`).join("");
+}
+
+function renderNetworkAssignments(assignments) {
+  if (assignments === null) {
+    networkAssignmentsEl.innerHTML = '<p class="summary-empty">No se pudo cargar — revisa tu conexión o inténtalo de nuevo.</p>';
+    return;
+  }
+  if (assignments.length === 0) {
+    networkAssignmentsEl.innerHTML = '<p class="summary-empty">Sin asignaciones todavía.</p>';
+    return;
+  }
+  const sorted = [...assignments].sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+  networkAssignmentsEl.innerHTML = sorted.map(d => `
+    <div class="assign-item">
+      <div class="assign-item-top">
+        <span>${escapeHtmlNet(d.logisticoName || "?")} → ${escapeHtmlNet(d.auxName || "?")}</span>
+        <span class="assign-badge assign-badge-${d.status}">${
+          d.status === "pendiente" ? "Pendiente" : d.status === "vista" ? "Vista" : "Hecha"
+        }</span>
+      </div>
+      <div class="assign-item-addr">📍 ${escapeHtmlNet(d.address || "")}${d.note ? " · " + escapeHtmlNet(d.note) : ""} — asignó ${escapeHtmlNet(d.createdBy || "?")}</div>
+    </div>
+  `).join("");
+}
+
+networkBtn.addEventListener("click", () => {
+  networkModal.hidden = false;
+  networkContent.innerHTML = '<p class="summary-empty">Cargando...</p>';
+  networkAssignmentsEl.innerHTML = '<p class="summary-empty">Cargando...</p>';
+  networkCoordinatorsEl.innerHTML = '<p class="summary-empty">Cargando...</p>';
+  if (!window.ReporteSync) {
+    networkContent.innerHTML = '<p class="summary-empty">No se pudo conectar.</p>';
+    networkAssignmentsEl.innerHTML = "";
+    networkCoordinatorsEl.innerHTML = "";
+    return;
+  }
+  if (networkUnsub) networkUnsub();
+  if (assignmentsUnsub) assignmentsUnsub();
+  networkUnsub = window.ReporteSync.listenPickupHistory(renderPickupHistory);
+  assignmentsUnsub = window.ReporteSync.listenAllAssignments((docs) => {
+    renderNetworkCoordinators(docs);
+    renderNetworkAssignments(docs);
+  });
+
+  setTimeout(() => {
+    if (networkContent.innerHTML.includes("Cargando...")) {
+      networkContent.innerHTML = '<p class="summary-empty">Está tardando más de lo normal. Cierra e inténtalo de nuevo — puede ser conexión o permisos de Firestore.</p>';
+    }
+    if (networkAssignmentsEl.innerHTML.includes("Cargando...")) {
+      networkAssignmentsEl.innerHTML = '<p class="summary-empty">Está tardando más de lo normal.</p>';
+    }
+    if (networkCoordinatorsEl.innerHTML.includes("Cargando...")) {
+      networkCoordinatorsEl.innerHTML = "";
+    }
+  }, 7000);
+});
+
+function closeNetworkModal() {
+  networkModal.hidden = true;
+  if (networkUnsub) { networkUnsub(); networkUnsub = null; }
+  if (assignmentsUnsub) { assignmentsUnsub(); assignmentsUnsub = null; }
+}
+networkModalClose.addEventListener("click", closeNetworkModal);
+networkModal.addEventListener("click", (e) => {
+  if (e.target === networkModal) closeNetworkModal();
 });
 
 // ---------------- Identidad del logístico (para el panel de coordinador) ----------------
@@ -1697,65 +1865,4 @@ importFile.addEventListener("change", () => {
   };
   reader.onerror = () => showToast("No se pudo leer el archivo de respaldo");
   reader.readAsText(file);
-});
-
-
-// ---------------- Asignaciones en vivo del coordinador ----------------
-// Muestra un aviso arriba de la app cuando el coordinador le asigna a
-// este logístico una dirección/auxiliar. Se actualiza solo, sin recargar.
-let currentAssignment = null;
-
-function renderAssignmentBanner(list) {
-  const pending = list
-    .filter(a => a.status !== "hecha")
-    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-
-  const a = pending[0] || null;
-  currentAssignment = a;
-
-  if (!a) {
-    assignmentBanner.hidden = true;
-    return;
-  }
-
-  assignmentBanner.hidden = false;
-  assignmentBannerText.textContent = `Ve donde ${a.auxName} — ${a.address}${a.note ? " · " + a.note : ""}`;
-  assignmentBannerTime.textContent = a.createdAt?.toMillis
-    ? new Date(a.createdAt.toMillis()).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
-    : "";
-
-  const q = encodeURIComponent(a.address);
-  assignmentBannerMaps.href = `https://www.google.com/maps/search/?api=1&query=${q}`;
-  assignmentBannerWaze.href = `https://waze.com/ul?q=${q}&navigate=yes`;
-
-  if (a.status === "pendiente" && window.ReporteSync) {
-    window.ReporteSync.markAssignmentSeen(a.id);
-  }
-}
-
-function startAssignmentListener() {
-  if (!window.ReporteSync || !window.ReporteSync.getMyIdentity()) return;
-  window.ReporteSync.listenMyAssignments(renderAssignmentBanner);
-}
-
-assignmentBannerDoneBtn.addEventListener("click", () => {
-  if (!currentAssignment || !window.ReporteSync) return;
-  window.ReporteSync.markAssignmentDone(currentAssignment.id);
-  assignmentBanner.hidden = true;
-  showToast("Asignación marcada como hecha");
-});
-
-function renderWelcomeStrip() {
-  if (!window.ReporteSync) { welcomeStrip.hidden = true; return; }
-  const me = window.ReporteSync.getMyIdentity();
-  if (!me) { welcomeStrip.hidden = true; return; }
-  welcomeStrip.hidden = false;
-  welcomeAvatar.style.background = avatarColor(me.name);
-  welcomeAvatar.textContent = initials(me.name);
-  welcomeGreeting.textContent = `¡Hola, ${me.name}! 👋`;
-}
-
-window.addEventListener("load", () => {
-  renderWelcomeStrip();
-  setTimeout(startAssignmentListener, 800);
 });

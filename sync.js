@@ -12,7 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, serverTimestamp,
-  collection, query, where, onSnapshot, updateDoc,
+  collection, query, where, onSnapshot, updateDoc, addDoc, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { lookupPerson } from "./people.js";
 
@@ -130,6 +130,7 @@ function syncAux(auxKey, auxName, summary) {
         patientTotal: summary.patientTotal || 0,
         tubeTotal: summary.tubeTotal || 0,
         pickupsToday: summary.pickupsToday || 0,
+        location: summary.location || "",
         updatedAt: serverTimestamp(),
       }, { merge: true });
     } catch (e) {
@@ -165,6 +166,7 @@ function listenMyAssignments(callback) {
       callback(docs);
     }, (e) => {
       console.warn("[sync.js] No se pudo escuchar asignaciones:", e);
+      callback(null);
     });
   });
 
@@ -179,6 +181,28 @@ async function markAssignmentSeen(id) {
   } catch (e) { /* si falla, no pasa nada — el coordinador solo no ve el cambio de estado */ }
 }
 
+// Todas las asignaciones de hoy, visibles para cualquier logístico (no
+// solo las suyas) — para saber quién está coordinando y qué se asignó.
+function listenAllAssignments(callback) {
+  if (!db) return () => {};
+  let unsub = null;
+  const dateKey = localDateKey();
+  const q = query(collection(db, "assignments"), where("date", "==", dateKey));
+
+  whenReady().then(() => {
+    unsub = onSnapshot(q, (snap) => {
+      const docs = [];
+      snap.forEach(docSnap => docs.push({ id: docSnap.id, ...docSnap.data() }));
+      callback(docs);
+    }, (e) => {
+      console.warn("[sync.js] No se pudo escuchar las asignaciones:", e);
+      callback(null);
+    });
+  });
+
+  return () => { if (unsub) unsub(); };
+}
+
 async function markAssignmentDone(id) {
   if (!db) return;
   try {
@@ -187,7 +211,96 @@ async function markAssignmentDone(id) {
   } catch (e) { console.warn("[sync.js] No se pudo marcar la asignación como hecha:", e); }
 }
 
+// ---------------- Red de logísticos: ver a todos, no solo el coordinador ----------------
+function listenAllStatus(callback) {
+  if (!db) return () => {};
+  let unsub = null;
+  const dateKey = localDateKey();
+  const q = query(collection(db, "dailyStatus"), where("date", "==", dateKey));
+
+  whenReady().then(() => {
+    unsub = onSnapshot(q, (snap) => {
+      const docs = [];
+      snap.forEach(docSnap => docs.push(docSnap.data()));
+      callback(docs);
+    }, (e) => {
+      console.warn("[sync.js] No se pudo escuchar la red de logísticos:", e);
+    });
+  });
+
+  return () => { if (unsub) unsub(); };
+}
+
+// ---------------- Historial de recogidas (quién recibió a quién, dónde) ----------------
+// Cada vez que un logístico copia/envía un reporte, queda un registro
+// aparte con la dirección tomada de la última asignación que el
+// coordinador le dio para ese mismo auxiliar hoy (si existe).
+async function logPickupEvent(auxKey, auxName, counts) {
+  if (!db) return;
+  const me = getMyIdentity();
+  if (!me) return;
+
+  try {
+    await whenReady();
+    const dateKey = localDateKey();
+
+    let address = "";
+    try {
+      const aq = query(
+        collection(db, "assignments"),
+        where("date", "==", dateKey),
+        where("logisticoPhone", "==", me.phone),
+        where("auxName", "==", auxName)
+      );
+      const snap = await getDocs(aq);
+      let latest = null;
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const t = d.createdAt?.toMillis?.() || 0;
+        if (!latest || t > latest._t) { latest = d; latest._t = t; }
+      });
+      if (latest) address = latest.address || "";
+    } catch (e) { /* si falla la búsqueda de la asignación, se guarda igual sin dirección */ }
+
+    await addDoc(collection(db, "pickupEvents"), {
+      date: dateKey,
+      auxKey,
+      auxName,
+      logisticoPhone: me.phone,
+      logisticoName: me.name,
+      patientCount: counts.patientCount || 0,
+      tubeCount: counts.tubeCount || 0,
+      address,
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn("[sync.js] No se pudo registrar la recogida en el historial:", e);
+  }
+}
+
+function listenPickupHistory(callback) {
+  if (!db) return () => {};
+  let unsub = null;
+  const dateKey = localDateKey();
+  const q = query(collection(db, "pickupEvents"), where("date", "==", dateKey));
+
+  whenReady().then(() => {
+    unsub = onSnapshot(q, (snap) => {
+      const docs = [];
+      snap.forEach(docSnap => docs.push({ id: docSnap.id, ...docSnap.data() }));
+      callback(docs);
+    }, (e) => {
+      console.warn("[sync.js] No se pudo escuchar el historial de recogidas:", e);
+      callback(null);
+    });
+  });
+
+  return () => { if (unsub) unsub(); };
+}
+
 window.ReporteSync = {
   getMyIdentity, loginWithPhone, logout, syncAux,
   listenMyAssignments, markAssignmentSeen, markAssignmentDone,
+  listenAllStatus, logPickupEvent, listenPickupHistory,
+  listenAllAssignments,
 };

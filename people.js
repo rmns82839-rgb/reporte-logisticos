@@ -17,6 +17,11 @@ export const PEOPLE = {
   "3174384202": { name: "Magda",    coordinador: true  },
 };
 
+// Clave compartida para que cualquier logístico entre al panel de
+// coordinador aunque su número no tenga coordinador:true. Cámbiala aquí
+// cuando quieras — no es seguridad real, solo un freno de entrada.
+export const COORD_ACCESS_CODE = "coordinacion2026";
+
 export function normalizePhone(raw) {
   return String(raw || "").replace(/\D/g, "");
 }

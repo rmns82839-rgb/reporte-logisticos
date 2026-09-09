@@ -252,6 +252,40 @@
     border:1px dashed var(--border);
     border-radius:var(--radius-m);
   }
+  .ghost-link-btn{
+    background:none;
+    border:none;
+    color:var(--text-faint);
+    font-family:inherit;
+    font-size:12.5px;
+    font-weight:700;
+    text-decoration:underline;
+    cursor:pointer;
+    margin-top:14px;
+    display:block;
+    width:100%;
+    text-align:center;
+  }
+  .network-subtitle{font-family:var(--font-display); font-size:13px; font-weight:700; color:var(--text); margin:0 0 8px;}
+  .network-coordinators{display:flex; flex-wrap:wrap; gap:6px;}
+  .coord-chip{
+    background:var(--surface-3);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:5px 12px;
+    font-size:12px;
+    font-weight:700;
+    color:var(--text);
+  }
+  .assign-item-addr{color:var(--text-dim); font-weight:600; font-size:12.5px;}
+  .network-aux-group{display:flex; flex-direction:column; gap:8px; margin-bottom:14px;}
+  .network-aux-group:last-child{margin-bottom:0;}
+  .network-aux-name{font-family:var(--font-display); font-size:13px; font-weight:700; color:var(--text-dim);}
+  .network-item{background:var(--surface-3); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:13px;}
+  .network-item-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-weight:800; margin-bottom:4px;}
+  .network-item-time{font-size:11px; color:var(--text-faint); font-weight:600; white-space:nowrap; flex-shrink:0;}
+  .network-item-nums{display:flex; gap:12px; flex-wrap:wrap; color:var(--text-dim); font-weight:700; font-size:12.5px;}
+  .network-item-loc{color:var(--text-faint); font-weight:600;}
   [hidden]{display:none !important;}
 </style>
 </head>
@@ -264,6 +298,40 @@
     <input id="loginInput" type="tel" inputmode="numeric" class="text-input" placeholder="Tu número de celular" maxlength="10">
     <p id="loginError" class="login-error">Ese número no está autorizado como coordinador.</p>
     <button id="loginBtn" type="button" class="btn-primary">Entrar</button>
+    <button id="networkOnlyBtn" type="button" class="ghost-link-btn">🌐 Ver Red de logísticos (cualquiera del equipo)</button>
+  </div>
+</div>
+
+<div id="networkScreen" class="wrap" hidden>
+  <div id="networkLoginCard" class="login-card">
+    <h2>🌐 Red de logísticos</h2>
+    <p>Escribe tu número de celular para ver quién está coordinando hoy, las asignaciones y el historial de recogidas.</p>
+    <input id="networkLoginInput" type="tel" inputmode="numeric" class="text-input" placeholder="Tu número de celular" maxlength="10">
+    <p id="networkLoginError" class="login-error">Ese número no está en la lista de logísticos.</p>
+    <button id="networkLoginBtn" type="button" class="btn-primary">Ver Red</button>
+    <button id="networkBackBtn" type="button" class="ghost-link-btn">← Volver</button>
+  </div>
+
+  <div id="networkResults" hidden>
+    <h1>🌐 Red de logísticos</h1>
+    <p class="subtitle" id="networkWelcomeText"></p>
+
+    <div class="dash-section">
+      <h2 class="dash-title">👤 Coordinando hoy</h2>
+      <div id="networkCoordinators" class="network-coordinators"><p class="dash-empty">Nadie ha asignado nada hoy.</p></div>
+    </div>
+
+    <div class="dash-section">
+      <h2 class="dash-title">📍 Asignaciones de hoy</h2>
+      <div id="networkAssignList" class="assign-list"><p class="dash-empty">Sin asignaciones todavía</p></div>
+    </div>
+
+    <div class="dash-section">
+      <h2 class="dash-title">🗒️ Historial de recogidas</h2>
+      <div id="networkPickupList" class="network-list"><p class="dash-empty">Sin recogidas registradas hoy</p></div>
+    </div>
+
+    <button id="networkResultsBackBtn" type="button" class="ghost-link-btn">← Volver al inicio</button>
   </div>
 </div>
 
@@ -349,6 +417,23 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const auth = getAuth(app);
+
+  let authReady = false;
+  let authReadyResolvers = [];
+  function whenAuthReady() {
+    return new Promise((resolve) => {
+      if (authReady) resolve();
+      else authReadyResolvers.push(resolve);
+    });
+  }
+  signInAnonymously(auth).catch(() => {});
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      authReady = true;
+      authReadyResolvers.forEach(fn => fn());
+      authReadyResolvers = [];
+    }
+  });
 
   const loginScreen = document.getElementById("loginScreen");
   const panelScreen = document.getElementById("panelScreen");
@@ -695,6 +780,144 @@
     }, (e) => console.warn("[coordinador] No se pudo escuchar asignaciones:", e));
   }
 
+  // ---------------- Red de logísticos (cualquiera del equipo, sin clave) ----------------
+  const networkOnlyBtn = document.getElementById("networkOnlyBtn");
+  const networkScreen = document.getElementById("networkScreen");
+  const networkLoginCard = document.getElementById("networkLoginCard");
+  const networkResults = document.getElementById("networkResults");
+  const networkLoginInput = document.getElementById("networkLoginInput");
+  const networkLoginError = document.getElementById("networkLoginError");
+  const networkLoginBtn = document.getElementById("networkLoginBtn");
+  const networkBackBtn = document.getElementById("networkBackBtn");
+  const networkResultsBackBtn = document.getElementById("networkResultsBackBtn");
+  const networkWelcomeText = document.getElementById("networkWelcomeText");
+  const networkCoordinatorsEl = document.getElementById("networkCoordinators");
+  const networkAssignListEl = document.getElementById("networkAssignList");
+  const networkPickupListEl = document.getElementById("networkPickupList");
+
+  let networkAssignUnsub = null;
+  let networkPickupUnsub = null;
+
+  function renderNetworkCoordinators(assignments) {
+    const names = [...new Set(assignments.map(a => a.createdBy).filter(Boolean))];
+    if (names.length === 0) {
+      networkCoordinatorsEl.innerHTML = '<p class="dash-empty">Nadie ha asignado nada hoy.</p>';
+      return;
+    }
+    networkCoordinatorsEl.innerHTML = names.map(n => `<span class="coord-chip">👤 ${escapeHtml(n)}</span>`).join("");
+  }
+
+  function renderNetworkAssignList(assignments) {
+    if (assignments.length === 0) {
+      networkAssignListEl.innerHTML = '<p class="dash-empty">Sin asignaciones todavía</p>';
+      return;
+    }
+    const sorted = [...assignments].sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+    networkAssignListEl.innerHTML = sorted.map(d => `
+      <div class="assign-item">
+        <div class="assign-item-top">
+          <span>${escapeHtml(d.logisticoName || "?")} → ${escapeHtml(d.auxName || "?")}</span>
+          <span class="assign-badge assign-badge-${d.status}">${
+            d.status === "pendiente" ? "Pendiente" : d.status === "vista" ? "Vista" : "Hecha"
+          }</span>
+        </div>
+        <div class="assign-item-addr">📍 ${escapeHtml(d.address || "")}${d.note ? " · " + escapeHtml(d.note) : ""} — asignó ${escapeHtml(d.createdBy || "?")}</div>
+      </div>
+    `).join("");
+  }
+
+  function renderNetworkPickupList(events) {
+    if (events.length === 0) {
+      networkPickupListEl.innerHTML = '<p class="dash-empty">Sin recogidas registradas hoy</p>';
+      return;
+    }
+    const sorted = [...events].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+    const byAux = {};
+    sorted.forEach(ev => {
+      const key = ev.auxKey || ev.auxName;
+      (byAux[key] = byAux[key] || { auxName: ev.auxName, list: [] }).list.push(ev);
+    });
+    networkPickupListEl.innerHTML = Object.values(byAux).map(group => `
+      <div class="network-aux-group">
+        <div class="network-aux-name">${escapeHtml(group.auxName)}</div>
+        ${group.list.map((ev, i) => `
+          <div class="network-item">
+            <div class="network-item-top">
+              <span>Recogida ${i + 1} — ${escapeHtml(ev.logisticoName || "?")}</span>
+              <span class="network-item-time">${timeAgo(ev.createdAt)}</span>
+            </div>
+            <div class="network-item-nums">
+              <span>👥 ${ev.patientCount || 0} pacientes</span>
+              <span>🧪 ${ev.tubeCount || 0} tubos</span>
+              <span class="network-item-loc">📍 ${ev.address ? escapeHtml(ev.address) : "Sin asignación"}</span>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `).join("");
+  }
+
+  function startNetworkListeners() {
+    const today = localDateKey();
+
+    const aq = query(collection(db, "assignments"), where("date", "==", today));
+    networkAssignUnsub = onSnapshot(aq, (snap) => {
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      renderNetworkCoordinators(docs);
+      renderNetworkAssignList(docs);
+    }, (e) => console.warn("[coordinador] Red: no se pudo escuchar asignaciones:", e));
+
+    const pq = query(collection(db, "pickupEvents"), where("date", "==", today));
+    networkPickupUnsub = onSnapshot(pq, (snap) => {
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      renderNetworkPickupList(docs);
+    }, (e) => console.warn("[coordinador] Red: no se pudo escuchar recogidas:", e));
+  }
+
+  function stopNetworkListeners() {
+    if (networkAssignUnsub) { networkAssignUnsub(); networkAssignUnsub = null; }
+    if (networkPickupUnsub) { networkPickupUnsub(); networkPickupUnsub = null; }
+  }
+
+  networkOnlyBtn.addEventListener("click", () => {
+    loginScreen.hidden = true;
+    networkScreen.hidden = false;
+    networkLoginCard.hidden = false;
+    networkResults.hidden = true;
+    networkLoginInput.value = "";
+    networkLoginError.style.display = "none";
+  });
+
+  networkBackBtn.addEventListener("click", () => {
+    networkScreen.hidden = true;
+    loginScreen.hidden = false;
+  });
+
+  networkResultsBackBtn.addEventListener("click", () => {
+    stopNetworkListeners();
+    networkScreen.hidden = true;
+    loginScreen.hidden = false;
+  });
+
+  function tryNetworkLogin(rawPhone) {
+    const person = lookupPerson(rawPhone);
+    if (!person) {
+      networkLoginError.style.display = "block";
+      return;
+    }
+    networkLoginError.style.display = "none";
+    networkLoginCard.hidden = true;
+    networkResults.hidden = false;
+    networkWelcomeText.textContent = `Hola ${person.name} — esto es lo que está pasando hoy`;
+    whenAuthReady().then(startNetworkListeners);
+  }
+
+  networkLoginBtn.addEventListener("click", () => tryNetworkLogin(networkLoginInput.value));
+  networkLoginInput.addEventListener("input", () => { networkLoginError.style.display = "none"; });
+  networkLoginInput.addEventListener("keydown", (e) => { if (e.key === "Enter") tryNetworkLogin(networkLoginInput.value); });
+
   function tryLogin(rawPhone) {
     const person = lookupPerson(rawPhone);
     if (!person || !person.coordinador) {
@@ -709,6 +932,7 @@
   loginInput.addEventListener("input", () => { loginError.style.display = "none"; });
   loginInput.addEventListener("keydown", (e) => { if (e.key === "Enter") tryLogin(loginInput.value); });
 
+  // Si ya inició sesión en esta pestaña/sesión del navegador, entra directo
   try {
     const saved = sessionStorage.getItem(COORD_SESSION_KEY);
     if (saved) startPanel(JSON.parse(saved));
