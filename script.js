@@ -23,7 +23,6 @@ const TUBOS = [
   { key: "Lila",         emoji: "🟣" },
   { key: "Azul",         emoji: "🔵" },
   { key: "Rojo",         emoji: "🔴" },
-  { key: "Azul rey",     emoji: "👑" },
   { key: "Transparente", emoji: "⚪" },
   { key: "Orina",        emoji: "💧" },
   { key: "Orina 24h",    emoji: "🕐" },
@@ -31,6 +30,7 @@ const TUBOS = [
   { key: "Materia fecal",emoji: "💩" },
   { key: "Laminas",      emoji: "🩸" },
   { key: "Hisopo nasal", emoji: "👃" },
+  { key: "Azul rey",     emoji: "👑" },
 ];
 
 // (los 10 tipos de tubo ahora se muestran todos juntos dentro del modal
@@ -91,6 +91,12 @@ function nextExtraId() {
   return "e" + Date.now() + "_" + extraIdCounter;
 }
 
+let customTubeIdCounter = 0;
+function nextCustomTubeId() {
+  customTubeIdCounter += 1;
+  return "ct" + Date.now() + "_" + customTubeIdCounter;
+}
+
 function freshAuxData() {
   return {
     activeDate: localDateKey(),
@@ -98,6 +104,7 @@ function freshAuxData() {
     extras: [],
     tubes: emptyTubeState(),
     tubesReported: emptyTubeState(), // acumulado de recogidas ya enviadas hoy
+    customTubes: [], // "Otro" tubo/objeto escrito a mano, por compañía: {id, company, label, qty, pickup}
     papeleria: [],
     pickupsToday: { date: localDateKey(), count: 0 },
     pickupLog: [], // historial de lo enviado, para poder deshacer la última recogida
@@ -135,6 +142,12 @@ function loadState() {
         if (!d.tubesReported[tb.key]) d.tubesReported[tb.key] = { vip: 0, fsfb: 0, poliza: 0 };
       });
       if (typeof d.otrosDetalle === "string") delete d.otrosDetalle; // "Otros" ya no existe como tipo de tubo
+      if (!Array.isArray(d.customTubes)) d.customTubes = [];
+      d.customTubes.forEach(c => {
+        if (typeof c.pickup === "undefined") c.pickup = null;
+        if (typeof c.qty !== "number" || c.qty < 1) c.qty = 1;
+        if (!c.id) c.id = nextCustomTubeId();
+      });
       if (!Array.isArray(d.extras)) d.extras = [];
       if (!Array.isArray(d.papeleria)) d.papeleria = [];
       d.papeleria.forEach(p => { if (typeof p.pickup === "undefined") p.pickup = null; });
@@ -253,14 +266,17 @@ function registerSendBatch(data) {
   data.extras.forEach(e => { if (e.company && e.time && !e.pickup) extraIds.push(e.id); });
   const papeleriaIndices = [];
   data.papeleria.forEach((p, i) => { if (p.tipo && p.tipo.trim() && !p.pickup) papeleriaIndices.push(i); });
+  const customTubeIndices = [];
+  data.customTubes.forEach((c, i) => { if (!c.pickup) customTubeIndices.push(i); });
 
   let pickupNum = null;
-  if (hourIndices.length > 0 || extraIds.length > 0 || papeleriaIndices.length > 0) {
+  if (hourIndices.length > 0 || extraIds.length > 0 || papeleriaIndices.length > 0 || customTubeIndices.length > 0) {
     data.pickupsToday.count += 1;
     pickupNum = data.pickupsToday.count;
     hourIndices.forEach(i => { data.hours[i].pickup = pickupNum; });
     data.extras.forEach(e => { if (extraIds.includes(e.id)) e.pickup = pickupNum; });
     papeleriaIndices.forEach(i => { data.papeleria[i].pickup = pickupNum; });
+    customTubeIndices.forEach(i => { data.customTubes[i].pickup = pickupNum; });
   }
 
   const cancelledHourIndices = [];
@@ -286,9 +302,9 @@ function registerSendBatch(data) {
   });
   data.tubes = emptyTubeState();
 
-  if (hourIndices.length > 0 || extraIds.length > 0 || cancelledHourIndices.length > 0 || tubesNonZero || papeleriaIndices.length > 0) {
+  if (hourIndices.length > 0 || extraIds.length > 0 || cancelledHourIndices.length > 0 || tubesNonZero || papeleriaIndices.length > 0 || customTubeIndices.length > 0) {
     if (!Array.isArray(data.pickupLog)) data.pickupLog = [];
-    data.pickupLog.push({ pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta, papeleriaIndices });
+    data.pickupLog.push({ pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta, papeleriaIndices, customTubeIndices });
   }
 
   return { pickupNum, hourIndices, extraIds, tubeDelta };
@@ -327,6 +343,9 @@ function undoLastPickup(data) {
   });
   (last.papeleriaIndices || []).forEach(i => {
     if (data.papeleria[i]) data.papeleria[i].pickup = null;
+  });
+  (last.customTubeIndices || []).forEach(i => {
+    if (data.customTubes[i]) data.customTubes[i].pickup = null;
   });
 
   TUBOS.forEach(tb => {
@@ -440,6 +459,16 @@ const tubeCompanyModalTitle = document.getElementById("tubeCompanyModalTitle");
 const tubeCompanyModalClose = document.getElementById("tubeCompanyModalClose");
 const tubeCompanyModalDone = document.getElementById("tubeCompanyModalDone");
 const tubeCompanyGrid = document.getElementById("tubeCompanyGrid");
+const tubeCompanyCustomList = document.getElementById("tubeCompanyCustomList");
+const tubeCompanyAddOtroBtn = document.getElementById("tubeCompanyAddOtroBtn");
+const customTubeModal = document.getElementById("customTubeModal");
+const customTubeModalClose = document.getElementById("customTubeModalClose");
+const customTubeLabelInput = document.getElementById("customTubeLabelInput");
+const customTubeQtyMinus = document.getElementById("customTubeQtyMinus");
+const customTubeQtyValue = document.getElementById("customTubeQtyValue");
+const customTubeQtyPlus = document.getElementById("customTubeQtyPlus");
+const customTubeAddBtn = document.getElementById("customTubeAddBtn");
+const tubeCompanyPapeleriaWrap = document.getElementById("tubeCompanyPapeleriaWrap");
 const tubesInfo = document.getElementById("tubesInfo");
 
 const papeleriaList = document.getElementById("papeleriaList");
@@ -866,6 +895,7 @@ let openTubeCompany = null; // "vip" | "fsfb" | "poliza" | null mientras el moda
 function sumCompanyTubes(data, company) {
   let n = 0;
   TUBOS.forEach(tb => { n += data.tubes[tb.key][company] || 0; });
+  (data.customTubes || []).forEach(c => { if (c.company === company && !c.pickup) n += c.qty || 0; });
   return n;
 }
 
@@ -882,6 +912,7 @@ function renderTubeCompanyButtons() {
     const r = data.tubesReported[tb.key];
     reportedTotal += r.vip + r.fsfb + r.poliza;
   });
+  (data.customTubes || []).forEach(c => { if (c.pickup) reportedTotal += c.qty || 0; });
   if (reportedTotal > 0) {
     tubesInfo.hidden = false;
     tubesInfo.textContent = `✅ Ya enviaste ${reportedTotal} tubos hoy — el contador se reinició para la siguiente recogida`;
@@ -898,6 +929,8 @@ function renderTubeCompanyGrid(company) {
   tubeCompanyModalTitle.textContent = `${meta.emoji} Tubos — ${meta.label}`;
   tubeCompanyModal.classList.remove("co-vip", "co-fsfb", "co-poliza");
   tubeCompanyModal.classList.add(`co-${company}`);
+  tubeCompanyPapeleriaWrap.hidden = company !== "poliza";
+  if (company === "poliza") renderPapeleria();
   tubeCompanyGrid.innerHTML = "";
 
   TUBOS.forEach(tb => {
@@ -943,7 +976,98 @@ function renderTubeCompanyGrid(company) {
   });
 
   lastToggledTube = null;
+  renderTubeCompanyCustomList(company);
 }
+
+function escapeHtmlTube(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Lista de "otros" que se agregaron a mano para esta compañía (texto libre
+// + cantidad) — se muestran debajo de la cuadrícula fija de tubos.
+function renderTubeCompanyCustomList(company) {
+  const data = currentData();
+  const items = data.customTubes.filter(c => c.company === company);
+  if (items.length === 0) {
+    tubeCompanyCustomList.innerHTML = "";
+    return;
+  }
+  tubeCompanyCustomList.innerHTML = items.map(c => `
+    <div class="tube-custom-row">
+      <span class="tube-custom-label">${escapeHtmlTube(c.label)} ×${c.qty}</span>
+      <button type="button" class="del-btn tube-custom-del" data-id="${c.id}" title="Eliminar">
+        <svg viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H2V5h4l1-2z"/></svg>
+      </button>
+    </div>
+  `).join("");
+
+  tubeCompanyCustomList.querySelectorAll(".tube-custom-del").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      data.customTubes = data.customTubes.filter(c => c.id !== id);
+      saveState();
+      renderTubeCompanyButtons();
+      renderTubeCompanyCustomList(company);
+      renderPreview();
+    });
+  });
+}
+
+// ---------------- Sub-modal "Otro": texto libre + cantidad, por compañía ----------------
+let customTubeQty = 1;
+let customTubeTargetCompany = null;
+
+function openCustomTubeModal(company) {
+  customTubeTargetCompany = company;
+  customTubeLabelInput.value = "";
+  customTubeQty = 1;
+  customTubeQtyValue.textContent = "1";
+  customTubeModal.hidden = false;
+  customTubeLabelInput.focus();
+}
+
+function closeCustomTubeModal() {
+  customTubeModal.hidden = true;
+  customTubeTargetCompany = null;
+}
+
+tubeCompanyAddOtroBtn.addEventListener("click", () => {
+  if (openTubeCompany) openCustomTubeModal(openTubeCompany);
+});
+customTubeModalClose.addEventListener("click", closeCustomTubeModal);
+customTubeModal.addEventListener("click", (e) => {
+  if (e.target === customTubeModal) closeCustomTubeModal();
+});
+customTubeQtyMinus.addEventListener("click", () => {
+  customTubeQty = Math.max(1, customTubeQty - 1);
+  customTubeQtyValue.textContent = customTubeQty;
+});
+customTubeQtyPlus.addEventListener("click", () => {
+  customTubeQty += 1;
+  customTubeQtyValue.textContent = customTubeQty;
+});
+customTubeAddBtn.addEventListener("click", () => {
+  const label = customTubeLabelInput.value.trim();
+  if (!label) { customTubeLabelInput.focus(); return; }
+  const data = currentData();
+  if (!Array.isArray(data.customTubes)) data.customTubes = [];
+  data.customTubes.push({
+    id: nextCustomTubeId(),
+    company: customTubeTargetCompany,
+    label,
+    qty: customTubeQty,
+    pickup: null,
+  });
+  saveState();
+  const company = customTubeTargetCompany;
+  closeCustomTubeModal();
+  renderTubeCompanyButtons();
+  renderTubeCompanyCustomList(company);
+  renderPreview();
+});
+customTubeLabelInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") customTubeAddBtn.click();
+});
 
 function openTubeCompanyModal(company) {
   openTubeCompany = company;
@@ -1089,6 +1213,9 @@ function buildMessage(data, opts) {
   const relevantCancelled = forSend
     ? data.hours.filter(h => h.cancelled && !h.cancelReported)
     : data.hours.filter(h => h.cancelled);
+  const relevantCustomTubes = forSend
+    ? data.customTubes.filter(c => !c.pickup)
+    : data.customTubes.slice();
 
   const lines = [];
   lines.push("📋 *Reporte de recepción de muestras*");
@@ -1165,11 +1292,16 @@ function buildMessage(data, opts) {
     return { ...tb, total: c.vip + c.fsfb + c.poliza };
   }).filter(tb => tb.total > 0);
 
-  if (tubesWithTotal.length === 0) {
+  if (tubesWithTotal.length === 0 && relevantCustomTubes.length === 0) {
     lines.push("• Sin tubos registrados");
   } else {
     tubesWithTotal.forEach(tb => {
       lines.push(`${tb.emoji} ${tb.key}: ${tb.total}`);
+    });
+    const customByLabel = {};
+    relevantCustomTubes.forEach(c => { customByLabel[c.label] = (customByLabel[c.label] || 0) + c.qty; });
+    Object.entries(customByLabel).forEach(([label, qty]) => {
+      lines.push(`📝 ${label}: ${qty}`);
     });
   }
 
@@ -1184,6 +1316,7 @@ function buildMessage(data, opts) {
     tubeTotals.fsfb += c.fsfb;
     tubeTotals.poliza += c.poliza;
   });
+  relevantCustomTubes.forEach(c => { tubeTotals[c.company] += c.qty; });
 
   const patientLine = COMPANIES
     .filter(c => patientTotals[c.key] > 0)
@@ -1193,10 +1326,13 @@ function buildMessage(data, opts) {
   const tubeBlocks = COMPANIES
     .filter(c => tubeTotals[c.key] > 0)
     .map(c => {
-      const detail = TUBOS
+      const fixedDetail = TUBOS
         .filter(tb => tubesSource[tb.key][c.key] > 0)
-        .map(tb => `   ${tb.emoji} ${tb.key}: ${tubesSource[tb.key][c.key]}`)
-        .join("\n");
+        .map(tb => `   ${tb.emoji} ${tb.key}: ${tubesSource[tb.key][c.key]}`);
+      const customDetail = relevantCustomTubes
+        .filter(ct => ct.company === c.key)
+        .map(ct => `   📝 ${ct.label}: ${ct.qty}`);
+      const detail = [...fixedDetail, ...customDetail].join("\n");
       return `${c.emoji} ${c.label} — Total: ${tubeTotals[c.key]}\n${detail}`;
     });
 
@@ -1244,6 +1380,7 @@ function computeCounts() {
     const reported = data.tubesReported[tb.key];
     tubeTotal += current.vip + current.fsfb + current.poliza + reported.vip + reported.fsfb + reported.poliza;
   });
+  data.customTubes.forEach(c => { tubeTotal += c.qty || 0; });
 
   return { patientTotal, tubeTotal };
 }
@@ -1279,6 +1416,7 @@ function buildDailySummary() {
       const r = d.tubesReported[tb.key];
       tubeTotal += c.vip + c.fsfb + c.poliza + r.vip + r.fsfb + r.poliza;
     });
+    (d.customTubes || []).forEach(c => { tubeTotal += c.qty || 0; });
 
     if (patientTotal === 0 && tubeTotal === 0) return;
 
@@ -1407,6 +1545,7 @@ function renderPreview() {
     || data.hours.some(h => h.selected)
     || data.extras.some(e => e.company && e.time)
     || Object.values(data.tubes).some(c => c.vip + c.fsfb + c.poliza > 0)
+    || data.customTubes.length > 0
     || data.papeleria.some(p => p.tipo && p.tipo.trim());
 
   preview.textContent = buildMessage();
@@ -1523,6 +1662,28 @@ function renderAll() {
 
 renderAll();
 
+// ---------------- Título del topbar: carrusel automático si no cabe ----------------
+// Si "Reporte Logísticos" no entra completo (celular angosto, o los 4
+// botones del topbar dejan poco espacio), en vez de cortarlo con "..."
+// lo desliza de a poco para que se alcance a leer completo.
+function setupTitleMarquee() {
+  const h1 = document.querySelector(".topbar h1");
+  const track = document.getElementById("titleTrack");
+  if (!h1 || !track) return;
+  track.classList.remove("marquee");
+  track.style.removeProperty("--marquee-distance");
+  const overflow = track.scrollWidth - h1.clientWidth;
+  if (overflow > 4) {
+    track.style.setProperty("--marquee-distance", `-${overflow + 6}px`);
+    track.classList.add("marquee");
+  }
+}
+window.addEventListener("load", () => {
+  setupTitleMarquee();
+  setTimeout(setupTitleMarquee, 400); // reintenta tras cargar la fuente Sora
+});
+window.addEventListener("resize", setupTitleMarquee);
+
 // Refresca la marca de "hora actual" cada minuto, aunque el usuario no
 // toque nada — así no se queda pegada en una franja vieja si la app se
 // deja abierta un rato.
@@ -1544,7 +1705,8 @@ function hasUnsentData(data) {
     return c.vip > 0 || c.fsfb > 0 || c.poliza > 0;
   });
   const pendingPapeleria = data.papeleria.some(p => p.tipo && p.tipo.trim() && !p.pickup);
-  return pendingHours || pendingExtras || pendingTubes || pendingPapeleria;
+  const pendingCustomTubes = data.customTubes.some(c => !c.pickup);
+  return pendingHours || pendingExtras || pendingTubes || pendingPapeleria || pendingCustomTubes;
 }
 
 function anyUnsentDataToday() {
@@ -1598,7 +1760,7 @@ function renderAssignmentBanner(list) {
   }
 
   assignmentBanner.hidden = false;
-  assignmentBannerText.textContent = `Ve donde ${a.auxName} — ${a.address}${a.note ? " · " + a.note : ""}`;
+  assignmentBannerText.textContent = `Ve donde ${a.auxName}${a.hora ? " (" + a.hora + ")" : ""} — ${a.address}${a.solicitud ? " · N° " + a.solicitud : ""}${a.note ? " · " + a.note : ""}`;
   assignmentBannerTime.textContent = a.createdAt?.toMillis
     ? new Date(a.createdAt.toMillis()).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
     : "";
@@ -1726,12 +1888,12 @@ function renderNetworkAssignments(assignments) {
   networkAssignmentsEl.innerHTML = sorted.map(d => `
     <div class="assign-item">
       <div class="assign-item-top">
-        <span>${escapeHtmlNet(d.logisticoName || "?")} → ${escapeHtmlNet(d.auxName || "?")}</span>
+        <span>${escapeHtmlNet(d.logisticoName || "?")} → ${escapeHtmlNet(d.auxName || "?")}${d.hora ? " · 🕐 " + escapeHtmlNet(d.hora) : ""}</span>
         <span class="assign-badge assign-badge-${d.status}">${
           d.status === "pendiente" ? "Pendiente" : d.status === "vista" ? "Vista" : "Hecha"
         }</span>
       </div>
-      <div class="assign-item-addr">📍 ${escapeHtmlNet(d.address || "")}${d.note ? " · " + escapeHtmlNet(d.note) : ""} — asignó ${escapeHtmlNet(d.createdBy || "?")}</div>
+      <div class="assign-item-addr">📍 ${escapeHtmlNet(d.address || "")}${d.solicitud ? " · N° " + escapeHtmlNet(d.solicitud) : ""}${d.note ? " · " + escapeHtmlNet(d.note) : ""} — asignó ${escapeHtmlNet(d.createdBy || "?")}</div>
     </div>
   `).join("");
 }

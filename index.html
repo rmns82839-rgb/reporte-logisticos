@@ -26,7 +26,7 @@
       </div>
       <div class="topbar-title">
         <span class="topbar-eyebrow">Recepción de muestras</span>
-        <h1>Reporte Logísticos</h1>
+        <h1><span id="titleTrack" class="title-track">Reporte Logísticos</span></h1>
       </div>
     </div>
     <div class="topbar-actions">
@@ -133,20 +133,6 @@
             <span id="tubeCompanyCountPoliza" class="co-btn-count">0</span>
           </button>
         </div>
-
-        <!-- Papelería para doctores: va aquí porque solo aplica a Poliza -->
-        <div class="card-divider"></div>
-        <h2 class="card-title">📄 Papelería recibida de doctores</h2>
-        <p class="card-hint">Solo para pacientes de Poliza: documentos que un doctor le entrega al logístico (electrocardiograma, rayos X, etc.).</p>
-        <div id="papeleriaList" class="papeleria-list"></div>
-        <button id="addPapeleriaBtn" class="ghost-btn" type="button">+ Agregar papelería</button>
-        <datalist id="papeleriaSugerencias">
-          <option value="Electrocardiograma (EKG)"></option>
-          <option value="Rayos X"></option>
-          <option value="Resultado de laboratorio"></option>
-          <option value="Fórmula médica"></option>
-          <option value="Incapacidad"></option>
-        </datalist>
       </section>
 
       <!-- Resumen -->
@@ -259,6 +245,9 @@
 
     <h4 class="network-subtitle">🗒️ Historial de recogidas</h4>
     <div id="networkContent" class="network-list"></div>
+
+    <div class="card-divider"></div>
+    <a href="coordinador.html" target="_blank" rel="noopener" class="btn btn-primary" style="width:100%; text-decoration:none;">🗂️ Abrir panel de coordinador</a>
   </div>
 </div>
 
@@ -268,7 +257,41 @@
     <h3 id="tubeCompanyModalTitle">🧪 Tubos</h3>
     <p class="card-hint" style="margin-top:-4px;">Toca + o – para sumar de a 1, o mantenlos presionados para contar más rápido.</p>
     <div id="tubeCompanyGrid" class="tube-company-grid"></div>
+
+    <div id="tubeCompanyCustomList" class="tube-custom-list"></div>
+    <button id="tubeCompanyAddOtroBtn" class="ghost-btn" type="button">+ Otro</button>
+
+    <div id="tubeCompanyPapeleriaWrap" class="tube-co-papeleria" hidden>
+      <div class="card-divider"></div>
+      <h4 class="network-subtitle">📄 Papelería recibida de doctores</h4>
+      <p class="card-hint">Documentos que un doctor le entrega al logístico (electrocardiograma, rayos X, etc.).</p>
+      <div id="papeleriaList" class="papeleria-list"></div>
+      <button id="addPapeleriaBtn" class="ghost-btn" type="button">+ Agregar papelería</button>
+      <datalist id="papeleriaSugerencias">
+        <option value="Electrocardiograma (EKG)"></option>
+        <option value="Rayos X"></option>
+        <option value="Resultado de laboratorio"></option>
+        <option value="Fórmula médica"></option>
+        <option value="Incapacidad"></option>
+      </datalist>
+    </div>
+
     <button id="tubeCompanyModalDone" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">Listo</button>
+  </div>
+</div>
+
+<div id="customTubeModal" class="modal-overlay modal-overlay-nested" hidden>
+  <div class="modal-card">
+    <button id="customTubeModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>➕ Agregar otro</h3>
+    <p class="card-hint">Escribe qué se recibió (ej: tubo especial, jeringa, frasco...).</p>
+    <input id="customTubeLabelInput" type="text" class="text-input" placeholder="¿Qué se recibió?" maxlength="60" style="text-align:left; font-weight:600;">
+    <div class="stepper-controls" style="justify-content:center; margin:12px 0;">
+      <button type="button" id="customTubeQtyMinus" class="step-btn minus">–</button>
+      <span id="customTubeQtyValue" class="step-value">1</span>
+      <button type="button" id="customTubeQtyPlus" class="step-btn plus">+</button>
+    </div>
+    <button id="customTubeAddBtn" class="btn btn-primary" type="button" style="width:100%;">Agregar</button>
   </div>
 </div>
 

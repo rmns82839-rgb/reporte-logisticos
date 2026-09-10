@@ -369,6 +369,10 @@
       <option value="">Selecciona auxiliar...</option>
     </select>
     <input id="assignAuxOther" type="text" class="text-input assign-text-left" placeholder="Nombre del auxiliar u otro" hidden maxlength="60">
+    <select id="assignHora" class="select-input">
+      <option value="">Hora (opcional)</option>
+    </select>
+    <input id="assignSolicitud" type="text" class="text-input assign-text-left" placeholder="N° de solicitud (opcional)" maxlength="30">
     <input id="assignAddress" type="text" class="text-input assign-text-left" placeholder="Dirección (ej: Calle 97 #23-10, Bogotá)" maxlength="120">
     <input id="assignNote" type="text" class="text-input assign-text-left" placeholder="Nota opcional (ej: urgente, doble recogida)" maxlength="80">
     <button id="assignBtn" type="button" class="btn-primary">📍 Asignar</button>
@@ -403,7 +407,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
   import { getFirestore, collection, query, where, onSnapshot, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-  import { lookupPerson, PEOPLE } from "./people.js";
+  import { lookupPerson, PEOPLE, COORD_ACCESS_CODE } from "./people.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -680,6 +684,8 @@
   const assignLogisticoEl = document.getElementById("assignLogistico");
   const assignAuxEl = document.getElementById("assignAux");
   const assignAuxOtherEl = document.getElementById("assignAuxOther");
+  const assignHoraEl = document.getElementById("assignHora");
+  const assignSolicitudEl = document.getElementById("assignSolicitud");
   const assignAddressEl = document.getElementById("assignAddress");
   const assignNoteEl = document.getElementById("assignNote");
   const assignBtnEl = document.getElementById("assignBtn");
@@ -687,6 +693,18 @@
   const assignListEl = document.getElementById("assignList");
 
   const AUXILIARES = ["Cristian", "Iván", "Brenda", "Jonathan", "Marlio", "Camilo", "Milena", "Luis", "Edison"];
+
+  // Mismas 13 franjas fijas de 30 min que usa el panel del logístico (5:00 AM a 11:00 AM)
+  const HORAS_FIJAS = [
+    "5:00 AM", "5:30 AM", "6:00 AM", "6:30 AM", "7:00 AM", "7:30 AM", "8:00 AM",
+    "8:30 AM", "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM", "11:00 AM",
+  ];
+  HORAS_FIJAS.forEach(h => {
+    const opt = document.createElement("option");
+    opt.value = h;
+    opt.textContent = h;
+    assignHoraEl.appendChild(opt);
+  });
 
   Object.entries(PEOPLE)
     .sort((a, b) => a[1].name.localeCompare(b[1].name, "es"))
@@ -718,6 +736,8 @@
     const auxName = assignAuxEl.value === "__otro__" ? assignAuxOtherEl.value.trim() : assignAuxEl.value;
     const address = assignAddressEl.value.trim();
     const note = assignNoteEl.value.trim();
+    const hora = assignHoraEl.value;
+    const solicitud = assignSolicitudEl.value.trim();
 
     if (!logisticoPhone || !auxName || !address) {
       assignErrorEl.textContent = "Completa logístico, auxiliar y dirección.";
@@ -737,13 +757,18 @@
         auxName,
         address,
         note,
+        hora,
+        solicitud,
         status: "pendiente",
         createdBy: me.name || "Coordinador",
         createdAt: serverTimestamp(),
+        accessCode: COORD_ACCESS_CODE,
       });
       assignAddressEl.value = "";
       assignNoteEl.value = "";
       assignAuxOtherEl.value = "";
+      assignHoraEl.value = "";
+      assignSolicitudEl.value = "";
     } catch (e) {
       console.error(e);
       assignErrorEl.textContent = "No se pudo crear la asignación. Intenta de nuevo.";
@@ -760,12 +785,12 @@
     assignListEl.innerHTML = docs.map(d => `
       <div class="assign-item">
         <div class="assign-item-top">
-          <span>${escapeHtml(d.logisticoName || "?")} → ${escapeHtml(d.auxName || "?")}</span>
+          <span>${escapeHtml(d.logisticoName || "?")} → ${escapeHtml(d.auxName || "?")}${d.hora ? " · 🕐 " + escapeHtml(d.hora) : ""}</span>
           <span class="assign-badge assign-badge-${d.status}">${
             d.status === "pendiente" ? "Pendiente" : d.status === "vista" ? "Vista" : "Hecha"
           }</span>
         </div>
-        <div class="assign-item-addr">📍 ${escapeHtml(d.address || "")}${d.note ? " · " + escapeHtml(d.note) : ""}</div>
+        <div class="assign-item-addr">📍 ${escapeHtml(d.address || "")}${d.solicitud ? " · N° " + escapeHtml(d.solicitud) : ""}${d.note ? " · " + escapeHtml(d.note) : ""}</div>
       </div>
     `).join("");
   }
