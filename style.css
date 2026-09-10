@@ -1,3 +1,5 @@
+[hidden]{display:none !important;}
+
 :root{
   --bg:#0A0D16;
   --surface:#131826;
@@ -392,7 +394,20 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   cursor:pointer;
   min-height:80px;
   position:relative;
-  transition:transform .1s ease, border-color .12s ease, background .12s ease;
+  transition:transform .1s ease, border-color .12s ease, background .12s ease,
+    filter .8s cubic-bezier(.22,1,.36,1), opacity .8s cubic-bezier(.22,1,.36,1);
+}
+.aux-chip-blur{
+  filter:blur(5px);
+  opacity:.3;
+  transform:scale(.9);
+  background:rgba(255,255,255,0.03);
+  backdrop-filter:blur(4px);
+}
+.aux-chip-focus{
+  transform:scale(1.1);
+  box-shadow:0 16px 34px -12px rgba(0,0,0,0.6);
+  z-index:2;
 }
 .aux-chip:active{transform:scale(0.96);}
 .aux-chip .avatar{
@@ -713,6 +728,69 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   font-size:12.5px;
   font-weight:700;
   line-height:1.4;
+}
+
+/* ---------------- Auxiliar elegido, en grande (efecto zoom) ---------------- */
+.aux-hero{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:16px;
+  padding:14px 0 8px;
+}
+.aux-hero-card{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+  width:100%;
+  max-width:250px;
+  padding:26px 20px;
+  border-radius:var(--radius-l);
+  background:linear-gradient(165deg, var(--surface-2), var(--surface-3));
+  border:1.5px solid var(--border);
+  box-shadow:0 20px 48px -18px rgba(0,0,0,0.65);
+}
+@media (prefers-reduced-motion: no-preference){
+  .aux-hero-card{animation:aux-hero-zoom 1.3s cubic-bezier(.16,1,.3,1);}
+  @keyframes aux-hero-zoom{
+    0%{transform:scale(.3); opacity:0; filter:blur(6px);}
+    45%{opacity:1; filter:blur(0);}
+    70%{transform:scale(1.04);}
+    100%{transform:scale(1);}
+  }
+}
+.aux-hero-avatar{
+  width:92px;
+  height:92px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--font-display);
+  font-size:30px;
+  font-weight:800;
+  color:#fff;
+  background:var(--hero-color);
+  box-shadow:0 14px 32px -10px var(--hero-color), 0 0 0 5px var(--surface-2), 0 0 0 6px var(--hero-color);
+}
+.aux-hero-name{
+  font-family:var(--font-display);
+  font-size:20px;
+  font-weight:800;
+  color:var(--text);
+  text-align:center;
+}
+.aux-hero-change{
+  background:none;
+  border:none;
+  color:var(--text-faint);
+  font-family:inherit;
+  font-size:12.5px;
+  font-weight:700;
+  text-decoration:underline;
+  cursor:pointer;
+  padding:4px;
 }
 .hour-row .hour-time{
   font-size:13px;

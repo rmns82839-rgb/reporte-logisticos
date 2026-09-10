@@ -450,6 +450,7 @@ let lastToggledTube = null; // { key, company }
 
 // ---------------- DOM refs ----------------
 const auxGrid = document.getElementById("auxGrid");
+const auxHero = document.getElementById("auxHero");
 const auxOtherBtn = document.getElementById("auxOtherBtn");
 const auxOtherWrap = document.getElementById("auxOtherWrap");
 const auxOtherInput = document.getElementById("auxOtherInput");
@@ -554,13 +555,48 @@ function initials(name) {
 let lastSelectedAux = null; // recuerda el chip recién tocado para el efecto "pop"
 
 function selectAux(i) {
+  // Efecto cinematográfico: el chip elegido se queda nítido y al frente,
+  // los demás se desenfocan (glassmorphism) y se apagan — luego, cuando
+  // termina la transición, recién se pasa al avatar grande.
+  const chips = auxGrid.querySelectorAll(".aux-chip");
+  chips.forEach((chip, idx) => {
+    chip.classList.toggle("aux-chip-focus", idx === i);
+    chip.classList.toggle("aux-chip-blur", idx !== i);
+  });
+
   state.auxIndex = i;
   lastSelectedAux = i;
   saveState();
-  renderAll();
+
+  setTimeout(() => { renderAll(); }, 850);
 }
 
 function renderAux() {
+  const hasFixedSelection = typeof state.auxIndex === "number";
+
+  if (hasFixedSelection) {
+    const name = AUXILIARES[state.auxIndex];
+    auxHero.innerHTML = `
+      <div class="aux-hero-card">
+        <span class="aux-hero-avatar" style="--hero-color:${avatarColor(name)}">${initials(name)}</span>
+        <span class="aux-hero-name">${name}</span>
+        <button id="auxChangeBtn" type="button" class="aux-hero-change">🔄 Cambiar auxiliar</button>
+      </div>`;
+    document.getElementById("auxChangeBtn").addEventListener("click", () => {
+      state.auxIndex = null;
+      saveState();
+      renderAll();
+    });
+    auxHero.hidden = false;
+    auxGrid.hidden = true;
+    auxOtherBtn.hidden = true;
+  } else {
+    auxHero.hidden = true;
+    auxHero.innerHTML = "";
+    auxGrid.hidden = false;
+    auxOtherBtn.hidden = false;
+  }
+
   auxGrid.innerHTML = "";
   AUXILIARES.forEach((name, i) => {
     const chip = document.createElement("button");
