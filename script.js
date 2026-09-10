@@ -479,6 +479,7 @@ const tubeCompanyModal = document.getElementById("tubeCompanyModal");
 const tubeCompanyModalTitle = document.getElementById("tubeCompanyModalTitle");
 const tubeCompanyModalClose = document.getElementById("tubeCompanyModalClose");
 const tubeCompanyModalDone = document.getElementById("tubeCompanyModalDone");
+const tubeCompanyWarning = document.getElementById("tubeCompanyWarning");
 const tubeCompanyGrid = document.getElementById("tubeCompanyGrid");
 const tubeCompanyCustomList = document.getElementById("tubeCompanyCustomList");
 const tubeCompanyAddOtroBtn = document.getElementById("tubeCompanyAddOtroBtn");
@@ -694,6 +695,7 @@ function renderPickupSummary(data) {
 // la vez. Toque normal marca recibido; el ✕ de la esquina cancela; si ya
 // la tiene otra compañía, se ve apagada y avisa en vez de cambiarla.
 function renderHourChips(company) {
+  tubeCompanyWarning.hidden = true;
   const data = currentData();
   const currentIdx = findCurrentSlotIndex(data.hours);
   hourChipsGrid.innerHTML = "";
@@ -944,6 +946,7 @@ function sumCompanyTubes(data, company) {
 // Cuadrícula de los 10 tipos de tubo, con un solo contador cada uno,
 // escogida para la compañía que se abrió (VIP, FSFB o Poliza).
 function renderTubeCompanyGrid(company) {
+  tubeCompanyWarning.hidden = true;
   const data = currentData();
   const meta = TUBE_COMPANY_META[company];
   tubeCompanyModalTitle.textContent = `${meta.emoji} ${meta.label}`;
@@ -1090,8 +1093,30 @@ customTubeLabelInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") customTubeAddBtn.click();
 });
 
+// Si esta compañía tiene menos tubos pendientes que pacientes pendientes,
+// devuelve el mensaje de aviso; si está bien, devuelve null. Los
+// cancelados no cuentan como pacientes aquí.
+function checkCompanyShortfall(data, company) {
+  const pendingReceived = data.hours.filter(h => h.selected && !h.pickup && h.company === company)
+    .concat(data.extras.filter(e => e.company === company && e.time && !e.pickup));
+  if (pendingReceived.length === 0) return null;
+
+  const patientCount = pendingReceived.reduce((sum, p) => sum + (p.count || 1), 0);
+
+  let tubeCount = 0;
+  TUBOS.forEach(tb => { tubeCount += data.tubes[tb.key][company] || 0; });
+  data.customTubes.forEach(c => { if (!c.pickup && c.company === company) tubeCount += c.qty || 0; });
+
+  if (tubeCount < patientCount) {
+    const faltan = patientCount - tubeCount;
+    return `Te faltan tubos: ${patientCount} paciente${patientCount > 1 ? "s" : ""} pero solo ${tubeCount} tubo${tubeCount !== 1 ? "s" : ""} — agrega ${faltan} más antes de salir.`;
+  }
+  return null;
+}
+
 function openTubeCompanyModal(company) {
   openCompany = company;
+  tubeCompanyWarning.hidden = true;
   renderHourChips(company);
   renderTubeCompanyGrid(company);
   tubeCompanyModal.hidden = false;
@@ -1099,6 +1124,7 @@ function openTubeCompanyModal(company) {
 
 function closeTubeCompanyModal() {
   tubeCompanyModal.hidden = true;
+  tubeCompanyWarning.hidden = true;
   openCompany = null;
 }
 
@@ -1106,7 +1132,16 @@ tubeCompanyBtnVip.addEventListener("click", () => openTubeCompanyModal("vip"));
 tubeCompanyBtnFsfb.addEventListener("click", () => openTubeCompanyModal("fsfb"));
 tubeCompanyBtnPoliza.addEventListener("click", () => openTubeCompanyModal("poliza"));
 tubeCompanyModalClose.addEventListener("click", closeTubeCompanyModal);
-tubeCompanyModalDone.addEventListener("click", closeTubeCompanyModal);
+tubeCompanyModalDone.addEventListener("click", () => {
+  const data = currentData();
+  const warning = checkCompanyShortfall(data, openCompany);
+  if (warning) {
+    tubeCompanyWarning.textContent = `⚠️ ${warning}`;
+    tubeCompanyWarning.hidden = false;
+    return;
+  }
+  closeTubeCompanyModal();
+});
 tubeCompanyModal.addEventListener("click", (e) => {
   if (e.target === tubeCompanyModal) closeTubeCompanyModal();
 });
