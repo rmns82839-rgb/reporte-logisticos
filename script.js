@@ -740,7 +740,7 @@ function renderHourChips(company) {
       badge.textContent = `R${slot.pickup}`;
       badge.title = `Ya se envió en la recogida ${slot.pickup}`;
       wrap.appendChild(badge);
-    } else if (isMine && slot.selected) {
+    } else if (isMine && (slot.selected || slot.cancelled)) {
       const badge = document.createElement("button");
       badge.type = "button";
       badge.className = "hour-chip-count" + (slot.count > 1 ? " active" : "");
@@ -1273,7 +1273,10 @@ function buildMessage(data, opts) {
     lines.push("");
     lines.push("❌ *Cancelados:*");
     relevantCancelled.forEach(h => {
-      lines.push(`• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`);
+      const times = h.count > 1 ? h.count : 1;
+      for (let k = 0; k < times; k++) {
+        lines.push(`• ${h.time} — ${companyEmoji(h.company)} ${companyLabel(h.company).toUpperCase()}`);
+      }
     });
   }
 
