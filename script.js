@@ -385,16 +385,18 @@ function validateBeforeSend(data) {
   const totalTubes = TUBOS.reduce((sum, tb) => {
     const c = data.tubes[tb.key];
     return sum + c.vip + c.fsfb + c.poliza;
-  }, 0);
+  }, 0) + data.customTubes.filter(c => !c.pickup).reduce((sum, c) => sum + (c.qty || 0), 0);
 
   if (totalTubes === 0) {
     return "Registra al menos un tubo antes de enviar, o marca esa hora como cancelada (✕).";
   }
 
-  // Cada compañía que tenga un paciente pendiente debe tener al menos un
-  // tubo registrado de esa misma compañía (si hay VIP y FSFB pendientes
-  // pero solo metiste tubos VIP, algo se quedó sin registrar).
-  const companiesWithPatients = new Set(pendingReceived.map(p => p.company));
+  // Por compañía: mínimo tantos tubos como pacientes pendientes (si son
+  // 2 horas de VIP, hacen falta al menos 2 tubos de VIP). Los cancelados
+  // no cuentan aquí — nunca entran a pendingReceived, solo lo recibido.
+  const patientsByCompany = { vip: 0, fsfb: 0, poliza: 0 };
+  pendingReceived.forEach(p => { patientsByCompany[p.company] += (p.count || 1); });
+
   const tubesByCompany = { vip: 0, fsfb: 0, poliza: 0 };
   TUBOS.forEach(tb => {
     const c = data.tubes[tb.key];
@@ -402,11 +404,16 @@ function validateBeforeSend(data) {
     tubesByCompany.fsfb += c.fsfb;
     tubesByCompany.poliza += c.poliza;
   });
+  data.customTubes.forEach(c => { if (!c.pickup) tubesByCompany[c.company] += c.qty || 0; });
 
-  const missing = [...companiesWithPatients].filter(company => tubesByCompany[company] === 0);
-  if (missing.length > 0) {
-    const nombres = missing.map(c => companyLabel(c).toUpperCase()).join(" y ");
-    return `Tienes paciente(s) de ${nombres} pero no registraste tubos de ${missing.length > 1 ? "esas compañías" : "esa compañía"}. Revisa antes de enviar.`;
+  const short = Object.keys(patientsByCompany)
+    .filter(company => patientsByCompany[company] > 0 && tubesByCompany[company] < patientsByCompany[company]);
+
+  if (short.length > 0) {
+    const detail = short
+      .map(company => `${companyLabel(company).toUpperCase()}: ${patientsByCompany[company]} paciente${patientsByCompany[company] > 1 ? "s" : ""} pero solo ${tubesByCompany[company]} tubo${tubesByCompany[company] !== 1 ? "s" : ""}`)
+      .join(" · ");
+    return `Faltan tubos por compañía — ${detail}. Revisa antes de enviar.`;
   }
 
   return null;
