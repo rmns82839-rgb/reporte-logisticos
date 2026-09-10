@@ -305,7 +305,14 @@ function registerSendBatch(data) {
 
   if (hourIndices.length > 0 || extraIds.length > 0 || cancelledHourIndices.length > 0 || tubesNonZero || papeleriaIndices.length > 0 || customTubeIndices.length > 0) {
     if (!Array.isArray(data.pickupLog)) data.pickupLog = [];
-    data.pickupLog.push({ pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta, papeleriaIndices, customTubeIndices });
+    const patientCount = hourIndices.reduce((sum, i) => sum + ((data.hours[i] && data.hours[i].count) || 1), 0) + extraIds.length;
+    let tubeCount = 0;
+    TUBOS.forEach(tb => { const d = tubeDelta[tb.key]; tubeCount += d.vip + d.fsfb + d.poliza; });
+    customTubeIndices.forEach(i => { if (data.customTubes[i]) tubeCount += data.customTubes[i].qty || 0; });
+    data.pickupLog.push({
+      pickupNum, hourIndices, extraIds, cancelledHourIndices, tubeDelta, papeleriaIndices, customTubeIndices,
+      sentAt: Date.now(), patientCount, tubeCount,
+    });
   }
 
   return { pickupNum, hourIndices, extraIds, tubeDelta };
@@ -440,8 +447,12 @@ const auxOtherBtn = document.getElementById("auxOtherBtn");
 const auxOtherWrap = document.getElementById("auxOtherWrap");
 const auxOtherInput = document.getElementById("auxOtherInput");
 
-const pickupInfo = document.getElementById("pickupInfo");
+const pickupSummary = document.getElementById("pickupSummary");
 const undoPickupBtn = document.getElementById("undoPickupBtn");
+const undoConfirmModal = document.getElementById("undoConfirmModal");
+const undoConfirmClose = document.getElementById("undoConfirmClose");
+const undoConfirmBtn = document.getElementById("undoConfirmBtn");
+const undoCancelBtn = document.getElementById("undoCancelBtn");
 const hourCompanyCountVip = document.getElementById("hourCompanyCountVip");
 const hourCompanyCountFsfb = document.getElementById("hourCompanyCountFsfb");
 const hourCompanyCountPoliza = document.getElementById("hourCompanyCountPoliza");
@@ -472,7 +483,6 @@ const customTubeQtyValue = document.getElementById("customTubeQtyValue");
 const customTubeQtyPlus = document.getElementById("customTubeQtyPlus");
 const customTubeAddBtn = document.getElementById("customTubeAddBtn");
 const tubeCompanyPapeleriaWrap = document.getElementById("tubeCompanyPapeleriaWrap");
-const tubesInfo = document.getElementById("tubesInfo");
 
 const papeleriaList = document.getElementById("papeleriaList");
 const addPapeleriaBtn = document.getElementById("addPapeleriaBtn");
@@ -634,31 +644,43 @@ function renderCompanyButtons() {
   tubeCompanyCountPoliza.textContent = sumCompanyTubes(data, "poliza");
 
   ensurePickupsToday(data);
+  renderPickupSummary(data);
+  undoPickupBtn.hidden = !(Array.isArray(data.pickupLog) && data.pickupLog.length > 0);
+}
+
+// Un renglón por cada recogida ya enviada hoy (hora, pacientes, tubos),
+// más una línea avisando que lo nuevo será la siguiente — mucho más
+// claro que dos frases sueltas.
+function ordinalEs(n) {
+  return `${n}ª`;
+}
+
+function renderPickupSummary(data) {
+  const log = Array.isArray(data.pickupLog) ? data.pickupLog : [];
+  if (log.length === 0) {
+    pickupSummary.hidden = true;
+    pickupSummary.innerHTML = "";
+    return;
+  }
+  pickupSummary.hidden = false;
+
+  const rows = log.map((p, idx) => {
+    const d = p.sentAt ? new Date(p.sentAt) : null;
+    const timeLabel = d ? formatTime(d.getHours(), d.getMinutes()) : "";
+    return `
+      <div class="pickup-summary-row">
+        <span class="pickup-summary-label">✅ ${ordinalEs(idx + 1)} recogida${timeLabel ? " — " + timeLabel : ""}</span>
+        <span class="pickup-summary-nums">👥 ${p.patientCount || 0} · 🧪 ${p.tubeCount || 0}</span>
+      </div>`;
+  });
+
   const pendingNew = data.hours.filter(h => h.selected && !h.pickup).length
     + data.extras.filter(e => e.company && e.time && !e.pickup).length;
+  const nextLine = pendingNew > 0
+    ? `<div class="pickup-summary-next">🕓 Lo nuevo que marques será la ${ordinalEs(log.length + 1)} recogida</div>`
+    : "";
 
-  if (data.pickupsToday.count > 0) {
-    pickupInfo.hidden = false;
-    pickupInfo.textContent = pendingNew > 0
-      ? `✅ Recogida ${data.pickupsToday.count} ya enviada — lo que marques ahora será la recogida ${data.pickupsToday.count + 1}`
-      : `✅ Recogida ${data.pickupsToday.count} ya enviada — al día, nada pendiente por enviar`;
-  } else {
-    pickupInfo.hidden = true;
-  }
-  undoPickupBtn.hidden = !(Array.isArray(data.pickupLog) && data.pickupLog.length > 0);
-
-  let reportedTotal = 0;
-  TUBOS.forEach(tb => {
-    const r = data.tubesReported[tb.key];
-    reportedTotal += r.vip + r.fsfb + r.poliza;
-  });
-  (data.customTubes || []).forEach(c => { if (c.pickup) reportedTotal += c.qty || 0; });
-  if (reportedTotal > 0) {
-    tubesInfo.hidden = false;
-    tubesInfo.textContent = `✅ Ya enviaste ${reportedTotal} tubos hoy — el contador se reinició para la siguiente recogida`;
-  } else {
-    tubesInfo.hidden = true;
-  }
+  pickupSummary.innerHTML = rows.join("") + nextLine;
 }
 
 // Chips de horas: las 13 franjas fijas en un solo grupo, una compañía a
@@ -1633,10 +1655,21 @@ resetBtn.addEventListener("click", () => {
 });
 
 undoPickupBtn.addEventListener("click", () => {
+  undoConfirmModal.hidden = false;
+});
+function closeUndoConfirmModal() {
+  undoConfirmModal.hidden = true;
+}
+undoConfirmClose.addEventListener("click", closeUndoConfirmModal);
+undoCancelBtn.addEventListener("click", closeUndoConfirmModal);
+undoConfirmModal.addEventListener("click", (e) => {
+  if (e.target === undoConfirmModal) closeUndoConfirmModal();
+});
+undoConfirmBtn.addEventListener("click", () => {
   const data = currentData();
-  if (!confirm("¿Deshacer la última recogida enviada? Las horas y tubos de ese envío volverán a quedar pendientes.")) return;
   const undone = undoLastPickup(data);
   saveState();
+  closeUndoConfirmModal();
   renderAll();
   if (undone) showToast("Última recogida deshecha");
 });

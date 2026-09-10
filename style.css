@@ -689,6 +689,20 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   font-weight:700;
   color:var(--send);
 }
+.pickup-summary{display:flex; flex-direction:column; gap:6px; margin:0 0 14px;}
+.pickup-summary-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 12px;
+  border-radius:10px;
+  background:var(--send-soft);
+  border:1px solid rgba(31,210,144,0.25);
+}
+.pickup-summary-label{font-size:12px; font-weight:700; color:var(--send);}
+.pickup-summary-nums{font-size:12px; font-weight:800; color:var(--text-dim); white-space:nowrap;}
+.pickup-summary-next{font-size:11.5px; font-weight:700; color:var(--text-faint); padding:2px 2px 0;}
 .hour-row .hour-time{
   font-size:13px;
   font-weight:800;

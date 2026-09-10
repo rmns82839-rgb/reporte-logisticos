@@ -90,11 +90,14 @@
     <div class="col col-right">
       <!-- Recepción por compañía (horas + tubos) -->
       <section class="card">
-        <h2 class="card-title">Recepción por compañía</h2>
+        <div class="card-head-row">
+          <h2 class="card-title">Recepción por compañía</h2>
+          <button id="undoPickupBtn" class="icon-btn" type="button" title="Deshacer última recogida" aria-label="Deshacer última recogida" hidden>
+            <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6a6 6 0 0 1-6 6 6 6 0 0 1-6-6H4a8 8 0 0 0 8 8 8 8 0 0 0 8-8 8 8 0 0 0-8-8z"/></svg>
+          </button>
+        </div>
         <p class="card-hint">Toca una compañía para marcar horas y contar tubos.</p>
-        <p id="pickupInfo" class="pickup-info" hidden></p>
-        <button id="undoPickupBtn" class="ghost-btn ghost-btn-danger" type="button" hidden>↩️ Deshacer última recogida</button>
-        <p id="tubesInfo" class="pickup-info" hidden></p>
+        <div id="pickupSummary" class="pickup-summary" hidden></div>
 
         <div class="company-tube-buttons">
           <button id="tubeCompanyBtnVip" type="button" class="company-tube-btn co-btn-vip">
@@ -111,6 +114,16 @@
           </button>
         </div>
       </section>
+
+      <div id="undoConfirmModal" class="modal-overlay" hidden>
+        <div class="modal-card">
+          <button id="undoConfirmClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+          <h3>↩️ Deshacer última recogida</h3>
+          <p class="card-hint">Las horas, tubos, papelería y "Otro" que se enviaron en la última recogida vuelven a quedar pendientes, listos para corregir y volver a enviar. No borra nada — solo la regresa a "sin enviar".</p>
+          <button id="undoConfirmBtn" class="btn btn-secondary-sm" type="button" style="width:100%; margin-bottom:8px; color:var(--danger);">Sí, deshacer</button>
+          <button id="undoCancelBtn" class="ghost-btn" type="button" style="margin-top:0;">Cancelar</button>
+        </div>
+      </div>
 
       <!-- Resumen -->
       <section class="card summary-card">
