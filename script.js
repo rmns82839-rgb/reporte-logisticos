@@ -40,6 +40,7 @@ const TUBOS = [
 const HOURS_SPLIT = 7; // 5:00 AM .. 8:00 AM = 7 franjas; el resto va al segundo grupo
 
 const STORAGE_KEY = "reporte_logisticos_state_v5";
+const INSTALL_DISMISS_KEY = "reporte_logisticos_install_dismissed_v1";
 
 function buildFixedHours() {
   const list = [];
@@ -439,14 +440,16 @@ const auxOtherBtn = document.getElementById("auxOtherBtn");
 const auxOtherWrap = document.getElementById("auxOtherWrap");
 const auxOtherInput = document.getElementById("auxOtherInput");
 
-const hourGridA = document.getElementById("hourGridA");
-const hourGridB = document.getElementById("hourGridB");
-const hourBadgeA = document.getElementById("hourBadgeA");
-const hourBadgeB = document.getElementById("hourBadgeB");
 const pickupInfo = document.getElementById("pickupInfo");
 const undoPickupBtn = document.getElementById("undoPickupBtn");
-const extraList = document.getElementById("extraList");
-const addExtraBtn = document.getElementById("addExtraBtn");
+const hourCompanyCountVip = document.getElementById("hourCompanyCountVip");
+const hourCompanyCountFsfb = document.getElementById("hourCompanyCountFsfb");
+const hourCompanyCountPoliza = document.getElementById("hourCompanyCountPoliza");
+const hourChipsGrid = document.getElementById("hourChipsGrid");
+const hourChipsBadge = document.getElementById("hourChipsBadge");
+const hourCompanyExtraList = document.getElementById("hourCompanyExtraList");
+const hourCompanyAddExtraBtn = document.getElementById("hourCompanyAddExtraBtn");
+const tubeCompanyBadge = document.getElementById("tubeCompanyBadge");
 
 const tubeCompanyBtnVip = document.getElementById("tubeCompanyBtnVip");
 const tubeCompanyBtnFsfb = document.getElementById("tubeCompanyBtnFsfb");
@@ -477,6 +480,13 @@ const addPapeleriaBtn = document.getElementById("addPapeleriaBtn");
 const preview = document.getElementById("preview");
 const copyBtn = document.getElementById("copyBtn");
 const sendBtn = document.getElementById("sendBtn");
+const installBtn = document.getElementById("installBtn");
+const installModal = document.getElementById("installModal");
+const installModalAndroid = document.getElementById("installModalAndroid");
+const installModalIOS = document.getElementById("installModalIOS");
+const installConfirmBtn = document.getElementById("installConfirmBtn");
+const installModalClose = document.getElementById("installModalClose");
+const installModalDismiss = document.getElementById("installModalDismiss");
 const resetBtn = document.getElementById("resetBtn");
 const toast = document.getElementById("toast");
 const statsStrip = document.getElementById("statsStrip");
@@ -566,34 +576,7 @@ auxOtherInput.addEventListener("input", () => {
   renderPreview();
 });
 
-// ---------------- Select de compañía (VIP por defecto, sin opción vacía) ----------------
-function buildCompanySelect(currentValue, onChange) {
-  const select = document.createElement("select");
-  select.className = "company-select";
-
-  COMPANIES.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.key;
-    opt.textContent = c.label;
-    select.appendChild(opt);
-  });
-
-  select.value = currentValue || "vip";
-  applyCompanyClass(select, select.value);
-
-  select.addEventListener("change", () => {
-    applyCompanyClass(select, select.value);
-    onChange(select.value);
-  });
-
-  return select;
-}
-
-function applyCompanyClass(select, value) {
-  select.classList.remove("c-vip", "c-fsfb", "c-poliza");
-  const found = COMPANIES.find(c => c.key === value);
-  if (found) select.classList.add(found.css);
-}
+// ---------------- Colores/etiquetas por compañía (compartidos por horas y tubos) ----------------
 
 // ---------------- Render: Horas fijas (dos acordeones) ----------------
 
@@ -623,127 +606,32 @@ function findCurrentSlotIndex(hours) {
   return -1;
 }
 
-function renderHourGroup(container, data, start, end, currentIdx) {
-  container.innerHTML = "";
-  for (let i = start; i < end; i++) {
-    const slot = data.hours[i];
-    const row = document.createElement("div");
-    row.className = "hour-row"
-      + (slot.selected ? " is-set" : "")
-      + (slot.cancelled ? " is-cancelled" : "")
-      + (slot.pickup ? " is-reported" : "")
-      + (i === currentIdx ? " is-now" : "")
-      + (i === lastToggledHourIndex ? " pop" : "");
+let openCompany = null; // "vip" | "fsfb" | "poliza" | null mientras el modal está abierto
 
-    const label = document.createElement("span");
-    label.className = "hour-time";
-    label.textContent = slot.time;
-
-    let cornerTag = null;
-    if (slot.pickup) {
-      cornerTag = document.createElement("span");
-      cornerTag.className = "pickup-tag";
-      cornerTag.title = `Ya se envió en la recogida ${slot.pickup}`;
-      cornerTag.textContent = `R${slot.pickup}`;
-    } else if (slot.cancelled && slot.cancelReported) {
-      cornerTag = document.createElement("span");
-      cornerTag.className = "pickup-tag pickup-tag-cancel";
-      cornerTag.title = "Esta cancelación ya se informó en un reporte anterior";
-      cornerTag.textContent = "✔";
-    }
-
-    // ✓ Recibido / ✕ Cancelado (mutuamente excluyentes) — dos toques
-    // simples, sin gestos raros que se puedan disparar sin querer.
-    const receivedBtn = document.createElement("button");
-    receivedBtn.type = "button";
-    receivedBtn.className = "status-btn status-received" + (slot.selected ? " active" : "");
-    receivedBtn.setAttribute("aria-pressed", String(!!slot.selected));
-    receivedBtn.title = slot.selected ? "Recibido — toca para deshacer" : "Marcar como recibido";
-    receivedBtn.textContent = "✓";
-    receivedBtn.addEventListener("click", () => {
-      const nowSelected = !data.hours[i].selected;
-      data.hours[i].selected = nowSelected;
-      if (nowSelected) data.hours[i].cancelled = false;
-      lastToggledHourIndex = i;
-      saveState();
-      renderHours();
-      renderPreview();
-    });
-
-    // Botón aparte, chiquito, solo visible cuando ya está recibido: para
-    // cuando el mismo paciente tiene dos números de solicitud a la misma
-    // hora. Es un botón independiente a propósito — así nunca se activa
-    // sin querer por dejar el dedo un poco más de tiempo sobre el ✓.
-    // Cada toque suma un paciente (×2, ×3); al llegar a ×3 vuelve a ×1.
-    // Va como insignia pegada a la esquina del botón ✓ (no suelta en la fila).
-    let countBtn = null;
-    if (slot.selected) {
-      countBtn = document.createElement("button");
-      countBtn.type = "button";
-      countBtn.className = "count-tag" + (slot.count > 1 ? " active" : "");
-      countBtn.title = "Toca para sumar otro paciente a esta misma hora (×2, ×3)";
-      countBtn.textContent = `×${slot.count || 1}`;
-      countBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const current = data.hours[i].count || 1;
-        data.hours[i].count = current >= 3 ? 1 : current + 1;
-        lastToggledHourIndex = i;
-        saveState();
-        renderHours();
-        renderPreview();
-      });
-    }
-
-    const receivedWrap = document.createElement("div");
-    receivedWrap.className = "received-wrap";
-    receivedWrap.appendChild(receivedBtn);
-    if (countBtn) receivedWrap.appendChild(countBtn);
-
-    const cancelBtn = document.createElement("button");
-    cancelBtn.type = "button";
-    cancelBtn.className = "status-btn status-cancel" + (slot.cancelled ? " active" : "");
-    cancelBtn.setAttribute("aria-pressed", String(!!slot.cancelled));
-    cancelBtn.title = slot.cancelled ? "Cancelado — toca para deshacer" : "Marcar como cancelado";
-    cancelBtn.textContent = "✕";
-    cancelBtn.addEventListener("click", () => {
-      const nowCancelled = !data.hours[i].cancelled;
-      data.hours[i].cancelled = nowCancelled;
-      if (nowCancelled) data.hours[i].selected = false;
-      lastToggledHourIndex = i;
-      saveState();
-      renderHours();
-      renderPreview();
-    });
-
-    // desplegable de compañía: siempre elegible, sin importar si ya está
-    // recibida, cancelada, o aún sin tocar — así se puede escoger la
-    // compañía antes de confirmar o incluso para una hora cancelada
-    const select = buildCompanySelect(slot.company, (val) => {
-      data.hours[i].company = val;
-      saveState();
-      renderPreview();
-    });
-
-    row.appendChild(label);
-    row.appendChild(receivedWrap);
-    row.appendChild(select);
-    row.appendChild(cancelBtn);
-    if (cornerTag) row.appendChild(cornerTag);
-    container.appendChild(row);
-  }
+// Pacientes pendientes (sin enviar) para una compañía: horas marcadas +
+// horas extraordinarias.
+function sumCompanyPatients(data, company) {
+  let n = 0;
+  data.hours.forEach(h => {
+    if (h.selected && h.company === company && !h.pickup) n += h.count || 1;
+  });
+  data.extras.forEach(e => {
+    if (e.company === company && e.time && !e.pickup) n += 1;
+  });
+  return n;
 }
 
-function renderHours() {
+// Botones de compañía: pacientes (horas) y tubos, juntos. Más abajo
+// también maneja el aviso de recogida y "deshacer", que son del
+// auxiliar completo (no de una sola compañía).
+function renderCompanyButtons() {
   const data = currentData();
-  const currentIdx = findCurrentSlotIndex(data.hours);
-  renderHourGroup(hourGridA, data, 0, HOURS_SPLIT, currentIdx);
-  renderHourGroup(hourGridB, data, HOURS_SPLIT, data.hours.length, currentIdx);
-  lastToggledHourIndex = null;
-
-  const countA = data.hours.slice(0, HOURS_SPLIT).filter(h => h.selected).length;
-  const countB = data.hours.slice(HOURS_SPLIT).filter(h => h.selected).length;
-  hourBadgeA.textContent = `${countA}/${HOURS_SPLIT}`;
-  hourBadgeB.textContent = `${countB}/${data.hours.length - HOURS_SPLIT}`;
+  hourCompanyCountVip.textContent = sumCompanyPatients(data, "vip");
+  hourCompanyCountFsfb.textContent = sumCompanyPatients(data, "fsfb");
+  hourCompanyCountPoliza.textContent = sumCompanyPatients(data, "poliza");
+  tubeCompanyCountVip.textContent = sumCompanyTubes(data, "vip");
+  tubeCompanyCountFsfb.textContent = sumCompanyTubes(data, "fsfb");
+  tubeCompanyCountPoliza.textContent = sumCompanyTubes(data, "poliza");
 
   ensurePickupsToday(data);
   const pendingNew = data.hours.filter(h => h.selected && !h.pickup).length
@@ -757,15 +645,133 @@ function renderHours() {
   } else {
     pickupInfo.hidden = true;
   }
-
   undoPickupBtn.hidden = !(Array.isArray(data.pickupLog) && data.pickupLog.length > 0);
+
+  let reportedTotal = 0;
+  TUBOS.forEach(tb => {
+    const r = data.tubesReported[tb.key];
+    reportedTotal += r.vip + r.fsfb + r.poliza;
+  });
+  (data.customTubes || []).forEach(c => { if (c.pickup) reportedTotal += c.qty || 0; });
+  if (reportedTotal > 0) {
+    tubesInfo.hidden = false;
+    tubesInfo.textContent = `✅ Ya enviaste ${reportedTotal} tubos hoy — el contador se reinició para la siguiente recogida`;
+  } else {
+    tubesInfo.hidden = true;
+  }
 }
 
-// ---------------- Render: Horas extra ----------------
-function renderExtras() {
+// Chips de horas: las 13 franjas fijas en un solo grupo, una compañía a
+// la vez. Toque normal marca recibido; el ✕ de la esquina cancela; si ya
+// la tiene otra compañía, se ve apagada y avisa en vez de cambiarla.
+function renderHourChips(company) {
   const data = currentData();
-  extraList.innerHTML = "";
+  const currentIdx = findCurrentSlotIndex(data.hours);
+  hourChipsGrid.innerHTML = "";
+  let countMine = 0;
+
+  data.hours.forEach((slot, i) => {
+    const ownedByOther = (slot.selected || slot.cancelled) && slot.company && slot.company !== company;
+    const isMine = slot.company === company;
+    if (isMine && slot.selected) countMine++;
+
+    const wrap = document.createElement("div");
+    wrap.className = "hour-chip-wrap"
+      + (isMine && slot.selected ? " is-set" : "")
+      + (isMine && slot.cancelled ? " is-cancelled" : "")
+      + (isMine && slot.pickup ? " is-reported" : "")
+      + (i === currentIdx ? " is-now" : "")
+      + (i === lastToggledHourIndex ? " pop" : "")
+      + (ownedByOther ? " locked" : "");
+    wrap.style.setProperty("--co-color", `var(--${company})`);
+
+    const ownerLabel = ownedByOther ? (TUBE_COMPANY_META[slot.company]?.label || slot.company) : null;
+    function tryClaim(action) {
+      if (ownedByOther) {
+        showToast(`Esta hora ya está marcada para ${ownerLabel}. Quítala ahí primero.`, 3200);
+        return;
+      }
+      action();
+    }
+
+    const chipBtn = document.createElement("button");
+    chipBtn.type = "button";
+    chipBtn.className = "hour-chip";
+    chipBtn.textContent = slot.time;
+    chipBtn.title = ownedByOther ? `Tomada por ${ownerLabel}` : (isMine && slot.selected ? "Recibido — toca para deshacer" : "Marcar como recibido");
+    chipBtn.addEventListener("click", () => tryClaim(() => {
+      const nowSelected = !(isMine && slot.selected);
+      data.hours[i].selected = nowSelected;
+      data.hours[i].company = company;
+      if (nowSelected) data.hours[i].cancelled = false;
+      lastToggledHourIndex = i;
+      saveState();
+      renderCompanyButtons();
+      renderHourChips(company);
+      renderPreview();
+    }));
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "hour-chip-cancel";
+    cancelBtn.textContent = "✕";
+    cancelBtn.title = ownedByOther ? `Tomada por ${ownerLabel}` : (isMine && slot.cancelled ? "Cancelado — toca para deshacer" : "Marcar como cancelado");
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tryClaim(() => {
+        const nowCancelled = !(isMine && slot.cancelled);
+        data.hours[i].cancelled = nowCancelled;
+        data.hours[i].company = company;
+        if (nowCancelled) data.hours[i].selected = false;
+        lastToggledHourIndex = i;
+        saveState();
+        renderCompanyButtons();
+        renderHourChips(company);
+        renderPreview();
+      });
+    });
+
+    wrap.appendChild(chipBtn);
+    wrap.appendChild(cancelBtn);
+
+    if (isMine && slot.pickup) {
+      const badge = document.createElement("span");
+      badge.className = "hour-chip-count is-sent";
+      badge.textContent = `R${slot.pickup}`;
+      badge.title = `Ya se envió en la recogida ${slot.pickup}`;
+      wrap.appendChild(badge);
+    } else if (isMine && slot.selected) {
+      const badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = "hour-chip-count" + (slot.count > 1 ? " active" : "");
+      badge.textContent = `×${slot.count || 1}`;
+      badge.title = "Toca para sumar otro paciente a esta misma hora (×2, ×3)";
+      badge.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const current = data.hours[i].count || 1;
+        data.hours[i].count = current >= 3 ? 1 : current + 1;
+        lastToggledHourIndex = i;
+        saveState();
+        renderCompanyButtons();
+        renderHourChips(company);
+        renderPreview();
+      });
+      wrap.appendChild(badge);
+    }
+
+    hourChipsGrid.appendChild(wrap);
+  });
+
+  lastToggledHourIndex = null;
+  hourChipsBadge.textContent = `${countMine}/${data.hours.length}`;
+  renderHourCompanyExtras(company);
+}
+
+function renderHourCompanyExtras(company) {
+  const data = currentData();
+  hourCompanyExtraList.innerHTML = "";
   data.extras.forEach((extra, i) => {
+    if (extra.company !== company) return;
     const row = document.createElement("div");
     row.className = "extra-row";
 
@@ -778,12 +784,6 @@ function renderExtras() {
       renderPreview();
     });
 
-    const select = buildCompanySelect(extra.company, (val) => {
-      data.extras[i].company = val;
-      saveState();
-      renderPreview();
-    });
-
     const delBtn = document.createElement("button");
     delBtn.type = "button";
     delBtn.className = "del-btn";
@@ -791,22 +791,37 @@ function renderExtras() {
     delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H2V5h4l1-2z"/></svg>`;
     delBtn.addEventListener("click", () => {
       data.extras.splice(i, 1);
-      saveState(); renderExtras(); renderPreview();
+      saveState();
+      renderCompanyButtons();
+      renderHourCompanyExtras(company);
+      renderPreview();
     });
 
     row.appendChild(timeInput);
-    row.appendChild(select);
     row.appendChild(delBtn);
-    extraList.appendChild(row);
+    hourCompanyExtraList.appendChild(row);
   });
 }
 
-addExtraBtn.addEventListener("click", () => {
+hourCompanyAddExtraBtn.addEventListener("click", () => {
+  if (!openCompany) return;
   const data = currentData();
-  data.extras.push({ time: "", company: "vip", pickup: null, id: nextExtraId() });
+  data.extras.push({ time: "", company: openCompany, pickup: null, id: nextExtraId() });
   saveState();
-  renderExtras();
+  renderHourCompanyExtras(openCompany);
 });
+
+function renderHours() {
+  renderCompanyButtons();
+  if (openCompany) {
+    renderHourChips(openCompany);
+    renderTubeCompanyGrid(openCompany);
+  }
+}
+
+function renderExtras() {
+  renderHours();
+}
 
 // ---------------- Render: Tubos (dos acordeones) ----------------
 // Toque normal = suma/resta de a 1 (preciso). Mantener presionado = repite
@@ -890,8 +905,6 @@ const TUBE_COMPANY_META = {
   poliza: { label: "Poliza", emoji: "🟡" },
 };
 
-let openTubeCompany = null; // "vip" | "fsfb" | "poliza" | null mientras el modal está abierto
-
 function sumCompanyTubes(data, company) {
   let n = 0;
   TUBOS.forEach(tb => { n += data.tubes[tb.key][company] || 0; });
@@ -899,38 +912,17 @@ function sumCompanyTubes(data, company) {
   return n;
 }
 
-// Botones de compañía: solo muestran el total de cada una (el conteo en
-// detalle vive dentro del modal que abre cada botón).
-function renderTubeCompanyButtons() {
-  const data = currentData();
-  tubeCompanyCountVip.textContent = sumCompanyTubes(data, "vip");
-  tubeCompanyCountFsfb.textContent = sumCompanyTubes(data, "fsfb");
-  tubeCompanyCountPoliza.textContent = sumCompanyTubes(data, "poliza");
-
-  let reportedTotal = 0;
-  TUBOS.forEach(tb => {
-    const r = data.tubesReported[tb.key];
-    reportedTotal += r.vip + r.fsfb + r.poliza;
-  });
-  (data.customTubes || []).forEach(c => { if (c.pickup) reportedTotal += c.qty || 0; });
-  if (reportedTotal > 0) {
-    tubesInfo.hidden = false;
-    tubesInfo.textContent = `✅ Ya enviaste ${reportedTotal} tubos hoy — el contador se reinició para la siguiente recogida`;
-  } else {
-    tubesInfo.hidden = true;
-  }
-}
-
 // Cuadrícula de los 10 tipos de tubo, con un solo contador cada uno,
 // escogida para la compañía que se abrió (VIP, FSFB o Poliza).
 function renderTubeCompanyGrid(company) {
   const data = currentData();
   const meta = TUBE_COMPANY_META[company];
-  tubeCompanyModalTitle.textContent = `${meta.emoji} Tubos — ${meta.label}`;
+  tubeCompanyModalTitle.textContent = `${meta.emoji} ${meta.label}`;
   tubeCompanyModal.classList.remove("co-vip", "co-fsfb", "co-poliza");
   tubeCompanyModal.classList.add(`co-${company}`);
   tubeCompanyPapeleriaWrap.hidden = company !== "poliza";
   if (company === "poliza") renderPapeleria();
+  tubeCompanyBadge.textContent = sumCompanyTubes(data, company);
   tubeCompanyGrid.innerHTML = "";
 
   TUBOS.forEach(tb => {
@@ -956,7 +948,7 @@ function renderTubeCompanyGrid(company) {
     const onRelease = () => {
       lastToggledTube = { key: tb.key, company };
       saveState();
-      renderTubeCompanyButtons();
+      renderCompanyButtons();
       renderTubeCompanyGrid(company);
       renderPreview();
     };
@@ -1006,7 +998,7 @@ function renderTubeCompanyCustomList(company) {
       const id = btn.dataset.id;
       data.customTubes = data.customTubes.filter(c => c.id !== id);
       saveState();
-      renderTubeCompanyButtons();
+      renderCompanyButtons();
       renderTubeCompanyCustomList(company);
       renderPreview();
     });
@@ -1032,7 +1024,7 @@ function closeCustomTubeModal() {
 }
 
 tubeCompanyAddOtroBtn.addEventListener("click", () => {
-  if (openTubeCompany) openCustomTubeModal(openTubeCompany);
+  if (openCompany) openCustomTubeModal(openCompany);
 });
 customTubeModalClose.addEventListener("click", closeCustomTubeModal);
 customTubeModal.addEventListener("click", (e) => {
@@ -1061,7 +1053,7 @@ customTubeAddBtn.addEventListener("click", () => {
   saveState();
   const company = customTubeTargetCompany;
   closeCustomTubeModal();
-  renderTubeCompanyButtons();
+  renderCompanyButtons();
   renderTubeCompanyCustomList(company);
   renderPreview();
 });
@@ -1070,14 +1062,15 @@ customTubeLabelInput.addEventListener("keydown", (e) => {
 });
 
 function openTubeCompanyModal(company) {
-  openTubeCompany = company;
+  openCompany = company;
+  renderHourChips(company);
   renderTubeCompanyGrid(company);
   tubeCompanyModal.hidden = false;
 }
 
 function closeTubeCompanyModal() {
   tubeCompanyModal.hidden = true;
-  openTubeCompany = null;
+  openCompany = null;
 }
 
 tubeCompanyBtnVip.addEventListener("click", () => openTubeCompanyModal("vip"));
@@ -1090,8 +1083,7 @@ tubeCompanyModal.addEventListener("click", (e) => {
 });
 
 function renderTubes() {
-  renderTubeCompanyButtons();
-  if (openTubeCompany) renderTubeCompanyGrid(openTubeCompany);
+  renderHours();
 }
 
 // ---------------- Render: Papelería para doctores ----------------
@@ -1695,6 +1687,80 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
+
+// ---------------- PWA: instalación (botón + modal) ----------------
+let deferredInstallPrompt = null;
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+}
+
+function openInstallModal() {
+  if (deferredInstallPrompt) {
+    installModalAndroid.hidden = false;
+    installModalIOS.hidden = true;
+  } else {
+    installModalAndroid.hidden = true;
+    installModalIOS.hidden = false;
+  }
+  installModal.hidden = false;
+}
+
+function closeInstallModal(dismissForGood) {
+  installModal.hidden = true;
+  if (dismissForGood) {
+    try { localStorage.setItem(INSTALL_DISMISS_KEY, "1"); } catch (e) {}
+  }
+}
+
+if (!isStandalone()) {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installBtn.hidden = false;
+    maybeAutoShowInstall();
+  });
+
+  if (isIOS()) {
+    installBtn.hidden = false;
+    maybeAutoShowInstall();
+  }
+}
+
+function maybeAutoShowInstall() {
+  let dismissed = false;
+  try { dismissed = !!localStorage.getItem(INSTALL_DISMISS_KEY); } catch (e) {}
+  if (dismissed || isStandalone()) return;
+  setTimeout(() => {
+    if (!isStandalone()) openInstallModal();
+  }, 1400);
+}
+
+installBtn.addEventListener("click", openInstallModal);
+
+installConfirmBtn.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) { closeInstallModal(false); return; }
+  deferredInstallPrompt.prompt();
+  try { await deferredInstallPrompt.userChoice; } catch (e) {}
+  deferredInstallPrompt = null;
+  closeInstallModal(true);
+  installBtn.hidden = true;
+});
+
+installModalClose.addEventListener("click", () => closeInstallModal(true));
+installModalDismiss.addEventListener("click", () => closeInstallModal(true));
+installModal.addEventListener("click", (e) => {
+  if (e.target === installModal) closeInstallModal(true);
+});
+
+window.addEventListener("appinstalled", () => {
+  installBtn.hidden = true;
+  closeInstallModal(true);
+});
 
 // ---------------- Aviso antes de perder datos sin enviar ----------------
 function hasUnsentData(data) {

@@ -39,6 +39,9 @@
       <button id="networkBtn" class="icon-btn" type="button" title="Red de logísticos" aria-label="Red de logísticos">
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM5 11a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm14 0a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM4 21a5 5 0 0 1 9-3.08A5 5 0 0 1 4 21zm11 0a5 5 0 0 1 5-4.9A5 5 0 0 1 15 21z"/></svg>
       </button>
+      <button id="installBtn" class="icon-btn install-btn" type="button" title="Instalar app" aria-label="Instalar app" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1zM5 19h14v2H5z"/></svg>
+      </button>
       <button id="resetBtn" class="icon-btn" type="button" title="Borrar datos de este auxiliar" aria-label="Borrar datos de este auxiliar">
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 7h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7zm3-4h6l1.5 2H19v2H5V5h3.5L10 3zM9.5 9.5v8h1.5v-8H9.5zm3.5 0v8h1.5v-8H13z"/></svg>
       </button>
@@ -81,56 +84,30 @@
         </div>
       </section>
 
-      <!-- Horas -->
-      <section class="card">
-        <div class="card-head-row">
-          <h2 class="card-title">Horas recibidas</h2>
-          <div class="legend">
-            <span class="legend-item"><i class="dot dot-vip"></i>VIP</span>
-            <span class="legend-item"><i class="dot dot-fsfb"></i>FSFB</span>
-            <span class="legend-item"><i class="dot dot-poliza"></i>Poliza</span>
-          </div>
-        </div>
-        <details class="hint-collapse">
-          <summary>❓ ¿Cómo funciona?</summary>
-          <p class="card-hint">✓ marca recibido, ✕ marca cancelado. Si el mismo paciente tiene dos números de solicitud a la misma hora, toca el numerito ×1 que aparece junto al ✓ — cada toque suma un paciente. El desplegable ya viene en VIP — solo cámbialo si fue FSFB o Poliza. Antes de enviar necesitas al menos un tubo registrado, salvo que canceles la hora.</p>
-        </details>
-        <p id="pickupInfo" class="pickup-info" hidden></p>
-        <button id="undoPickupBtn" class="ghost-btn ghost-btn-danger" type="button" hidden>↩️ Deshacer última recogida</button>
-
-        <details class="hour-group" open>
-          <summary><span class="group-label">5:00 AM – 8:00 AM</span><span id="hourBadgeA" class="group-badge">0/7</span></summary>
-          <div id="hourGridA" class="hour-list"></div>
-        </details>
-        <details class="hour-group">
-          <summary><span class="group-label">8:30 AM en adelante</span><span id="hourBadgeB" class="group-badge">0/6</span></summary>
-          <div id="hourGridB" class="hour-list"></div>
-        </details>
-
-        <div id="extraList" class="extra-list"></div>
-        <button id="addExtraBtn" class="ghost-btn" type="button">+ Agregar hora extraordinaria</button>
-      </section>
+      <!-- Horas: fusionada con Tubos más abajo, misma tarjeta y mismo modal -->
     </div>
 
     <div class="col col-right">
-      <!-- Tubos -->
+      <!-- Recepción por compañía (horas + tubos) -->
       <section class="card">
-        <h2 class="card-title">Tubos y muestras recibidas</h2>
-        <p class="card-hint">Toca una compañía para contar sus tubos.</p>
+        <h2 class="card-title">Recepción por compañía</h2>
+        <p class="card-hint">Toca una compañía para marcar horas y contar tubos.</p>
+        <p id="pickupInfo" class="pickup-info" hidden></p>
+        <button id="undoPickupBtn" class="ghost-btn ghost-btn-danger" type="button" hidden>↩️ Deshacer última recogida</button>
         <p id="tubesInfo" class="pickup-info" hidden></p>
 
         <div class="company-tube-buttons">
           <button id="tubeCompanyBtnVip" type="button" class="company-tube-btn co-btn-vip">
             <span class="co-btn-label">🔴 VIP</span>
-            <span id="tubeCompanyCountVip" class="co-btn-count">0</span>
+            <span class="co-btn-count"><span id="hourCompanyCountVip">0</span>👥 · <span id="tubeCompanyCountVip">0</span>🧪</span>
           </button>
           <button id="tubeCompanyBtnFsfb" type="button" class="company-tube-btn co-btn-fsfb">
             <span class="co-btn-label">🔵 FSFB</span>
-            <span id="tubeCompanyCountFsfb" class="co-btn-count">0</span>
+            <span class="co-btn-count"><span id="hourCompanyCountFsfb">0</span>👥 · <span id="tubeCompanyCountFsfb">0</span>🧪</span>
           </button>
           <button id="tubeCompanyBtnPoliza" type="button" class="company-tube-btn co-btn-poliza">
             <span class="co-btn-label">🟡 Poliza</span>
-            <span id="tubeCompanyCountPoliza" class="co-btn-count">0</span>
+            <span class="co-btn-count"><span id="hourCompanyCountPoliza">0</span>👥 · <span id="tubeCompanyCountPoliza">0</span>🧪</span>
           </button>
         </div>
       </section>
@@ -147,70 +124,78 @@
 
       <!-- Ir a... -->
       <section class="card">
-        <h2 class="card-title">📍 Ir a...</h2>
-        <div class="legend" style="margin-bottom:10px;">
-          <span class="legend-item"><i class="dot" style="background:var(--send);"></i>Emermédica</span>
-          <span class="legend-item"><i class="dot dot-vip"></i>Clínica VIP</span>
-          <span class="legend-item"><i class="dot dot-fsfb"></i>FSFB</span>
-        </div>
-        <div class="places-list">
-
-          <div class="place-row place-company">
-            <div class="place-info">
-              <span class="place-name">Toberín</span>
-              <span class="place-tag">🏢 Sede principal</span>
+        <details>
+          <summary class="card-collapse-title">📍 Ir a...</summary>
+          <div class="card-collapse-body">
+            <div class="legend" style="margin-bottom:10px;">
+              <span class="legend-item"><i class="dot" style="background:var(--send);"></i>Emermédica</span>
+              <span class="legend-item"><i class="dot dot-vip"></i>Clínica VIP</span>
+              <span class="legend-item"><i class="dot dot-fsfb"></i>FSFB</span>
             </div>
-            <div class="place-actions">
-              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Cra.%2019b%20%23168-35%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
-              <a class="place-action" href="https://waze.com/ul?q=Cra.%2019b%20%23168-35%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+            <div class="places-list">
+
+              <div class="place-row place-company">
+                <div class="place-info">
+                  <span class="place-name">Toberín</span>
+                  <span class="place-tag">🏢 Sede principal</span>
+                </div>
+                <div class="place-actions">
+                  <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Cra.%2019b%20%23168-35%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+                  <a class="place-action" href="https://waze.com/ul?q=Cra.%2019b%20%23168-35%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+                </div>
+              </div>
+
+              <div class="place-row place-company place-company-secondary">
+                <div class="place-info">
+                  <span class="place-name">Alsacia</span>
+                  <span class="place-tag">🏢 Sede secundaria</span>
+                </div>
+                <div class="place-actions">
+                  <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+                  <a class="place-action" href="https://waze.com/ul?q=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+                </div>
+              </div>
+
+              <div class="place-row place-vip">
+                <div class="place-info">
+                  <span class="place-name">Clínica VIP</span>
+                  <span class="place-tag">🏥 Clínica cliente</span>
+                </div>
+                <div class="place-actions">
+                  <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Calle%2097%20%2323-10%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+                  <a class="place-action" href="https://waze.com/ul?q=Calle%2097%20%2323-10%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+                </div>
+              </div>
+
+              <div class="place-row place-fsfb">
+                <div class="place-info">
+                  <span class="place-name">FSFB</span>
+                  <span class="place-tag">🏥 Clínica cliente</span>
+                </div>
+                <div class="place-actions">
+                  <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Calle%20117%20%237-65%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
+                  <a class="place-action" href="https://waze.com/ul?q=Calle%20117%20%237-65%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+                </div>
+              </div>
+
             </div>
           </div>
-
-          <div class="place-row place-company place-company-secondary">
-            <div class="place-info">
-              <span class="place-name">Alsacia</span>
-              <span class="place-tag">🏢 Sede secundaria</span>
-            </div>
-            <div class="place-actions">
-              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
-              <a class="place-action" href="https://waze.com/ul?q=Bazaar%20Alsacia%2C%20Cl.%2012B%20%2371D-61%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
-            </div>
-          </div>
-
-          <div class="place-row place-vip">
-            <div class="place-info">
-              <span class="place-name">Clínica VIP</span>
-              <span class="place-tag">🏥 Clínica cliente</span>
-            </div>
-            <div class="place-actions">
-              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Calle%2097%20%2323-10%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
-              <a class="place-action" href="https://waze.com/ul?q=Calle%2097%20%2323-10%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
-            </div>
-          </div>
-
-          <div class="place-row place-fsfb">
-            <div class="place-info">
-              <span class="place-name">FSFB</span>
-              <span class="place-tag">🏥 Clínica cliente</span>
-            </div>
-            <div class="place-actions">
-              <a class="place-action" href="https://www.google.com/maps/search/?api=1&query=Calle%20117%20%237-65%2C%20Bogot%C3%A1" target="_blank" rel="noopener">🗺️ Maps</a>
-              <a class="place-action" href="https://waze.com/ul?q=Calle%20117%20%237-65%2C%20Bogot%C3%A1&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
-            </div>
-          </div>
-
-        </div>
+        </details>
       </section>
 
       <!-- Respaldo -->
       <section class="card">
-        <h2 class="card-title">💾 Respaldo</h2>
-        <p class="card-hint">Guarda una copia de todos los auxiliares y su historial de hoy, o restaura una copia anterior.</p>
-        <div class="backup-actions">
-          <button id="exportBtn" class="btn-secondary-sm" type="button">⬇️ Exportar respaldo</button>
-          <button id="importBtn" class="btn-secondary-sm" type="button">⬆️ Restaurar respaldo</button>
-        </div>
-        <input id="importFile" type="file" accept="application/json" hidden>
+        <details>
+          <summary class="card-collapse-title">💾 Respaldo</summary>
+          <div class="card-collapse-body">
+            <p class="card-hint">Guarda una copia de todos los auxiliares y su historial de hoy, o restaura una copia anterior.</p>
+            <div class="backup-actions">
+              <button id="exportBtn" class="btn-secondary-sm" type="button">⬇️ Exportar respaldo</button>
+              <button id="importBtn" class="btn-secondary-sm" type="button">⬆️ Restaurar respaldo</button>
+            </div>
+            <input id="importFile" type="file" accept="application/json" hidden>
+          </div>
+        </details>
       </section>
     </div>
 
@@ -254,12 +239,23 @@
 <div id="tubeCompanyModal" class="modal-overlay" hidden>
   <div class="modal-card modal-card-wide">
     <button id="tubeCompanyModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
-    <h3 id="tubeCompanyModalTitle">🧪 Tubos</h3>
-    <p class="card-hint" style="margin-top:-4px;">Toca + o – para sumar de a 1, o mantenlos presionados para contar más rápido.</p>
-    <div id="tubeCompanyGrid" class="tube-company-grid"></div>
+    <h3 id="tubeCompanyModalTitle">VIP</h3>
 
-    <div id="tubeCompanyCustomList" class="tube-custom-list"></div>
-    <button id="tubeCompanyAddOtroBtn" class="ghost-btn" type="button">+ Otro</button>
+    <details class="hour-group" open>
+      <summary><span class="group-label">⏰ Horas</span><span id="hourChipsBadge" class="group-badge">0/13</span></summary>
+      <p class="card-hint">Toca una hora para marcarla recibida. El ✕ de la esquina la cancela. Si ya está tomada por otra compañía, se ve apagada.</p>
+      <div id="hourChipsGrid" class="hour-chips-grid"></div>
+      <div id="hourCompanyExtraList" class="extra-list"></div>
+      <button id="hourCompanyAddExtraBtn" class="ghost-btn" type="button">+ Agregar hora extraordinaria</button>
+    </details>
+
+    <details class="hour-group" open>
+      <summary><span class="group-label">🧪 Tubos</span><span id="tubeCompanyBadge" class="group-badge">0</span></summary>
+      <p class="card-hint">Toca + o – para sumar de a 1, o mantenlos presionados para contar más rápido.</p>
+      <div id="tubeCompanyGrid" class="tube-company-grid"></div>
+      <div id="tubeCompanyCustomList" class="tube-custom-list"></div>
+      <button id="tubeCompanyAddOtroBtn" class="ghost-btn" type="button">+ Otro</button>
+    </details>
 
     <div id="tubeCompanyPapeleriaWrap" class="tube-co-papeleria" hidden>
       <div class="card-divider"></div>
@@ -292,6 +288,24 @@
       <button type="button" id="customTubeQtyPlus" class="step-btn plus">+</button>
     </div>
     <button id="customTubeAddBtn" class="btn btn-primary" type="button" style="width:100%;">Agregar</button>
+  </div>
+</div>
+
+<div id="installModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="installModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <div class="modal-icon"><img src="icons/icon-192.png" width="60" height="60" alt=""></div>
+    <h3>Instalar Reporte Logísticos</h3>
+    <p>Instálala en tu celular para abrirla más rápido, en pantalla completa y hasta sin conexión.</p>
+    <div id="installModalAndroid" class="modal-actions" hidden>
+      <button id="installConfirmBtn" class="btn btn-primary" type="button">Instalar app</button>
+    </div>
+    <ol id="installModalIOS" class="install-steps" hidden>
+      <li>Toca el botón <strong>Compartir</strong> en Safari</li>
+      <li>Elige <strong>“Agregar a pantalla de inicio”</strong></li>
+      <li>Confirma tocando <strong>“Agregar”</strong></li>
+    </ol>
+    <button id="installModalDismiss" class="ghost-btn" type="button">Ahora no</button>
   </div>
 </div>
 

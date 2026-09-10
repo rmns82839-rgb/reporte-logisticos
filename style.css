@@ -199,11 +199,11 @@ html,body{
 .title-track{display:inline-block;}
 @media (prefers-reduced-motion: no-preference){
   .title-track.marquee{
-    animation:title-marquee 6s ease-in-out infinite;
+    animation:title-marquee 16s ease-in-out infinite;
   }
   @keyframes title-marquee{
-    0%, 20%{transform:translateX(0);}
-    50%, 70%{transform:translateX(var(--marquee-distance, 0));}
+    0%, 35%{transform:translateX(0);}
+    50%, 85%{transform:translateX(var(--marquee-distance, 0));}
     100%{transform:translateX(0);}
   }
 }
@@ -221,6 +221,14 @@ html,body{
   flex-shrink:0;
 }
 .icon-btn:active{background:var(--surface-2); transform:scale(0.95);}
+.icon-btn.install-btn{color:var(--send); border-color:rgba(31,210,144,0.35);}
+@media (prefers-reduced-motion: no-preference){
+  .icon-btn.install-btn{animation:install-pulse 2.2s ease-in-out infinite;}
+  @keyframes install-pulse{
+    0%, 100%{box-shadow:0 0 0 0 rgba(31,210,144,0.45);}
+    50%{box-shadow:0 0 0 6px rgba(31,210,144,0);}
+  }
+}
 
 /* ---------- stats strip ---------- */
 .stats-strip{
@@ -324,6 +332,29 @@ main{
 .hint-collapse summary::-webkit-details-marker{display:none;}
 .hint-collapse[open] summary{margin-bottom:6px; color:var(--text-dim);}
 .hint-collapse .card-hint{margin:0;}
+
+.card-collapse-title{
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-family:var(--font-display);
+  font-size:15px;
+  font-weight:700;
+  color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+}
+.card-collapse-title::-webkit-details-marker{display:none;}
+.card-collapse-title::after{
+  content:"▾";
+  font-size:12px;
+  color:var(--text-faint);
+  transition:transform .2s ease;
+  margin-left:8px;
+}
+details[open] > .card-collapse-title::after{transform:rotate(180deg);}
+.card-collapse-body{margin-top:14px;}
 
 .legend{display:flex; gap:12px;}
 .legend-item{
@@ -529,6 +560,20 @@ main{
 }
 .hour-row.is-reported .hour-time{color:var(--send);}
 
+/* franja ya tomada por OTRA compañía dentro de este modal — se ve
+   apagada y con el nombre de quién la tiene; sigue siendo tocable
+   para que el toque dispare la alerta explicando por qué */
+.hour-row.locked{opacity:0.4;}
+.hour-row.locked .status-btn{cursor:not-allowed;}
+.hour-locked-label{
+  grid-column:3;
+  font-size:10px;
+  font-weight:800;
+  color:var(--text-faint);
+  text-align:center;
+  letter-spacing:.02em;
+}
+
 /* franja horaria que corresponde a la hora del reloj en este momento */
 .hour-row.is-now{
   border-color:rgba(255,176,32,0.7);
@@ -683,7 +728,7 @@ main{
 }
 .extra-row{
   display:grid;
-  grid-template-columns:1fr 1fr 44px;
+  grid-template-columns:1fr 44px;
   gap:8px;
   align-items:center;
 }
@@ -1066,7 +1111,7 @@ main{
   font-family:inherit;
 }
 .co-btn-label{font-size:13px; font-weight:800; color:var(--text-dim);}
-.co-btn-count{font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--text-faint);}
+.co-btn-count{font-family:var(--font-body); font-size:12.5px; font-weight:800; color:var(--text-faint); white-space:nowrap;}
 .company-tube-btn.co-btn-vip{border-color:rgba(241,69,59,0.4);}
 .company-tube-btn.co-btn-vip .co-btn-count{color:var(--vip);}
 .company-tube-btn.co-btn-fsfb{border-color:rgba(74,141,251,0.4);}
@@ -1436,6 +1481,15 @@ main{
   line-height:1.55;
 }
 .modal-actions{margin-bottom:12px;}
+.install-steps{
+  text-align:left;
+  margin:0 0 16px;
+  padding-left:20px;
+  font-size:13.5px;
+  color:var(--text-dim);
+  line-height:1.7;
+}
+.install-steps li{margin-bottom:4px;}
 .modal-actions .btn{width:100%;}
 
 @media (min-width:640px){
@@ -1503,6 +1557,100 @@ main{
 .network-item-time{font-size:11px; color:var(--text-faint); font-weight:600; white-space:nowrap; flex-shrink:0;}
 .network-item-nums{display:flex; gap:12px; flex-wrap:wrap; color:var(--text-dim); font-weight:700; font-size:12.5px;}
 .network-item-loc{color:var(--text-faint); font-weight:600;}
+
+/* ---------------- Chips de horas (dentro del modal por compañía) ---------------- */
+.hour-chips-grid{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:20px 12px;
+  padding:8px 6px 14px;
+}
+.hour-chip-wrap{position:relative;}
+.hour-chip{
+  width:100%;
+  padding:13px 8px;
+  border-radius:var(--radius-m);
+  border:1.5px solid var(--border);
+  background:linear-gradient(165deg, var(--surface-2), var(--surface-3));
+  color:var(--text-dim);
+  font-family:inherit;
+  font-size:12.5px;
+  font-weight:700;
+  letter-spacing:.01em;
+  cursor:pointer;
+  white-space:nowrap;
+  text-align:center;
+  box-shadow:0 2px 8px -4px rgba(0,0,0,0.5);
+  transition:transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease, color .15s ease;
+}
+.hour-chip:active{transform:scale(0.96);}
+.hour-chip-wrap.is-set .hour-chip{
+  background:linear-gradient(165deg, var(--co-color), color-mix(in srgb, var(--co-color) 72%, #000 28%));
+  border-color:var(--co-color);
+  color:#08101f;
+  font-weight:800;
+  box-shadow:0 6px 16px -6px var(--co-color), 0 0 0 1px color-mix(in srgb, var(--co-color) 60%, transparent) inset;
+  transform:translateY(-1px);
+}
+.hour-chip-wrap.is-cancelled .hour-chip{
+  background:var(--surface-2);
+  border-color:var(--danger);
+  color:var(--danger);
+  text-decoration:line-through;
+  opacity:.8;
+  box-shadow:none;
+}
+.hour-chip-wrap.is-reported .hour-chip{box-shadow:0 0 0 2px rgba(31,210,144,0.4), 0 6px 16px -6px rgba(31,210,144,0.35);}
+.hour-chip-wrap.is-now:not(.is-set) .hour-chip{
+  border-color:var(--poliza);
+  box-shadow:0 0 0 1px rgba(255,176,32,0.3), 0 4px 12px -5px rgba(255,176,32,0.4);
+}
+.hour-chip-wrap.locked{opacity:.35;}
+.hour-chip-wrap.locked .hour-chip{cursor:not-allowed; box-shadow:none;}
+
+.hour-chip-cancel{
+  position:absolute;
+  top:-8px; right:-8px;
+  width:20px; height:20px;
+  border-radius:50%;
+  border:2px solid var(--surface);
+  background:var(--surface-3);
+  color:var(--text-faint);
+  font-size:9.5px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  box-shadow:0 2px 6px -2px rgba(0,0,0,0.5);
+  z-index:2;
+  transition:all .15s;
+}
+.hour-chip-cancel:active{transform:scale(0.88);}
+.hour-chip-wrap.is-cancelled .hour-chip-cancel{
+  background:var(--danger);
+  border-color:var(--danger);
+  color:#fff;
+}
+
+.hour-chip-count{
+  position:absolute;
+  bottom:-8px; left:50%;
+  transform:translateX(-50%);
+  min-width:22px; height:20px;
+  padding:0 6px;
+  border-radius:999px;
+  background:var(--surface-3);
+  border:2px solid var(--surface);
+  color:var(--text-faint);
+  font-size:10px;
+  font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  box-shadow:0 2px 6px -2px rgba(0,0,0,0.5);
+  z-index:2;
+  transition:all .15s;
+}
+.hour-chip-count:active{transform:translateX(-50%) scale(0.88);}
+.hour-chip-count.active{background:var(--send); border-color:var(--surface); color:#062017; box-shadow:0 2px 8px -2px rgba(31,210,144,0.6);}
+.hour-chip-count.is-sent{background:var(--send-soft); border-color:var(--send); color:var(--send); cursor:default;}
 
 /* ---------------- Lista de "Otro" dentro del modal de tubos ---------------- */
 .tube-custom-list{display:flex; flex-direction:column; gap:6px; margin-top:10px;}
