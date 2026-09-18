@@ -14,7 +14,7 @@ import {
   getFirestore, doc, setDoc, serverTimestamp,
   collection, query, where, onSnapshot, updateDoc, addDoc, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { lookupPerson } from "./people.js";
+import { lookupPerson, lookupAuxiliar } from "./people.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -83,6 +83,29 @@ function loginWithPhone(rawPhone) {
 
 function logout() {
   try { localStorage.removeItem(IDENTITY_KEY); } catch (e) {}
+}
+
+// ---------------- Identidad del auxiliar de laboratorio (en paralelo) ----------------
+const AUXILIAR_IDENTITY_KEY = "reporte_logisticos_auxiliar_identity_v1";
+
+function getMyAuxiliarIdentity() {
+  try {
+    const raw = localStorage.getItem(AUXILIAR_IDENTITY_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function loginAuxiliarWithPhone(rawPhone) {
+  const person = lookupAuxiliar(rawPhone);
+  if (!person) return null;
+  try { localStorage.setItem(AUXILIAR_IDENTITY_KEY, JSON.stringify(person)); } catch (e) {}
+  return person;
+}
+
+function logoutAuxiliar() {
+  try { localStorage.removeItem(AUXILIAR_IDENTITY_KEY); } catch (e) {}
 }
 
 function slug(str) {
@@ -303,4 +326,5 @@ window.ReporteSync = {
   listenMyAssignments, markAssignmentSeen, markAssignmentDone,
   listenAllStatus, logPickupEvent, listenPickupHistory,
   listenAllAssignments,
+  getMyAuxiliarIdentity, loginAuxiliarWithPhone, logoutAuxiliar,
 };

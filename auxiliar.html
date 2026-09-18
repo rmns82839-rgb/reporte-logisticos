@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0A0D16">
+<title>Auxiliares — Reporte Logísticos</title>
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0D16;
+    --surface:#12172A;
+    --surface-2:#171E33;
+    --surface-3:#1E2740;
+    --border:#262F49;
+    --text:#F3F5FA;
+    --text-dim:#AEB6CC;
+    --text-faint:#6E7797;
+    --send:#1FD290;
+    --radius-m:14px;
+    --radius-l:22px;
+    --font-body:'Inter', system-ui, sans-serif;
+    --font-display:'Sora', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    padding:24px 16px 60px;
+    min-height:100vh;
+  }
+  .wrap{max-width:480px; margin:0 auto;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
+  .topbar h1{font-family:var(--font-display); font-size:19px; margin:0;}
+  .logout-link{background:none; border:none; color:var(--text-faint); font-size:12.5px; font-weight:700; text-decoration:underline; cursor:pointer;}
+
+  .welcome-strip{display:flex; align-items:center; gap:12px; margin-bottom:24px;}
+  .welcome-avatar{
+    width:44px; height:44px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-weight:800; font-size:15px;
+    color:#08101f; background:var(--send);
+    flex-shrink:0;
+  }
+  .welcome-name{font-family:var(--font-display); font-size:16px; font-weight:700;}
+  .welcome-sub{font-size:11.5px; color:var(--text-faint); font-weight:600;}
+
+  .card{
+    background:linear-gradient(165deg, var(--surface-2), var(--surface) 60%);
+    border:1px solid var(--border);
+    border-radius:var(--radius-l);
+    padding:24px 20px;
+    text-align:center;
+  }
+  .card .big-emoji{font-size:40px; margin-bottom:10px;}
+  .card h2{font-family:var(--font-display); font-size:17px; margin:0 0 8px;}
+  .card p{color:var(--text-dim); font-size:13.5px; line-height:1.6; margin:0 0 4px;}
+  .card ul{text-align:left; color:var(--text-dim); font-size:13px; line-height:1.9; margin:16px 0 0; padding-left:20px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <h1>🧪 Módulo de Auxiliares</h1>
+    <button id="logoutBtn" class="logout-link" type="button">Cerrar sesión</button>
+  </div>
+
+  <div class="welcome-strip">
+    <span id="welcomeAvatar" class="welcome-avatar"></span>
+    <div>
+      <div id="welcomeName" class="welcome-name">—</div>
+      <div class="welcome-sub">Auxiliar de laboratorio</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="big-emoji">🚧</div>
+    <h2>Esto ya casi está listo</h2>
+    <p>Ya quedó lista tu entrada — lo que viene ahora es construir el módulo completo por partes:</p>
+    <ul>
+      <li>📥 Importar la planilla del día en Excel</li>
+      <li>🩺 Tarjeta por paciente, con sus exámenes</li>
+      <li>⏱️ Botones de arribo, toma y salida</li>
+      <li>🧪 Contador de tubos tomados</li>
+      <li>💳 Forma de pago y total del día (efectivo/tarjeta/PSE)</li>
+      <li>📤 "Entregar al logístico" — le llena el reporte solo</li>
+    </ul>
+  </div>
+
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
+    authDomain: "reporte-logisticos.firebaseapp.com",
+    projectId: "reporte-logisticos",
+    storageBucket: "reporte-logisticos.firebasestorage.app",
+    messagingSenderId: "382009731060",
+    appId: "1:382009731060:web:b0cd599f69d98bdf1afba1",
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  signInAnonymously(auth).catch(() => {});
+
+  const AUXILIAR_IDENTITY_KEY = "reporte_logisticos_auxiliar_identity_v1";
+  const ROLE_KEY = "reporte_logisticos_role_v1";
+
+  function getMyAuxiliarIdentity() {
+    try {
+      const raw = localStorage.getItem(AUXILIAR_IDENTITY_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  const AUX_COLORS = ["#4A8DFB", "#F1453B", "#FFB020", "#1FD290", "#C58CF0", "#3FAFA6", "#F0C33C", "#E29A3E", "#8C9BFF"];
+  function avatarColor(name) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return AUX_COLORS[Math.abs(hash) % AUX_COLORS.length];
+  }
+  function initials(name) { return name.slice(0, 2).toUpperCase(); }
+
+  const me = getMyAuxiliarIdentity();
+  if (!me) {
+    // Nadie inició sesión como auxiliar todavía (o entró directo a esta
+    // URL) — lo mandamos de vuelta a la puerta de entrada.
+    window.location.href = "index.html";
+  } else {
+    document.getElementById("welcomeName").textContent = `¡Hola, ${me.name}!`;
+    const avatarEl = document.getElementById("welcomeAvatar");
+    avatarEl.textContent = initials(me.name);
+    avatarEl.style.background = avatarColor(me.name);
+  }
+
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    try {
+      localStorage.removeItem(AUXILIAR_IDENTITY_KEY);
+      localStorage.removeItem(ROLE_KEY);
+    } catch (e) {}
+    window.location.href = "index.html";
+  });
+</script>
+</body>
+</html>

@@ -1,7 +1,8 @@
-const CACHE_NAME = "reporte-logisticos-v39";
+const CACHE_NAME = "reporte-logisticos-v41";
 const ASSETS = [
   "./",
   "./index.html",
+  "./auxiliar.html",
   "./style.css",
   "./script.js",
   "./sync.js",

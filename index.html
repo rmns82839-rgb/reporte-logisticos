@@ -17,6 +17,26 @@
 
 <div class="bg-glow"></div>
 
+<div id="roleGateScreen" class="modal-overlay" style="z-index:200;">
+  <div class="modal-card">
+    <h3>👋 Bienvenido</h3>
+    <p class="card-hint">Antes de entrar, dinos quién eres.</p>
+
+    <div id="roleGateChoice">
+      <button id="roleGateLogistico" class="btn btn-primary" type="button" style="width:100%; margin-bottom:10px;">🚚 Soy Logístico</button>
+      <button id="roleGateAuxiliar" class="btn btn-secondary" type="button" style="width:100%;">🧪 Soy Auxiliar de Laboratorio</button>
+    </div>
+
+    <div id="roleGatePhoneWrap" hidden>
+      <p id="roleGateRoleLabel" class="card-hint"></p>
+      <input id="roleGatePhoneInput" type="tel" inputmode="numeric" class="text-input" placeholder="Tu número de celular" maxlength="10">
+      <p id="roleGateError" class="modal-warning" hidden></p>
+      <button id="roleGateEnterBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:10px;">Entrar</button>
+      <button id="roleGateBackBtn" class="ghost-btn" type="button">← Volver</button>
+    </div>
+  </div>
+</div>
+
 <div class="app">
 
   <header class="topbar">
@@ -339,17 +359,6 @@
     <h3>🕓 Historial de reportes</h3>
     <p class="card-hint" style="margin-top:-4px;">Lo que se copió/envió hoy para el auxiliar actual, del más reciente al más antiguo.</p>
     <div id="historyContent" class="history-content"></div>
-  </div>
-</div>
-
-<div id="identityModal" class="modal-overlay" hidden>
-  <div class="modal-card">
-    <h3>👋 Inicia sesión</h3>
-    <p class="card-hint">Escribe tu número de celular para aparecer en el panel en tiempo real del coordinador. Solo se pregunta una vez por celular.</p>
-    <input id="identityInput" type="tel" inputmode="numeric" class="text-input" placeholder="Ej: 3133815071" maxlength="10" style="margin-bottom:8px;">
-    <p id="identityError" class="card-hint" style="color:var(--danger); margin:0 0 10px; display:none;">Ese número no está en la lista del coordinador todavía.</p>
-    <button id="identitySaveBtn" class="btn btn-primary" type="button" style="width:100%; margin-bottom:8px;">Continuar</button>
-    <button id="identitySkipBtn" class="ghost-btn" type="button" style="margin-top:0;">Usar la app sin sincronizar</button>
   </div>
 </div>
 

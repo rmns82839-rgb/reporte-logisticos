@@ -380,20 +380,27 @@ function validateBeforeSend(data) {
   const pendingReceived = data.hours.filter(h => h.selected && !h.pickup)
     .concat(data.extras.filter(e => e.company && e.time && !e.pickup));
 
-  if (pendingReceived.length === 0) return null;
-
   const totalTubes = TUBOS.reduce((sum, tb) => {
     const c = data.tubes[tb.key];
     return sum + c.vip + c.fsfb + c.poliza;
   }, 0) + data.customTubes.filter(c => !c.pickup).reduce((sum, c) => sum + (c.qty || 0), 0);
 
+  if (pendingReceived.length === 0 && totalTubes === 0) {
+    return "No hay nada nuevo que enviar — marca al menos una hora o cuenta algún tubo antes de enviar.";
+  }
+
+  if (pendingReceived.length === 0 && totalTubes > 0) {
+    return "Tienes tubos contados pero ninguna hora marcada como recibida. Marca al menos una hora, o borra esos tubos si fue un error.";
+  }
+
   if (totalTubes === 0) {
     return "Registra al menos un tubo antes de enviar, o marca esa hora como cancelada (✕).";
   }
 
-  // Por compañía: mínimo tantos tubos como pacientes pendientes (si son
-  // 2 horas de VIP, hacen falta al menos 2 tubos de VIP). Los cancelados
-  // no cuentan aquí — nunca entran a pendingReceived, solo lo recibido.
+  // Por compañía, en las dos direcciones: mínimo tantos tubos como
+  // pacientes (2 horas de VIP piden al menos 2 tubos de VIP), Y ningún
+  // tubo puede quedar sin al menos una hora que lo respalde. Los
+  // cancelados no cuentan como pacientes — nunca entran a pendingReceived.
   const patientsByCompany = { vip: 0, fsfb: 0, poliza: 0 };
   pendingReceived.forEach(p => { patientsByCompany[p.company] += (p.count || 1); });
 
@@ -406,14 +413,19 @@ function validateBeforeSend(data) {
   });
   data.customTubes.forEach(c => { if (!c.pickup) tubesByCompany[c.company] += c.qty || 0; });
 
-  const short = Object.keys(patientsByCompany)
-    .filter(company => patientsByCompany[company] > 0 && tubesByCompany[company] < patientsByCompany[company]);
+  const problems = [];
+  ["vip", "fsfb", "poliza"].forEach(company => {
+    const patients = patientsByCompany[company];
+    const tubes = tubesByCompany[company];
+    if (tubes > 0 && patients === 0) {
+      problems.push(`${companyLabel(company).toUpperCase()}: ${tubes} tubo${tubes > 1 ? "s" : ""} pero ningún paciente`);
+    } else if (patients > tubes) {
+      problems.push(`${companyLabel(company).toUpperCase()}: ${patients} paciente${patients > 1 ? "s" : ""} pero solo ${tubes} tubo${tubes !== 1 ? "s" : ""}`);
+    }
+  });
 
-  if (short.length > 0) {
-    const detail = short
-      .map(company => `${companyLabel(company).toUpperCase()}: ${patientsByCompany[company]} paciente${patientsByCompany[company] > 1 ? "s" : ""} pero solo ${tubesByCompany[company]} tubo${tubesByCompany[company] !== 1 ? "s" : ""}`)
-      .join(" · ");
-    return `Faltan tubos por compañía — ${detail}. Revisa antes de enviar.`;
+  if (problems.length > 0) {
+    return `Revisa antes de enviar — ${problems.join(" · ")}.`;
   }
 
   return null;
@@ -1135,13 +1147,18 @@ customTubeLabelInput.addEventListener("keydown", (e) => {
 function checkCompanyShortfall(data, company) {
   const pendingReceived = data.hours.filter(h => h.selected && !h.pickup && h.company === company)
     .concat(data.extras.filter(e => e.company === company && e.time && !e.pickup));
-  if (pendingReceived.length === 0) return null;
 
   const patientCount = pendingReceived.reduce((sum, p) => sum + (p.count || 1), 0);
 
   let tubeCount = 0;
   TUBOS.forEach(tb => { tubeCount += data.tubes[tb.key][company] || 0; });
   data.customTubes.forEach(c => { if (!c.pickup && c.company === company) tubeCount += c.qty || 0; });
+
+  if (patientCount === 0 && tubeCount === 0) return null;
+
+  if (tubeCount > 0 && patientCount === 0) {
+    return `Tienes ${tubeCount} tubo${tubeCount > 1 ? "s" : ""} contado${tubeCount > 1 ? "s" : ""} pero ninguna hora marcada como recibida — marca al menos una antes de salir.`;
+  }
 
   if (tubeCount < patientCount) {
     const faltan = patientCount - tubeCount;
@@ -2120,54 +2137,112 @@ networkModal.addEventListener("click", (e) => {
   if (e.target === networkModal) closeNetworkModal();
 });
 
-// ---------------- Identidad del logístico (para el panel de coordinador) ----------------
-// Se pregunta una sola vez por celular, apenas se confirma que sync.js
-// cargó correctamente. Si Firebase no está disponible (sin internet,
-// CDN bloqueado, etc.) simplemente no se pregunta nada y la app sigue
-// funcionando exactamente igual que siempre.
-const IDENTITY_SKIPPED_KEY = "reporte_logisticos_identity_skipped";
+// ---------------- Puerta de entrada: ¿logístico o auxiliar? ----------------
+// Obligatoria al abrir la app (no se puede saltar). Guarda el rol y el
+// celular para no volver a preguntar en visitas futuras del mismo
+// dispositivo. Si eligen auxiliar, se manda a auxiliar.html.
+const ROLE_KEY = "reporte_logisticos_role_v1";
 
-window.addEventListener("load", () => {
-  if (!window.ReporteSync) return;
-  if (window.ReporteSync.getMyIdentity()) return;
-  let skipped = false;
-  try { skipped = !!localStorage.getItem(IDENTITY_SKIPPED_KEY); } catch (e) {}
-  if (skipped) return;
+const roleGateScreen = document.getElementById("roleGateScreen");
+const roleGateChoice = document.getElementById("roleGateChoice");
+const roleGateLogistico = document.getElementById("roleGateLogistico");
+const roleGateAuxiliar = document.getElementById("roleGateAuxiliar");
+const roleGatePhoneWrap = document.getElementById("roleGatePhoneWrap");
+const roleGateRoleLabel = document.getElementById("roleGateRoleLabel");
+const roleGatePhoneInput = document.getElementById("roleGatePhoneInput");
+const roleGateError = document.getElementById("roleGateError");
+const roleGateEnterBtn = document.getElementById("roleGateEnterBtn");
+const roleGateBackBtn = document.getElementById("roleGateBackBtn");
 
-  const identityModal = document.getElementById("identityModal");
-  const identityInput = document.getElementById("identityInput");
-  const identityError = document.getElementById("identityError");
-  const identitySaveBtn = document.getElementById("identitySaveBtn");
-  const identitySkipBtn = document.getElementById("identitySkipBtn");
-  if (!identityModal || !identityInput || !identitySaveBtn || !identitySkipBtn) return;
+let roleGateChosen = null;
 
-  identityModal.hidden = false;
+function showRoleGateStep(step) {
+  roleGateChoice.hidden = step !== "choice";
+  roleGatePhoneWrap.hidden = step !== "phone";
+  roleGateError.hidden = true;
+}
 
-  identitySaveBtn.addEventListener("click", () => {
-    const val = identityInput.value.trim();
-    if (!val) { identityInput.focus(); return; }
+roleGateLogistico.addEventListener("click", () => {
+  roleGateChosen = "logistico";
+  roleGateRoleLabel.textContent = "Escribe tu número de celular de logístico.";
+  roleGatePhoneInput.value = "";
+  showRoleGateStep("phone");
+  roleGatePhoneInput.focus();
+});
+
+roleGateAuxiliar.addEventListener("click", () => {
+  roleGateChosen = "auxiliar";
+  roleGateRoleLabel.textContent = "Escribe tu número de celular de auxiliar de laboratorio.";
+  roleGatePhoneInput.value = "";
+  showRoleGateStep("phone");
+  roleGatePhoneInput.focus();
+});
+
+roleGateBackBtn.addEventListener("click", () => {
+  roleGateChosen = null;
+  showRoleGateStep("choice");
+});
+
+roleGatePhoneInput.addEventListener("input", () => { roleGateError.hidden = true; });
+roleGatePhoneInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") roleGateEnterBtn.click();
+});
+
+roleGateEnterBtn.addEventListener("click", () => {
+  const val = roleGatePhoneInput.value.trim();
+  if (!val) { roleGatePhoneInput.focus(); return; }
+
+  if (!window.ReporteSync) {
+    roleGateError.textContent = "No se pudo conectar. Espera un momento e intenta de nuevo.";
+    roleGateError.hidden = false;
+    return;
+  }
+
+  if (roleGateChosen === "logistico") {
     const person = window.ReporteSync.loginWithPhone(val);
     if (!person) {
-      identityError.style.display = "block";
-      identityInput.focus();
+      roleGateError.textContent = "Ese número no está en la lista de logísticos.";
+      roleGateError.hidden = false;
       return;
     }
-    identityModal.hidden = true;
+    try { localStorage.setItem(ROLE_KEY, "logistico"); } catch (e) {}
+    roleGateScreen.hidden = true;
     pushCoordinatorSync();
     startAssignmentListener();
     renderWelcomeStrip();
-    showToast(`¡Listo, ${person.name}! Ya apareces en el panel de coordinador.`, 2600);
-  });
+    showToast(`¡Listo, ${person.name}! 👋`, 2400);
+  } else if (roleGateChosen === "auxiliar") {
+    const person = window.ReporteSync.loginAuxiliarWithPhone(val);
+    if (!person) {
+      roleGateError.textContent = "Ese número no está en la lista de auxiliares.";
+      roleGateError.hidden = false;
+      return;
+    }
+    try { localStorage.setItem(ROLE_KEY, "auxiliar"); } catch (e) {}
+    window.location.href = "auxiliar.html";
+  }
+});
 
-  identitySkipBtn.addEventListener("click", () => {
-    try { localStorage.setItem(IDENTITY_SKIPPED_KEY, "1"); } catch (e) {}
-    identityModal.hidden = true;
-  });
+function initRoleGate() {
+  if (!window.ReporteSync) { setTimeout(initRoleGate, 200); return; }
 
-  identityInput.addEventListener("input", () => { identityError.style.display = "none"; });
-  identityInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") identitySaveBtn.click();
-  });
+  let role = null;
+  try { role = localStorage.getItem(ROLE_KEY); } catch (e) {}
+
+  if (role === "auxiliar" && window.ReporteSync.getMyAuxiliarIdentity()) {
+    window.location.href = "auxiliar.html";
+    return;
+  }
+  if (role === "logistico" && window.ReporteSync.getMyIdentity()) {
+    roleGateScreen.hidden = true;
+    return;
+  }
+  showRoleGateStep("choice");
+  roleGateScreen.hidden = false;
+}
+
+window.addEventListener("load", () => {
+  setTimeout(initRoleGate, 250);
 });
 
 // ---------------- Respaldo: exportar / restaurar ----------------
