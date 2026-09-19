@@ -5,95 +5,128 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#0A0D16">
 <title>Auxiliares — Reporte Logísticos</title>
+<link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#0A0D16;
-    --surface:#12172A;
-    --surface-2:#171E33;
-    --surface-3:#1E2740;
-    --border:#262F49;
-    --text:#F3F5FA;
-    --text-dim:#AEB6CC;
-    --text-faint:#6E7797;
-    --send:#1FD290;
-    --radius-m:14px;
-    --radius-l:22px;
-    --font-body:'Inter', system-ui, sans-serif;
-    --font-display:'Sora', system-ui, sans-serif;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background:var(--bg);
-    color:var(--text);
-    font-family:var(--font-body);
-    padding:24px 16px 60px;
-    min-height:100vh;
-  }
-  .wrap{max-width:480px; margin:0 auto;}
-  .topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
-  .topbar h1{font-family:var(--font-display); font-size:19px; margin:0;}
-  .logout-link{background:none; border:none; color:var(--text-faint); font-size:12.5px; font-weight:700; text-decoration:underline; cursor:pointer;}
-
-  .welcome-strip{display:flex; align-items:center; gap:12px; margin-bottom:24px;}
-  .welcome-avatar{
-    width:44px; height:44px; border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    font-family:var(--font-display); font-weight:800; font-size:15px;
-    color:#08101f; background:var(--send);
-    flex-shrink:0;
-  }
-  .welcome-name{font-family:var(--font-display); font-size:16px; font-weight:700;}
-  .welcome-sub{font-size:11.5px; color:var(--text-faint); font-weight:600;}
-
-  .card{
-    background:linear-gradient(165deg, var(--surface-2), var(--surface) 60%);
-    border:1px solid var(--border);
-    border-radius:var(--radius-l);
-    padding:24px 20px;
-    text-align:center;
-  }
-  .card .big-emoji{font-size:40px; margin-bottom:10px;}
-  .card h2{font-family:var(--font-display); font-size:17px; margin:0 0 8px;}
-  .card p{color:var(--text-dim); font-size:13.5px; line-height:1.6; margin:0 0 4px;}
-  .card ul{text-align:left; color:var(--text-dim); font-size:13px; line-height:1.9; margin:16px 0 0; padding-left:20px;}
-</style>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
-<div class="wrap">
 
-  <div class="topbar">
-    <h1>🧪 Módulo de Auxiliares</h1>
-    <button id="logoutBtn" class="logout-link" type="button">Cerrar sesión</button>
-  </div>
+<div class="bg-glow"></div>
 
-  <div class="welcome-strip">
+<div class="app">
+
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="logo-mark">
+        <img src="icons/icon-192.png" alt="Reporte Logísticos" width="40" height="40">
+      </div>
+      <div class="topbar-title">
+        <span class="topbar-eyebrow">Auxiliar de laboratorio</span>
+        <h1><span class="title-track">Módulo de Auxiliares</span></h1>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="logoutBtn" class="icon-btn" type="button" title="Cerrar sesión" aria-label="Cerrar sesión">
+        <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="welcomeStrip" class="welcome-strip">
     <span id="welcomeAvatar" class="welcome-avatar"></span>
-    <div>
-      <div id="welcomeName" class="welcome-name">—</div>
-      <div class="welcome-sub">Auxiliar de laboratorio</div>
+    <div class="welcome-text">
+      <span id="welcomeGreeting" class="welcome-greeting"></span>
+      <span class="welcome-sub">Auxiliar de laboratorio</span>
     </div>
   </div>
 
-  <div class="card">
-    <div class="big-emoji">🚧</div>
-    <h2>Esto ya casi está listo</h2>
-    <p>Ya quedó lista tu entrada — lo que viene ahora es construir el módulo completo por partes:</p>
-    <ul>
-      <li>📥 Importar la planilla del día en Excel</li>
-      <li>🩺 Tarjeta por paciente, con sus exámenes</li>
-      <li>⏱️ Botones de arribo, toma y salida</li>
-      <li>🧪 Contador de tubos tomados</li>
-      <li>💳 Forma de pago y total del día (efectivo/tarjeta/PSE)</li>
-      <li>📤 "Entregar al logístico" — le llena el reporte solo</li>
-    </ul>
-  </div>
+  <main style="display:block;">
+
+    <!-- Importar planilla -->
+    <section class="card">
+      <h2 class="card-title">📥 Importar planilla del día</h2>
+      <p class="card-hint">Sube el Excel completo (con las hojas de todos) — se detecta sola tu hoja por tu nombre, sin que tengas que buscarla.</p>
+
+      <input id="importExcelInput" type="file" accept=".xlsx,.xls" hidden>
+      <button id="importExcelBtn" class="btn btn-primary" type="button" style="width:100%;">📂 Elegir archivo Excel</button>
+      <p id="importStatus" class="pickup-info" hidden></p>
+    </section>
+
+    <!-- Pacientes importados -->
+    <section id="patientsSection" class="card" hidden>
+      <div class="card-head-row">
+        <h2 class="card-title">🩺 Pacientes de hoy</h2>
+        <span id="patientsCountBadge" class="co-btn-count">0</span>
+      </div>
+      <p class="card-hint">Tocar cada paciente para trabajarlo (arribo, toma, tubos, pago) viene en el siguiente paso.</p>
+      <button id="reorderModeBtn" class="ghost-btn" type="button">🔀 Reorganizar ruta</button>
+      <div id="patientsList" class="papeleria-list"></div>
+    </section>
+
+    <!-- Qué viene después -->
+    <section class="card">
+      <h2 class="card-title">🚧 Lo que sigue</h2>
+      <p class="card-hint">El import ya quedó listo. Lo que falta por construir:</p>
+      <ul style="text-align:left; color:var(--text-dim); font-size:13px; line-height:1.9; margin:12px 0 0; padding-left:20px;">
+        <li>🩺 Tarjeta por paciente, con sus exámenes</li>
+        <li>⏱️ Botones de arribo, toma y salida</li>
+        <li>🧪 Contador de tubos tomados</li>
+        <li>💳 Forma de pago y total del día (efectivo/tarjeta/PSE)</li>
+        <li>📤 "Entregar al logístico" — le llena el reporte solo</li>
+      </ul>
+    </section>
+
+  </main>
 
 </div>
+
+<div id="movePositionModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="movePositionClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>🔀 Mover a la posición</h3>
+    <p id="movePositionSubtitle" class="card-hint">—</p>
+    <div id="movePositionGrid" class="move-position-grid"></div>
+  </div>
+</div>
+
+<div id="patientCardModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="patientCardClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3 id="patientCardTitle">Paciente</h3>
+    <p id="patientCardMeta" class="card-hint">—</p>
+
+    <details class="hour-group" open>
+      <summary><span class="group-label">🩺 Exámenes</span><span id="patientCardExamsBadge" class="group-badge">0</span></summary>
+      <div id="patientCardExamsList" class="exam-list"></div>
+    </details>
+
+    <details class="hour-group" open>
+      <summary><span class="group-label">⏱️ Tiempos</span></summary>
+      <div id="patientTimeGrid" class="patient-time-grid"></div>
+    </details>
+
+    <details class="hour-group" open>
+      <summary><span class="group-label">🧪 Tubos tomados</span><span id="patientTubesBadge" class="group-badge">0</span></summary>
+      <div id="patientTubesGrid" class="tube-company-grid"></div>
+    </details>
+
+    <details class="hour-group" open>
+      <summary><span class="group-label">💳 Forma de pago</span></summary>
+      <div id="patientPaymentButtons" class="company-tube-buttons"></div>
+    </details>
+
+    <textarea id="patientNovedades" class="text-input" placeholder="Novedades (opcional)" style="min-height:64px; text-align:left; font-weight:500; margin-top:14px;"></textarea>
+
+    <button id="patientCardDone" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">Guardar y cerrar</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
@@ -134,11 +167,9 @@
 
   const me = getMyAuxiliarIdentity();
   if (!me) {
-    // Nadie inició sesión como auxiliar todavía (o entró directo a esta
-    // URL) — lo mandamos de vuelta a la puerta de entrada.
     window.location.href = "index.html";
   } else {
-    document.getElementById("welcomeName").textContent = `¡Hola, ${me.name}!`;
+    document.getElementById("welcomeGreeting").textContent = `¡Hola, ${me.name}! 👋`;
     const avatarEl = document.getElementById("welcomeAvatar");
     avatarEl.textContent = initials(me.name);
     avatarEl.style.background = avatarColor(me.name);
@@ -151,6 +182,656 @@
     } catch (e) {}
     window.location.href = "index.html";
   });
+
+  // ---------------- Toast (igual que en index.html) ----------------
+  const toast = document.getElementById("toast");
+  function showToast(msg, duration) {
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toast.classList.remove("show"), duration || 2200);
+  }
+
+  // ---------------- Fecha local (igual convención que el resto de la app) ----------------
+  function localDateKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function escapeHtmlAux(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ---------------- Importar planilla (Excel) ----------------
+  function normalizeForMatch(s) {
+    return String(s || "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase().trim();
+  }
+
+  // Encuentra las hojas del auxiliar activo por su primer nombre (ej.
+  // "Iván" encuentra "IVAN M."). Puede haber más de una — se fusionan.
+  function findAuxiliarSheets(workbook, auxiliarName) {
+    const firstName = normalizeForMatch(auxiliarName).split(" ")[0];
+    if (!firstName) return [];
+    return workbook.SheetNames.filter(name => normalizeForMatch(name).startsWith(firstName));
+  }
+
+  function formatHoraCita(val) {
+    if (val instanceof Date) {
+      let h = val.getHours(), m = val.getMinutes();
+      const period = h < 12 ? "AM" : "PM";
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+    }
+    return String(val || "").trim();
+  }
+
+  function parseExamenes(val) {
+    return String(val || "")
+      .split("//")
+      .map(s => s.replace(/\t/g, " ").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+  }
+
+  // La planilla trae DOS plantillas distintas por persona (ej. "IVAN M."
+  // y "IVAN M. 1") — solo la que tiene "Valor cobro" trae pacientes de
+  // verdad; la otra es un formulario interno que siempre viene vacío.
+  function parseAuxiliarSheet(workbook, sheetName) {
+    const ws = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+    let headerRowIdx = -1;
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+      const cellA = String(rows[i][0] || "").trim();
+      if (cellA.toUpperCase().includes("SOLICITUD")) { headerRowIdx = i; break; }
+    }
+    if (headerRowIdx === -1) return [];
+
+    const headerRow = rows[headerRowIdx].map(c => String(c || "").toUpperCase());
+    const isTemplateA = headerRow.some(h => h.includes("VALOR COBRO"));
+    if (!isTemplateA) return [];
+
+    const patients = [];
+    for (let i = headerRowIdx + 1; i < rows.length; i++) {
+      const row = rows[i];
+      const solicitud = row[0];
+      if (solicitud === "" || solicitud === undefined || solicitud === null) continue;
+
+      patients.push({
+        id: `${sheetName}_${i}_${solicitud}`.replace(/\s+/g, "_"),
+        solicitud: String(solicitud).trim(),
+        tipoDocumento: String(row[1] || "").trim(),
+        numDocumento: String(row[2] || "").trim(),
+        nombrePaciente: String(row[3] || "").trim(),
+        direccion: String(row[4] || "").trim(),
+        tipoCliente: String(row[5] || "").trim(),
+        horaCita: formatHoraCita(row[6]),
+        examenes: parseExamenes(row[7]),
+        valorCobro: Number(row[8]) || 0,
+        arriboSitio: "",
+        arriboPaciente: "",
+        horaToma: "",
+        horaSalida: "",
+        horaEntregaLog: "",
+        novedades: "",
+        formaPago: "",
+        tubos: {},
+        estado: "pendiente",
+      });
+    }
+    return patients;
+  }
+
+  function patientsStorageKey() {
+    return `reporte_logisticos_auxiliar_pacientes_${me.phone}_${localDateKey()}`;
+  }
+
+  function savePatients(patients) {
+    try { localStorage.setItem(patientsStorageKey(), JSON.stringify(patients)); } catch (e) {}
+  }
+
+  function loadPatients() {
+    try {
+      const raw = localStorage.getItem(patientsStorageKey());
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  const patientsSection = document.getElementById("patientsSection");
+  const patientsList = document.getElementById("patientsList");
+  const patientsCountBadge = document.getElementById("patientsCountBadge");
+  const importStatus = document.getElementById("importStatus");
+  const reorderModeBtn = document.getElementById("reorderModeBtn");
+
+  let reorderMode = false;
+  reorderModeBtn.addEventListener("click", () => {
+    reorderMode = !reorderMode;
+    patientsList.classList.toggle("reorder-active", reorderMode);
+    reorderModeBtn.textContent = reorderMode ? "✅ Listo, guardar orden" : "🔀 Reorganizar ruta";
+    reorderModeBtn.classList.toggle("active", reorderMode);
+    if (reorderMode) showToast("Ahora sí puedes arrastrar o escribir el número", 2200);
+  });
+
+  let currentPatients = [];
+
+  function buildPatientText(p, withExams) {
+    const lines = [
+      p.nombrePaciente || "(sin nombre)",
+      p.direccion || "",
+      `Hora cita: ${p.horaCita || "—"}`,
+      `N° Solicitud: ${p.solicitud || "—"}`,
+    ];
+    if (withExams && p.examenes && p.examenes.length > 0) {
+      lines.push("Exámenes:");
+      p.examenes.forEach(e => lines.push(`- ${e}`));
+    }
+    return lines.filter(Boolean).join("\n");
+  }
+
+  async function copyToClipboard(text, okMsg) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(okMsg || "Copiado", 1800);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast(okMsg || "Copiado", 1800);
+    }
+  }
+
+  function buildPatientRow(p, index) {
+    const row = document.createElement("div");
+    row.className = "patient-row";
+    row.dataset.id = p.id;
+
+    row.innerHTML = `
+      <span class="patient-drag-handle" title="Mantén y arrastra para reordenar">☰</span>
+      <button type="button" class="patient-num-input" title="Toca para mover a otra posición">${index + 1}</button>
+      <div class="patient-body">
+        <div class="patient-top">
+          <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
+          <span class="patient-time">${escapeHtmlAux(p.horaCita)}</span>
+        </div>
+        <div class="patient-meta">
+          ${escapeHtmlAux(p.tipoCliente)} · N° ${escapeHtmlAux(p.solicitud)} · ${p.examenes.length} examen${p.examenes.length !== 1 ? "es" : ""}
+        </div>
+        <div class="patient-actions">
+          <a class="place-action patient-action-map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.direccion || "")}" target="_blank" rel="noopener">🗺️ Maps</a>
+          <a class="place-action patient-action-waze" href="https://waze.com/ul?q=${encodeURIComponent(p.direccion || "")}&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+          <button type="button" class="place-action patient-copy-addr">📋 Dirección</button>
+          <button type="button" class="place-action patient-copy">👤 Copiar</button>
+          <button type="button" class="place-action patient-copy-exams">🧪 Copiar + exámenes</button>
+        </div>
+      </div>`;
+
+    row.querySelector(".patient-body").addEventListener("click", (e) => {
+      if (e.target.closest(".patient-actions")) return;
+      openPatientCard(p);
+    });
+
+    row.querySelector(".patient-num-input").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!reorderMode) return;
+      openMovePositionModal(p);
+    });
+
+    row.querySelector(".patient-copy-addr").addEventListener("click", () => {
+      copyToClipboard(p.direccion || "", "Dirección copiada");
+    });
+    row.querySelector(".patient-copy").addEventListener("click", () => {
+      copyToClipboard(buildPatientText(p, false), "Paciente copiado");
+    });
+    row.querySelector(".patient-copy-exams").addEventListener("click", () => {
+      copyToClipboard(buildPatientText(p, true), "Paciente + exámenes copiado");
+    });
+
+    bindDragHandle(row.querySelector(".patient-drag-handle"), row);
+    return row;
+  }
+
+  function renderPatientsList(patients) {
+    currentPatients = patients || [];
+    if (currentPatients.length === 0) {
+      patientsSection.hidden = true;
+      return;
+    }
+    patientsSection.hidden = false;
+    patientsCountBadge.textContent = currentPatients.length;
+    patientsList.innerHTML = "";
+    currentPatients.forEach((p, i) => {
+      patientsList.appendChild(buildPatientRow(p, i));
+    });
+  }
+
+  function renumberRows() {
+    [...patientsList.children].forEach((row, i) => {
+      const numEl = row.querySelector(".patient-num-input");
+      if (numEl) numEl.textContent = i + 1;
+    });
+  }
+
+  // Reordena escribiendo el número directamente: saca al paciente de donde
+  // está y lo reinserta en la posición pedida (1 = primero). Vuelve a
+  // pintar toda la lista para que quede 1..N sin huecos.
+  function reorderByManualNumber(patientId, newPos) {
+    const idx = currentPatients.findIndex(p => p.id === patientId);
+    if (idx === -1) return;
+    const clamped = Math.max(1, Math.min(currentPatients.length, newPos));
+    const [moved] = currentPatients.splice(idx, 1);
+    currentPatients.splice(clamped - 1, 0, moved);
+    savePatients(currentPatients);
+    renderPatientsList(currentPatients);
+    showToast(`Movido a la posición ${clamped}`, 1600);
+  }
+
+  // ---------------- Modal "Mover a la posición" (cuadrícula pareja de chips) ----------------
+  const movePositionModal = document.getElementById("movePositionModal");
+  const movePositionClose = document.getElementById("movePositionClose");
+  const movePositionSubtitle = document.getElementById("movePositionSubtitle");
+  const movePositionGrid = document.getElementById("movePositionGrid");
+
+  function openMovePositionModal(patient) {
+    const currentPos = currentPatients.findIndex(p => p.id === patient.id) + 1;
+    movePositionSubtitle.textContent = `${patient.nombrePaciente || "(sin nombre)"} — está en la posición ${currentPos}`;
+    movePositionGrid.innerHTML = currentPatients.map((p, i) => `
+      <button type="button" class="move-position-chip${p.id === patient.id ? " active" : ""}" data-pos="${i + 1}">${i + 1}</button>
+    `).join("");
+    movePositionGrid.querySelectorAll(".move-position-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        const pos = parseInt(chip.dataset.pos, 10);
+        movePositionModal.hidden = true;
+        reorderByManualNumber(patient.id, pos);
+      });
+    });
+    movePositionModal.hidden = false;
+  }
+
+  function closeMovePositionModal() { movePositionModal.hidden = true; }
+  movePositionClose.addEventListener("click", closeMovePositionModal);
+  movePositionModal.addEventListener("click", (e) => {
+    if (e.target === movePositionModal) closeMovePositionModal();
+  });
+
+  // Guarda el nuevo orden leyéndolo directo del DOM (que es la fuente de
+  // verdad mientras se arrastra) y lo escribe en currentPatients + localStorage.
+  function persistOrderFromDOM() {
+    const ids = [...patientsList.children].map(row => row.dataset.id);
+    const byId = {};
+    currentPatients.forEach(p => { byId[p.id] = p; });
+    const reordered = ids.map(id => byId[id]).filter(Boolean);
+    currentPatients = reordered;
+    savePatients(reordered);
+  }
+
+  // Arrastrar: se mantiene el MISMO elemento del DOM todo el tiempo (nunca
+  // se destruye/recrea), para que la captura del puntero no se pierda a
+  // mitad de camino. Al cruzar el punto medio del vecino, se intercambian
+  // de posición en el DOM y se renumera al instante.
+  let dragCtx = null;
+
+  function bindDragHandle(handle, row) {
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+      dragCtx = { row, pointerId: e.pointerId, startY: e.clientY };
+      row.classList.add("dragging");
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragCtx || dragCtx.row !== row) return;
+      const deltaY = e.clientY - dragCtx.startY;
+      row.style.transform = `translateY(${deltaY}px)`;
+
+      const rect = row.getBoundingClientRect();
+      const centerY = rect.top + rect.height / 2;
+      const sibling = deltaY < 0 ? row.previousElementSibling : row.nextElementSibling;
+      if (sibling) {
+        const sRect = sibling.getBoundingClientRect();
+        const sCenter = sRect.top + sRect.height / 2;
+        const crossed = deltaY < 0 ? centerY < sCenter : centerY > sCenter;
+        if (crossed) {
+          if (deltaY < 0) patientsList.insertBefore(row, sibling);
+          else patientsList.insertBefore(sibling, row);
+          row.style.transform = "translateY(0px)";
+          dragCtx.startY = e.clientY;
+          renumberRows();
+        }
+      }
+    });
+
+    function endDrag(e) {
+      if (!dragCtx || dragCtx.row !== row) return;
+      row.style.transform = "";
+      row.classList.remove("dragging");
+      try { handle.releasePointerCapture(dragCtx.pointerId); } catch (err) {}
+      dragCtx = null;
+      persistOrderFromDOM();
+    }
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+  }
+
+  document.getElementById("importExcelBtn").addEventListener("click", () => {
+    document.getElementById("importExcelInput").click();
+  });
+
+  document.getElementById("importExcelInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!me) return;
+
+    importStatus.hidden = false;
+    importStatus.textContent = "Leyendo el archivo...";
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = new Uint8Array(ev.target.result);
+        const workbook = XLSX.read(data, { type: "array", cellDates: true });
+        const sheets = findAuxiliarSheets(workbook, me.name);
+
+        let allPatients = [];
+        sheets.forEach(sheetName => {
+          allPatients = allPatients.concat(parseAuxiliarSheet(workbook, sheetName));
+        });
+
+        if (allPatients.length === 0) {
+          importStatus.textContent = `No encontré pacientes en una hoja para "${me.name}" en este archivo. Revisa que sea el Excel correcto.`;
+          return;
+        }
+
+        savePatients(allPatients);
+        renderPatientsList(allPatients);
+        importStatus.textContent = `✅ Se importaron ${allPatients.length} pacientes.`;
+        showToast(`${allPatients.length} pacientes importados`, 2400);
+      } catch (err) {
+        console.error(err);
+        importStatus.textContent = "No se pudo leer el archivo. ¿Seguro que es un Excel válido?";
+      }
+    };
+    reader.onerror = () => {
+      importStatus.textContent = "No se pudo leer el archivo.";
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // ---------------- Tarjeta de paciente (módulo 3) ----------------
+  const TUBOS_AUX = [
+    { key: "Amarillo",      emoji: "🟡" },
+    { key: "Lila",          emoji: "🟣" },
+    { key: "Azul",          emoji: "🔵" },
+    { key: "Rojo",          emoji: "🔴" },
+    { key: "Azul rey",      emoji: "👑" },
+    { key: "Transparente",  emoji: "⚪" },
+    { key: "Orina",         emoji: "💧" },
+    { key: "Orina 24h",     emoji: "🕐" },
+    { key: "Saliva",        emoji: "💦" },
+    { key: "Materia fecal", emoji: "💩" },
+    { key: "Laminas",       emoji: "🩸" },
+    { key: "Hisopo nasal",  emoji: "👃" },
+  ];
+
+  const TIME_FIELDS = [
+    { key: "arriboSitio",    label: "📍 Arribo al sitio" },
+    { key: "arriboPaciente", label: "🚪 Arribo al paciente" },
+    { key: "horaToma",       label: "🩸 Toma de muestra" },
+    { key: "horaSalida",     label: "🚶 Salida" },
+  ];
+
+  const PAYMENT_METHODS = [
+    { key: "efectivo", label: "💵 Efectivo" },
+    { key: "tarjeta",  label: "💳 Tarjeta" },
+    { key: "pse",      label: "🏦 PSE" },
+  ];
+
+  function nowTimeLabelAux() {
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes();
+    const period = h < 12 ? "AM" : "PM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+  }
+
+  const patientCardModal = document.getElementById("patientCardModal");
+  const patientCardClose = document.getElementById("patientCardClose");
+  const patientCardTitle = document.getElementById("patientCardTitle");
+  const patientCardMeta = document.getElementById("patientCardMeta");
+  const patientCardExamsList = document.getElementById("patientCardExamsList");
+  const patientCardExamsBadge = document.getElementById("patientCardExamsBadge");
+  const patientTimeGrid = document.getElementById("patientTimeGrid");
+  const patientTubesGrid = document.getElementById("patientTubesGrid");
+  const patientTubesBadge = document.getElementById("patientTubesBadge");
+  const patientPaymentButtons = document.getElementById("patientPaymentButtons");
+  const patientNovedades = document.getElementById("patientNovedades");
+  const patientCardDone = document.getElementById("patientCardDone");
+
+  let openPatientId = null;
+
+  function getOpenPatient() {
+    return currentPatients.find(p => p.id === openPatientId) || null;
+  }
+
+  // pendiente -> nada marcado. en_proceso -> ya llegó o tomó pero no ha
+  // salido. listo -> ya se fue (tiene hora de salida).
+  function updatePatientEstado(p) {
+    if (p.horaSalida) p.estado = "listo";
+    else if (p.arriboSitio || p.arriboPaciente || p.horaToma) p.estado = "en_proceso";
+    else p.estado = "pendiente";
+  }
+
+  // No se puede marcar salida sin al menos un tubo contado, y si el
+  // paciente paga (valor cobro > 0) también hace falta la forma de pago.
+  function checkSalidaRequirements(p) {
+    const totalTubos = Object.values(p.tubos || {}).reduce((a, b) => a + b, 0);
+    if (totalTubos === 0) {
+      return "No puedes marcar salida sin contar al menos un tubo.";
+    }
+    if ((p.valorCobro || 0) > 0 && !p.formaPago) {
+      return "Este paciente paga — selecciona la forma de pago antes de marcar salida.";
+    }
+    return null;
+  }
+
+  function paymentLabel(key) {
+    const m = PAYMENT_METHODS.find(x => x.key === key);
+    return m ? m.label : "—";
+  }
+
+  function sendWhatsAppText(text) {
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  }
+
+  function sendArriboWhatsApp(p, key) {
+    const label = key === "arriboSitio" ? "Arribo al sitio" : "Arribo al paciente";
+    const text = [
+      `📍 *${label}*`,
+      `👤 ${p.nombrePaciente || "(sin nombre)"}`,
+      `N° Solicitud: ${p.solicitud || "—"}`,
+      `🕐 Hora: ${p[key]}`,
+    ].join("\n");
+    sendWhatsAppText(text);
+  }
+
+  function sendFinalReportWhatsApp(p) {
+    const lines = [
+      "📋 *Reporte de paciente*",
+      `👤 ${p.nombrePaciente || "(sin nombre)"}`,
+      `N° Solicitud: ${p.solicitud || "—"}`,
+      "",
+      "⏱️ *Tiempos:*",
+      `📍 Arribo sitio: ${p.arriboSitio || "—"}`,
+      `🚪 Arribo paciente: ${p.arriboPaciente || "—"}`,
+      `🩸 Toma: ${p.horaToma || "—"}`,
+      `🚶 Salida: ${p.horaSalida || "—"}`,
+      "",
+      "🧪 *Tubos tomados:*",
+    ];
+    const tomados = TUBOS_AUX.filter(tb => (p.tubos[tb.key] || 0) > 0);
+    if (tomados.length === 0) {
+      lines.push("• Sin tubos registrados");
+    } else {
+      tomados.forEach(tb => lines.push(`${tb.emoji} ${tb.key}: ${p.tubos[tb.key]}`));
+    }
+    if (p.valorCobro > 0) {
+      lines.push("");
+      lines.push(`💳 Forma de pago: ${paymentLabel(p.formaPago)}`);
+    }
+    if (p.novedades && p.novedades.trim()) {
+      lines.push("");
+      lines.push(`📝 Novedades: ${p.novedades.trim()}`);
+    }
+    sendWhatsAppText(lines.join("\n"));
+  }
+
+  function persistOpenPatient() {
+    const p = getOpenPatient();
+    if (!p) return;
+    updatePatientEstado(p);
+    savePatients(currentPatients);
+  }
+
+  function renderPatientCard() {
+    const p = getOpenPatient();
+    if (!p) return;
+
+    patientCardTitle.textContent = p.nombrePaciente || "(sin nombre)";
+    patientCardMeta.textContent = `${p.tipoCliente} · N° ${p.solicitud} · Cita ${p.horaCita}`;
+
+    patientCardExamsBadge.textContent = p.examenes.length;
+    patientCardExamsList.innerHTML = p.examenes.length
+      ? p.examenes.map(e => `<div class="exam-row">${escapeHtmlAux(e)}</div>`).join("")
+      : '<p class="card-hint">Sin exámenes registrados.</p>';
+
+    patientTimeGrid.innerHTML = TIME_FIELDS.map(f => {
+      const salidaWarning = (f.key === "horaSalida" && !p[f.key]) ? checkSalidaRequirements(p) : null;
+      return `
+      <div class="patient-time-row-wrap">
+        <div class="patient-time-row">
+          <span class="patient-time-label">${f.label}</span>
+          <div class="patient-time-value">
+            ${p[f.key]
+              ? `<span class="patient-time-set">${escapeHtmlAux(p[f.key])}</span><button type="button" class="patient-time-clear" data-key="${f.key}" title="Borrar">✕</button>`
+              : `<button type="button" class="ghost-btn patient-time-mark" data-key="${f.key}" style="margin:0;">Marcar ahora</button>`
+            }
+          </div>
+        </div>
+        ${salidaWarning ? `<div class="patient-time-warning">⚠️ ${escapeHtmlAux(salidaWarning)}</div>` : ""}
+      </div>
+    `;
+    }).join("");
+
+    patientTimeGrid.querySelectorAll(".patient-time-mark").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+
+        if (key === "horaSalida") {
+          const warning = checkSalidaRequirements(p);
+          if (warning) { showToast(warning, 3200); return; }
+        }
+
+        p[key] = nowTimeLabelAux();
+        persistOpenPatient();
+        renderPatientCard();
+        renderPatientsList(currentPatients);
+
+        if (key === "arriboSitio" || key === "arriboPaciente") {
+          sendArriboWhatsApp(p, key);
+        } else if (key === "horaSalida") {
+          sendFinalReportWhatsApp(p);
+        }
+      });
+    });
+    patientTimeGrid.querySelectorAll(".patient-time-clear").forEach(btn => {
+      btn.addEventListener("click", () => {
+        p[btn.dataset.key] = "";
+        persistOpenPatient();
+        renderPatientCard();
+        renderPatientsList(currentPatients);
+      });
+    });
+
+    if (!p.tubos) p.tubos = {};
+    let totalTubos = 0;
+    patientTubesGrid.innerHTML = TUBOS_AUX.map(tb => {
+      const qty = p.tubos[tb.key] || 0;
+      totalTubos += qty;
+      return `
+        <div class="tube-co-tile${qty > 0 ? " active" : ""}" style="--co-color:var(--send);">
+          ${qty > 0 ? `<div class="tube-co-badge">${qty}</div>` : ""}
+          <div class="tube-co-emoji">${tb.emoji}</div>
+          <div class="tube-co-label">${tb.key}</div>
+          <div class="tube-co-controls">
+            <button type="button" class="tube-co-step minus" data-key="${tb.key}">−</button>
+            <span class="tube-co-value">${qty}</span>
+            <button type="button" class="tube-co-step plus" data-key="${tb.key}">+</button>
+          </div>
+        </div>`;
+    }).join("");
+    patientTubesBadge.textContent = totalTubos;
+
+    patientTubesGrid.querySelectorAll(".tube-co-step").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+        const delta = btn.classList.contains("plus") ? 1 : -1;
+        p.tubos[key] = Math.max(0, (p.tubos[key] || 0) + delta);
+        persistOpenPatient();
+        renderPatientCard();
+        renderPatientsList(currentPatients);
+      });
+    });
+
+    patientPaymentButtons.innerHTML = PAYMENT_METHODS.map(m => `
+      <button type="button" class="company-tube-btn payment-chip${p.formaPago === m.key ? " active" : ""}" data-key="${m.key}">
+        <span class="co-btn-label">${m.label}</span>
+      </button>
+    `).join("");
+    patientPaymentButtons.querySelectorAll(".payment-chip").forEach(btn => {
+      btn.addEventListener("click", () => {
+        p.formaPago = (btn.dataset.key === p.formaPago) ? "" : btn.dataset.key;
+        persistOpenPatient();
+        renderPatientCard();
+      });
+    });
+
+    patientNovedades.value = p.novedades || "";
+  }
+
+  patientNovedades.addEventListener("change", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    p.novedades = patientNovedades.value;
+    persistOpenPatient();
+  });
+
+  function openPatientCard(patient) {
+    openPatientId = patient.id;
+    renderPatientCard();
+    patientCardModal.hidden = false;
+  }
+  function closePatientCard() {
+    patientCardModal.hidden = true;
+    openPatientId = null;
+    renderPatientsList(currentPatients);
+  }
+  patientCardClose.addEventListener("click", closePatientCard);
+  patientCardDone.addEventListener("click", closePatientCard);
+  patientCardModal.addEventListener("click", (e) => {
+    if (e.target === patientCardModal) closePatientCard();
+  });
+
+  // Si ya se importó hoy, muéstralo de una vez sin pedir el archivo de nuevo.
+  if (me) {
+    const existing = loadPatients();
+    if (existing && existing.length > 0) renderPatientsList(existing);
+  }
 </script>
 </body>
 </html>

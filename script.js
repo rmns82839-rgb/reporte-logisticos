@@ -1994,6 +1994,13 @@ function renderWelcomeStrip() {
   welcomeGreeting.textContent = `¡Hola, ${me.name}! 👋`;
 }
 
+const welcomeLogoutBtn = document.getElementById("welcomeLogoutBtn");
+welcomeLogoutBtn.addEventListener("click", () => {
+  if (window.ReporteSync) window.ReporteSync.logout();
+  try { localStorage.removeItem(ROLE_KEY); } catch (e) {}
+  window.location.reload();
+});
+
 window.addEventListener("load", () => {
   renderWelcomeStrip();
   setTimeout(startAssignmentListener, 800);

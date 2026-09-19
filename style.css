@@ -730,6 +730,162 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   line-height:1.4;
 }
 
+/* ---------------- Lista de pacientes del auxiliar: arrastrar y soltar ---------------- */
+#patientsList{display:flex; flex-direction:column; gap:8px;}
+.patient-row{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-m);
+  padding:10px 12px;
+  transition:box-shadow .15s ease;
+}
+.patient-row.dragging{
+  box-shadow:0 14px 30px -10px rgba(0,0,0,0.7);
+  z-index:20;
+  position:relative;
+  background:var(--surface-3);
+}
+.patient-drag-handle{
+  flex-shrink:0;
+  width:30px;
+  height:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  background:var(--surface-3);
+  color:var(--text-faint);
+  font-size:15px;
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+  opacity:.3;
+  pointer-events:none;
+  transition:opacity .15s;
+}
+.patient-row.dragging .patient-drag-handle{cursor:grabbing; color:var(--send);}
+.patient-num-input{
+  flex-shrink:0;
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  background:transparent;
+  border:1.5px solid transparent;
+  font-size:11px;
+  font-weight:800;
+  color:var(--text-dim);
+  font-family:inherit;
+  text-align:center;
+  padding:0;
+  margin-top:1px;
+  -moz-appearance:textfield;
+  pointer-events:none;
+  transition:background .15s, border-color .15s;
+}
+#patientsList.reorder-active .patient-drag-handle{opacity:1; pointer-events:auto;}
+#patientsList.reorder-active .patient-num-input{
+  background:var(--surface-3);
+  border-color:var(--border);
+  pointer-events:auto;
+}
+.patient-num-input::-webkit-outer-spin-button,
+.patient-num-input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+.patient-num-input:focus{outline:none; border-color:var(--send); color:var(--send);}
+.patient-body{flex:1; min-width:0;}
+.patient-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
+.patient-name{font-weight:800; font-size:13px; color:var(--text);}
+.patient-time{font-size:11.5px; color:var(--text-faint); font-weight:700; white-space:nowrap; flex-shrink:0;}
+.patient-meta{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-top:2px;}
+.patient-actions{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:10px;}
+.patient-actions .place-action{width:100%;}
+
+/* ---------------- Modal "Mover a la posición": cuadrícula pareja de chips ---------------- */
+.move-position-grid{
+  display:grid;
+  grid-template-columns:repeat(5, 1fr);
+  gap:8px;
+}
+.move-position-chip{
+  aspect-ratio:1;
+  border-radius:var(--radius-s);
+  border:1.5px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text-dim);
+  font-family:inherit;
+  font-size:14px;
+  font-weight:800;
+  cursor:pointer;
+}
+.move-position-chip:active{transform:scale(0.94);}
+.move-position-chip.active{
+  background:var(--send);
+  border-color:var(--send);
+  color:#062017;
+}
+
+/* ---------------- Tarjeta de paciente ---------------- */
+.patient-body{cursor:pointer;}
+.patient-status-dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+.patient-status-dot.status-pendiente{background:var(--text-faint);}
+.patient-status-dot.status-en_proceso{background:var(--poliza);}
+.patient-status-dot.status-listo{background:var(--send);}
+
+.exam-list{display:flex; flex-direction:column; gap:6px;}
+.exam-row{
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:8px 10px;
+  font-size:12.5px;
+  color:var(--text-dim);
+  font-weight:600;
+}
+
+.patient-time-grid{display:flex; flex-direction:column; gap:8px;}
+.patient-time-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:8px 10px;
+}
+.patient-time-label{font-size:12.5px; font-weight:700; color:var(--text-dim);}
+.patient-time-value{display:flex; align-items:center; gap:8px;}
+.patient-time-set{font-size:12.5px; font-weight:800; color:var(--send);}
+.patient-time-clear{
+  width:22px; height:22px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  color:var(--danger);
+  font-size:10px;
+  cursor:pointer;
+}
+.patient-time-mark{margin:0 !important; width:auto !important; padding:6px 12px !important; font-size:11.5px !important;}
+.patient-time-row-wrap{display:flex; flex-direction:column; gap:4px;}
+.patient-time-warning{
+  font-size:11px;
+  font-weight:700;
+  color:var(--danger);
+  padding:6px 10px;
+  background:rgba(255,92,92,0.1);
+  border:1px solid rgba(255,92,92,0.3);
+  border-radius:8px;
+}
+
+.payment-chip.active{
+  background:var(--send-soft);
+  border-color:var(--send);
+}
+.payment-chip.active .co-btn-label{color:var(--send);}
+.patient-actions .place-action{min-height:32px; padding:0 10px; font-size:11px;}
+
 /* ---------------- Auxiliar elegido, en grande (efecto zoom) ---------------- */
 .aux-hero{
   display:flex;
@@ -875,6 +1031,12 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   cursor:pointer;
 }
 .ghost-btn:active{background:var(--surface-2);}
+#reorderModeBtn.active{
+  border-style:solid;
+  border-color:var(--send);
+  background:var(--send-soft);
+  color:var(--send);
+}
 .ghost-btn-danger{
   border-color:rgba(255,92,92,0.45);
   color:var(--danger);
@@ -1628,6 +1790,18 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   margin:0 0 16px;
   padding:0 16px;
 }
+.welcome-logout{
+  flex-shrink:0;
+  background:none;
+  border:none;
+  color:var(--text-faint);
+  font-family:inherit;
+  font-size:11.5px;
+  font-weight:700;
+  text-decoration:underline;
+  cursor:pointer;
+  padding:4px;
+}
 .welcome-avatar{
   width:44px;
   height:44px;
@@ -1641,7 +1815,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   flex-shrink:0;
   box-shadow:0 4px 12px -4px rgba(0,0,0,0.5);
 }
-.welcome-text{display:flex; flex-direction:column; gap:1px; min-width:0;}
+.welcome-text{display:flex; flex-direction:column; gap:1px; min-width:0; flex:1;}
 .welcome-greeting{font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--text);}
 .welcome-sub{font-size:11.5px; color:var(--text-faint); font-weight:600;}
 
