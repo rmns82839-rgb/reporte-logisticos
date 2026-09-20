@@ -57,6 +57,41 @@
       <p id="importStatus" class="pickup-info" hidden></p>
     </section>
 
+    <!-- Resumen del día -->
+    <section id="summarySection" class="card" hidden>
+      <details class="hour-group">
+        <summary><span class="group-label">📊 Resumen del día</span></summary>
+        <div class="summary-groups">
+          <div class="summary-group">
+            <div class="summary-group-title">🏥 FSFB</div>
+            <div class="summary-stats">
+              <div class="summary-stat"><span id="sumFsfbListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
+              <div class="summary-stat"><span id="sumFsfbProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
+              <div class="summary-stat"><span id="sumFsfbPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+            </div>
+            <div class="summary-money">
+              <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumFsfbEfectivo">$0</span></div>
+              <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumFsfbTarjeta">$0</span></div>
+              <div class="summary-money-row"><span>🏦 PSE</span><span id="sumFsfbPse">$0</span></div>
+            </div>
+          </div>
+          <div class="summary-group">
+            <div class="summary-group-title">🔴 VIP</div>
+            <div class="summary-stats">
+              <div class="summary-stat"><span id="sumRestoListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
+              <div class="summary-stat"><span id="sumRestoProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
+              <div class="summary-stat"><span id="sumRestoPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+            </div>
+            <div class="summary-money">
+              <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumRestoEfectivo">$0</span></div>
+              <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumRestoTarjeta">$0</span></div>
+              <div class="summary-money-row"><span>🏦 PSE</span><span id="sumRestoPse">$0</span></div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+
     <!-- Pacientes importados -->
     <section id="patientsSection" class="card" hidden>
       <div class="card-head-row">
@@ -68,29 +103,26 @@
       <div id="patientsList" class="papeleria-list"></div>
     </section>
 
-    <!-- Qué viene después -->
-    <section class="card">
-      <h2 class="card-title">🚧 Lo que sigue</h2>
-      <p class="card-hint">El import ya quedó listo. Lo que falta por construir:</p>
-      <ul style="text-align:left; color:var(--text-dim); font-size:13px; line-height:1.9; margin:12px 0 0; padding-left:20px;">
-        <li>🩺 Tarjeta por paciente, con sus exámenes</li>
-        <li>⏱️ Botones de arribo, toma y salida</li>
-        <li>🧪 Contador de tubos tomados</li>
-        <li>💳 Forma de pago y total del día (efectivo/tarjeta/PSE)</li>
-        <li>📤 "Entregar al logístico" — le llena el reporte solo</li>
-      </ul>
-    </section>
 
   </main>
 
 </div>
 
-<div id="movePositionModal" class="modal-overlay" hidden>
-  <div class="modal-card">
-    <button id="movePositionClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
-    <h3>🔀 Mover a la posición</h3>
-    <p id="movePositionSubtitle" class="card-hint">—</p>
-    <div id="movePositionGrid" class="move-position-grid"></div>
+<div id="scheduleModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="scheduleModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>🕐 Vista previa del horario</h3>
+    <p class="card-hint">Elige a qué hora arrancas — cada paciente queda 30 min después del anterior, pero puedes ajustar cualquiera.</p>
+    <div id="scheduleStartButtons" class="company-tube-buttons">
+      <button type="button" class="company-tube-btn payment-chip" data-start="300">
+        <span class="co-btn-label">5:00 AM</span>
+      </button>
+      <button type="button" class="company-tube-btn payment-chip" data-start="330">
+        <span class="co-btn-label">5:30 AM</span>
+      </button>
+    </div>
+    <div id="schedulePreviewList" class="papeleria-list" style="margin-top:14px;"></div>
+    <button id="scheduleConfirmBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">✅ Aplicar orden y horario</button>
   </div>
 </div>
 
@@ -110,13 +142,18 @@
       <div id="patientTimeGrid" class="patient-time-grid"></div>
     </details>
 
-    <details class="hour-group" open>
+    <details class="hour-group" id="patientTubesDetails">
       <summary><span class="group-label">🧪 Tubos tomados</span><span id="patientTubesBadge" class="group-badge">0</span></summary>
       <div id="patientTubesGrid" class="tube-company-grid"></div>
     </details>
 
+    <details class="hour-group" id="patientOrdenDetails" open hidden>
+      <summary><span class="group-label">📄 ¿Entregó orden?</span></summary>
+      <div id="patientOrdenButtons" class="company-tube-buttons"></div>
+    </details>
+
     <details class="hour-group" open>
-      <summary><span class="group-label">💳 Forma de pago</span></summary>
+      <summary><span class="group-label">💳 Forma de pago</span><span id="patientValorBadge" class="group-badge">$0</span></summary>
       <div id="patientPaymentButtons" class="company-tube-buttons"></div>
     </details>
 
@@ -277,8 +314,10 @@
         horaToma: "",
         horaSalida: "",
         horaEntregaLog: "",
+        horaProgramada: "",
         novedades: "",
         formaPago: "",
+        entregoOrden: null,
         tubos: {},
         estado: "pendiente",
       });
@@ -301,6 +340,63 @@
     } catch (e) { return null; }
   }
 
+  const summarySection = document.getElementById("summarySection");
+  const sumFsfbListo = document.getElementById("sumFsfbListo");
+  const sumFsfbProceso = document.getElementById("sumFsfbProceso");
+  const sumFsfbPendiente = document.getElementById("sumFsfbPendiente");
+  const sumFsfbEfectivo = document.getElementById("sumFsfbEfectivo");
+  const sumFsfbTarjeta = document.getElementById("sumFsfbTarjeta");
+  const sumFsfbPse = document.getElementById("sumFsfbPse");
+  const sumRestoListo = document.getElementById("sumRestoListo");
+  const sumRestoProceso = document.getElementById("sumRestoProceso");
+  const sumRestoPendiente = document.getElementById("sumRestoPendiente");
+  const sumRestoEfectivo = document.getElementById("sumRestoEfectivo");
+  const sumRestoTarjeta = document.getElementById("sumRestoTarjeta");
+  const sumRestoPse = document.getElementById("sumRestoPse");
+
+  function moneyLabel(n) {
+    return `$${(n || 0).toLocaleString("es-CO")}`;
+  }
+
+  // Completados = ya tiene hora de salida. En ruta = algo marcado pero
+  // sin salida. Pendiente = nada marcado todavía. El dinero solo cuenta
+  // una vez el paciente ya salió (recaudo real, no lo que falta cobrar).
+  function renderDaySummary(patients) {
+    if (!patients || patients.length === 0) {
+      summarySection.hidden = true;
+      return;
+    }
+    summarySection.hidden = false;
+
+    const mk = () => ({ listo: 0, proceso: 0, pendiente: 0, efectivo: 0, tarjeta: 0, pse: 0 });
+    const stats = { fsfb: mk(), resto: mk() };
+
+    patients.forEach(p => {
+      const bucket = isFsfb(p) ? stats.fsfb : stats.resto;
+      if (p.estado === "listo") bucket.listo++;
+      else if (p.estado === "en_proceso") bucket.proceso++;
+      else bucket.pendiente++;
+
+      if (p.horaSalida && p.formaPago && (p.valorCobro || 0) > 0 && bucket[p.formaPago] !== undefined) {
+        bucket[p.formaPago] += p.valorCobro;
+      }
+    });
+
+    sumFsfbListo.textContent = stats.fsfb.listo;
+    sumFsfbProceso.textContent = stats.fsfb.proceso;
+    sumFsfbPendiente.textContent = stats.fsfb.pendiente;
+    sumFsfbEfectivo.textContent = moneyLabel(stats.fsfb.efectivo);
+    sumFsfbTarjeta.textContent = moneyLabel(stats.fsfb.tarjeta);
+    sumFsfbPse.textContent = moneyLabel(stats.fsfb.pse);
+
+    sumRestoListo.textContent = stats.resto.listo;
+    sumRestoProceso.textContent = stats.resto.proceso;
+    sumRestoPendiente.textContent = stats.resto.pendiente;
+    sumRestoEfectivo.textContent = moneyLabel(stats.resto.efectivo);
+    sumRestoTarjeta.textContent = moneyLabel(stats.resto.tarjeta);
+    sumRestoPse.textContent = moneyLabel(stats.resto.pse);
+  }
+
   const patientsSection = document.getElementById("patientsSection");
   const patientsList = document.getElementById("patientsList");
   const patientsCountBadge = document.getElementById("patientsCountBadge");
@@ -311,9 +407,21 @@
   reorderModeBtn.addEventListener("click", () => {
     reorderMode = !reorderMode;
     patientsList.classList.toggle("reorder-active", reorderMode);
-    reorderModeBtn.textContent = reorderMode ? "✅ Listo, guardar orden" : "🔀 Reorganizar ruta";
     reorderModeBtn.classList.toggle("active", reorderMode);
-    if (reorderMode) showToast("Ahora sí puedes arrastrar o escribir el número", 2200);
+
+    if (reorderMode) {
+      tapSequence = [];
+      reorderModeBtn.textContent = "✅ Listo, ver horario";
+      showToast("Toca a los pacientes en el orden que los vas a visitar", 2600);
+      updateNumberBadges();
+    } else {
+      reorderModeBtn.textContent = "🔀 Reorganizar ruta";
+      if (tapSequence.length > 0) {
+        openScheduleModal();
+      } else {
+        updateNumberBadges();
+      }
+    }
   });
 
   let currentPatients = [];
@@ -347,25 +455,50 @@
     }
   }
 
+  // Limpia la dirección para que Google Maps/Waze busquen solo la parte de
+  // calle/carrera y número — corta en el primer separador (;, /) o en la
+  // primera palabra de complemento (apto, torre, conjunto, barrio, etc.),
+  // lo que aparezca primero. La dirección completa (sin recortar) se sigue
+  // usando para mostrarla y para "Copiar dirección".
+  function cleanAddressForMaps(raw) {
+    let s = String(raw || "").trim();
+    if (!s) return s;
+    const sepRegex = /[;/]/;
+    const stopRegex = /\b(AP|APT|APTO|CASA|CA|CS|TORRE|TO|TRR|CONJ|CONJUNTO|BRR|BARRIO|TIMBRE|PISO|BLOQUE|BL|INT|INTERIOR|MZ|MANZANA|ETAPA|URB|URBANIZACION)\b/i;
+    const sepMatch = s.match(sepRegex);
+    const stopMatch = s.match(stopRegex);
+    let cutIdx = s.length;
+    if (sepMatch && sepMatch.index < cutIdx) cutIdx = sepMatch.index;
+    if (stopMatch && stopMatch.index < cutIdx) cutIdx = stopMatch.index;
+    s = s.slice(0, cutIdx).replace(/[-,;/\s]+$/, "").trim();
+    return s || String(raw || "").trim();
+  }
+
+  function buildMapsQuery(direccion) {
+    const clean = cleanAddressForMaps(direccion);
+    return clean ? `${clean}, Bogotá, Colombia` : "";
+  }
+
   function buildPatientRow(p, index) {
     const row = document.createElement("div");
-    row.className = "patient-row";
+    row.className = "patient-row" + (p.estado === "listo" ? " patient-row-done" : "");
     row.dataset.id = p.id;
 
     row.innerHTML = `
       <span class="patient-drag-handle" title="Mantén y arrastra para reordenar">☰</span>
-      <button type="button" class="patient-num-input" title="Toca para mover a otra posición">${index + 1}</button>
+      <button type="button" class="patient-num-input" title="Toca para numerar en modo Reorganizar">${index + 1}</button>
       <div class="patient-body">
         <div class="patient-top">
           <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
-          <span class="patient-time">${escapeHtmlAux(p.horaCita)}</span>
+          <span class="patient-time">${escapeHtmlAux(p.horaProgramada || p.horaCita)}</span>
         </div>
         <div class="patient-meta">
           ${escapeHtmlAux(p.tipoCliente)} · N° ${escapeHtmlAux(p.solicitud)} · ${p.examenes.length} examen${p.examenes.length !== 1 ? "es" : ""}
         </div>
+        <div class="patient-address">📍 ${escapeHtmlAux(p.direccion || "Sin dirección")}</div>
         <div class="patient-actions">
-          <a class="place-action patient-action-map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.direccion || "")}" target="_blank" rel="noopener">🗺️ Maps</a>
-          <a class="place-action patient-action-waze" href="https://waze.com/ul?q=${encodeURIComponent(p.direccion || "")}&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
+          <a class="place-action patient-action-map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buildMapsQuery(p.direccion))}" target="_blank" rel="noopener">🗺️ Maps</a>
+          <a class="place-action patient-action-waze" href="https://waze.com/ul?q=${encodeURIComponent(buildMapsQuery(p.direccion))}&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
           <button type="button" class="place-action patient-copy-addr">📋 Dirección</button>
           <button type="button" class="place-action patient-copy">👤 Copiar</button>
           <button type="button" class="place-action patient-copy-exams">🧪 Copiar + exámenes</button>
@@ -380,7 +513,10 @@
     row.querySelector(".patient-num-input").addEventListener("click", (e) => {
       e.stopPropagation();
       if (!reorderMode) return;
-      openMovePositionModal(p);
+      const idx = tapSequence.indexOf(p.id);
+      if (idx === -1) tapSequence.push(p.id);
+      else tapSequence.splice(idx, 1);
+      updateNumberBadges();
     });
 
     row.querySelector(".patient-copy-addr").addEventListener("click", () => {
@@ -394,6 +530,7 @@
     });
 
     bindDragHandle(row.querySelector(".patient-drag-handle"), row);
+
     return row;
   }
 
@@ -401,6 +538,7 @@
     currentPatients = patients || [];
     if (currentPatients.length === 0) {
       patientsSection.hidden = true;
+      summarySection.hidden = true;
       return;
     }
     patientsSection.hidden = false;
@@ -409,76 +547,43 @@
     currentPatients.forEach((p, i) => {
       patientsList.appendChild(buildPatientRow(p, i));
     });
+    renderDaySummary(currentPatients);
   }
 
-  function renumberRows() {
-    [...patientsList.children].forEach((row, i) => {
-      const numEl = row.querySelector(".patient-num-input");
-      if (numEl) numEl.textContent = i + 1;
+  // Modo "toca para numerar": cada toque en el número, mientras el modo
+  // Reorganizar está activo, agrega o quita al paciente de tapSequence —
+  // el orden en que se van tocando ES el nuevo orden. Los que no se
+  // tocan quedan al final, en el orden que ya tenían.
+  let tapSequence = [];
+
+  function updateNumberBadges() {
+    [...patientsList.children].forEach(row => {
+      const id = row.dataset.id;
+      const badge = row.querySelector(".patient-num-input");
+      if (!badge) return;
+      if (reorderMode) {
+        const seqIdx = tapSequence.indexOf(id);
+        badge.textContent = seqIdx === -1 ? "—" : String(seqIdx + 1);
+        badge.classList.toggle("tapped", seqIdx !== -1);
+      } else {
+        const idx = currentPatients.findIndex(p => p.id === id);
+        badge.textContent = idx + 1;
+        badge.classList.remove("tapped");
+      }
     });
   }
 
-  // Reordena escribiendo el número directamente: saca al paciente de donde
-  // está y lo reinserta en la posición pedida (1 = primero). Vuelve a
-  // pintar toda la lista para que quede 1..N sin huecos.
-  function reorderByManualNumber(patientId, newPos) {
-    const idx = currentPatients.findIndex(p => p.id === patientId);
-    if (idx === -1) return;
-    const clamped = Math.max(1, Math.min(currentPatients.length, newPos));
-    const [moved] = currentPatients.splice(idx, 1);
-    currentPatients.splice(clamped - 1, 0, moved);
-    savePatients(currentPatients);
-    renderPatientsList(currentPatients);
-    showToast(`Movido a la posición ${clamped}`, 1600);
-  }
-
-  // ---------------- Modal "Mover a la posición" (cuadrícula pareja de chips) ----------------
-  const movePositionModal = document.getElementById("movePositionModal");
-  const movePositionClose = document.getElementById("movePositionClose");
-  const movePositionSubtitle = document.getElementById("movePositionSubtitle");
-  const movePositionGrid = document.getElementById("movePositionGrid");
-
-  function openMovePositionModal(patient) {
-    const currentPos = currentPatients.findIndex(p => p.id === patient.id) + 1;
-    movePositionSubtitle.textContent = `${patient.nombrePaciente || "(sin nombre)"} — está en la posición ${currentPos}`;
-    movePositionGrid.innerHTML = currentPatients.map((p, i) => `
-      <button type="button" class="move-position-chip${p.id === patient.id ? " active" : ""}" data-pos="${i + 1}">${i + 1}</button>
-    `).join("");
-    movePositionGrid.querySelectorAll(".move-position-chip").forEach(chip => {
-      chip.addEventListener("click", () => {
-        const pos = parseInt(chip.dataset.pos, 10);
-        movePositionModal.hidden = true;
-        reorderByManualNumber(patient.id, pos);
-      });
-    });
-    movePositionModal.hidden = false;
-  }
-
-  function closeMovePositionModal() { movePositionModal.hidden = true; }
-  movePositionClose.addEventListener("click", closeMovePositionModal);
-  movePositionModal.addEventListener("click", (e) => {
-    if (e.target === movePositionModal) closeMovePositionModal();
-  });
-
-  // Guarda el nuevo orden leyéndolo directo del DOM (que es la fuente de
-  // verdad mientras se arrastra) y lo escribe en currentPatients + localStorage.
-  function persistOrderFromDOM() {
-    const ids = [...patientsList.children].map(row => row.dataset.id);
-    const byId = {};
-    currentPatients.forEach(p => { byId[p.id] = p; });
-    const reordered = ids.map(id => byId[id]).filter(Boolean);
-    currentPatients = reordered;
-    savePatients(reordered);
-  }
-
-  // Arrastrar: se mantiene el MISMO elemento del DOM todo el tiempo (nunca
-  // se destruye/recrea), para que la captura del puntero no se pierda a
-  // mitad de camino. Al cruzar el punto medio del vecino, se intercambian
-  // de posición en el DOM y se renumera al instante.
+  // Arrastrar con el ☰: mueve la fila de verdad en el DOM (sin destruir el
+  // elemento, para no perder la captura del puntero a mitad de camino) y
+  // guarda el nuevo orden apenas se suelta. Coexiste con "tocar para
+  // numerar": arrastrar reordena currentPatients directo; tocar el número
+  // solo arma la secuencia para el horario — no se pisan entre sí porque
+  // updateNumberBadges() siempre recalcula según el modo activo.
   let dragCtx = null;
 
   function bindDragHandle(handle, row) {
     handle.addEventListener("pointerdown", (e) => {
+      if (!reorderMode) return;
       e.preventDefault();
       try { handle.setPointerCapture(e.pointerId); } catch (err) {}
       dragCtx = { row, pointerId: e.pointerId, startY: e.clientY };
@@ -502,12 +607,12 @@
           else patientsList.insertBefore(sibling, row);
           row.style.transform = "translateY(0px)";
           dragCtx.startY = e.clientY;
-          renumberRows();
+          updateNumberBadges();
         }
       }
     });
 
-    function endDrag(e) {
+    function endDrag() {
       if (!dragCtx || dragCtx.row !== row) return;
       row.style.transform = "";
       row.classList.remove("dragging");
@@ -518,6 +623,121 @@
     handle.addEventListener("pointerup", endDrag);
     handle.addEventListener("pointercancel", endDrag);
   }
+
+  function persistOrderFromDOM() {
+    const ids = [...patientsList.children].map(row => row.dataset.id);
+    const byId = {};
+    currentPatients.forEach(p => { byId[p.id] = p; });
+    const reordered = ids.map(id => byId[id]).filter(Boolean);
+    currentPatients = reordered;
+    savePatients(reordered);
+    updateNumberBadges();
+  }
+
+  // ---------------- Modal "Vista previa del horario" ----------------
+  const scheduleModal = document.getElementById("scheduleModal");
+  const scheduleModalClose = document.getElementById("scheduleModalClose");
+  const scheduleStartButtons = document.getElementById("scheduleStartButtons");
+  const schedulePreviewList = document.getElementById("schedulePreviewList");
+  const scheduleConfirmBtn = document.getElementById("scheduleConfirmBtn");
+
+  let scheduleOrder = [];
+  let scheduleTimes = [];
+  let scheduleStartMinutes = 300; // 5:00 AM
+
+  function minutesToLabel(mins) {
+    const h = Math.floor(mins / 60) % 24;
+    const m = mins % 60;
+    const period = h < 12 ? "AM" : "PM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+  }
+  function labelToMinutes(label) {
+    const m = String(label || "").match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!m) return scheduleStartMinutes;
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    const period = m[3].toUpperCase();
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    return h * 60 + min;
+  }
+  function toHtmlTime(label) {
+    const mins = labelToMinutes(label);
+    return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+  }
+  function fromHtmlTime(val) {
+    const [h, m] = val.split(":").map(Number);
+    return minutesToLabel(h * 60 + m);
+  }
+
+  function buildScheduleOrder() {
+    const tapped = tapSequence.map(id => currentPatients.find(p => p.id === id)).filter(Boolean);
+    const rest = currentPatients.filter(p => !tapSequence.includes(p.id));
+    return [...tapped, ...rest];
+  }
+
+  function recalcScheduleTimes() {
+    scheduleTimes = scheduleOrder.map((p, i) => minutesToLabel(scheduleStartMinutes + i * 30));
+  }
+
+  function renderSchedulePreview() {
+    schedulePreviewList.innerHTML = scheduleOrder.map((p, i) => `
+      <div class="patient-row" style="align-items:center;">
+        <span class="patient-num-input" style="pointer-events:none;">${i + 1}</span>
+        <div class="patient-body" style="cursor:default; flex:1;">
+          <div class="patient-top">
+            <span class="patient-name">${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
+          </div>
+        </div>
+        <input type="time" class="schedule-time-input" data-idx="${i}" value="${toHtmlTime(scheduleTimes[i])}">
+      </div>
+    `).join("");
+
+    schedulePreviewList.querySelectorAll(".schedule-time-input").forEach(inp => {
+      inp.addEventListener("change", () => {
+        const idx = parseInt(inp.dataset.idx, 10);
+        scheduleTimes[idx] = fromHtmlTime(inp.value);
+      });
+    });
+  }
+
+  scheduleStartButtons.querySelectorAll(".payment-chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      scheduleStartMinutes = parseInt(btn.dataset.start, 10);
+      scheduleStartButtons.querySelectorAll(".payment-chip").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      recalcScheduleTimes();
+      renderSchedulePreview();
+    });
+  });
+
+  function openScheduleModal() {
+    scheduleOrder = buildScheduleOrder();
+    recalcScheduleTimes();
+    renderSchedulePreview();
+    scheduleModal.hidden = false;
+  }
+  function closeScheduleModal() {
+    scheduleModal.hidden = true;
+    tapSequence = [];
+    updateNumberBadges();
+  }
+  scheduleModalClose.addEventListener("click", closeScheduleModal);
+  scheduleModal.addEventListener("click", (e) => {
+    if (e.target === scheduleModal) closeScheduleModal();
+  });
+
+  scheduleConfirmBtn.addEventListener("click", () => {
+    scheduleOrder.forEach((p, i) => { p.horaProgramada = scheduleTimes[i]; });
+    currentPatients = scheduleOrder;
+    savePatients(currentPatients);
+    scheduleModal.hidden = true;
+    tapSequence = [];
+    renderPatientsList(currentPatients);
+    showToast("Orden y horario aplicados", 2200);
+  });
+
 
   document.getElementById("importExcelBtn").addEventListener("click", () => {
     document.getElementById("importExcelInput").click();
@@ -609,6 +829,9 @@
   const patientTimeGrid = document.getElementById("patientTimeGrid");
   const patientTubesGrid = document.getElementById("patientTubesGrid");
   const patientTubesBadge = document.getElementById("patientTubesBadge");
+  const patientValorBadge = document.getElementById("patientValorBadge");
+  const patientOrdenDetails = document.getElementById("patientOrdenDetails");
+  const patientOrdenButtons = document.getElementById("patientOrdenButtons");
   const patientPaymentButtons = document.getElementById("patientPaymentButtons");
   const patientNovedades = document.getElementById("patientNovedades");
   const patientCardDone = document.getElementById("patientCardDone");
@@ -627,66 +850,77 @@
     else p.estado = "pendiente";
   }
 
-  // No se puede marcar salida sin al menos un tubo contado, y si el
-  // paciente paga (valor cobro > 0) también hace falta la forma de pago.
+  function isFsfb(p) {
+    return String(p.tipoCliente || "").toUpperCase().includes("FSFB");
+  }
+
+  // No se puede marcar salida sin al menos un tubo contado. Si el paciente
+  // paga (valor cobro > 0) o es de FSFB, también hace falta la forma de
+  // pago. Y si es de FSFB, además hay que decir si entregó la orden.
   function checkSalidaRequirements(p) {
     const totalTubos = Object.values(p.tubos || {}).reduce((a, b) => a + b, 0);
     if (totalTubos === 0) {
       return "No puedes marcar salida sin contar al menos un tubo.";
     }
+    const fsfb = isFsfb(p);
     if ((p.valorCobro || 0) > 0 && !p.formaPago) {
-      return "Este paciente paga — selecciona la forma de pago antes de marcar salida.";
+      return "Selecciona la forma de pago antes de marcar salida.";
+    }
+    if (fsfb && p.entregoOrden === null) {
+      return "Marca si entregó la orden o no, antes de marcar salida.";
     }
     return null;
   }
 
   function paymentLabel(key) {
     const m = PAYMENT_METHODS.find(x => x.key === key);
-    return m ? m.label : "—";
+    return m ? m.label.replace(/^\S+\s/, "") : "—";
   }
 
   function sendWhatsAppText(text) {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   }
 
-  function sendArriboWhatsApp(p, key) {
-    const label = key === "arriboSitio" ? "Arribo al sitio" : "Arribo al paciente";
+  function sendArriboWhatsApp(p) {
     const text = [
-      `📍 *${label}*`,
+      `📍 *Arribo*`,
       `👤 ${p.nombrePaciente || "(sin nombre)"}`,
       `N° Solicitud: ${p.solicitud || "—"}`,
-      `🕐 Hora: ${p[key]}`,
+      `🕐 Hora: ${p.arriboSitio}`,
     ].join("\n");
     sendWhatsAppText(text);
   }
 
+  // Formato pedido: número de solicitud solo, luego cada dato en su
+  // propia línea, con negrita y emoji. Los tubos van como "cantidad
+  // nombre". A los de FSFB se les agrega orden entregada y forma de pago.
   function sendFinalReportWhatsApp(p) {
     const lines = [
-      "📋 *Reporte de paciente*",
-      `👤 ${p.nombrePaciente || "(sin nombre)"}`,
-      `N° Solicitud: ${p.solicitud || "—"}`,
+      p.solicitud || "—",
       "",
-      "⏱️ *Tiempos:*",
-      `📍 Arribo sitio: ${p.arriboSitio || "—"}`,
-      `🚪 Arribo paciente: ${p.arriboPaciente || "—"}`,
-      `🩸 Toma: ${p.horaToma || "—"}`,
-      `🚶 Salida: ${p.horaSalida || "—"}`,
+      `🕐 *Arribo*: ${p.arriboSitio || "—"}`,
+      `🚪 *Paciente*: ${p.arriboPaciente || "—"}`,
+      `🩸 *Toma*: ${p.horaToma || "—"}`,
+      `🚶 *Salida*: ${p.horaSalida || "—"}`,
       "",
-      "🧪 *Tubos tomados:*",
+      "🧪 *Tubos*:",
     ];
     const tomados = TUBOS_AUX.filter(tb => (p.tubos[tb.key] || 0) > 0);
     if (tomados.length === 0) {
-      lines.push("• Sin tubos registrados");
+      lines.push("Sin tubos registrados");
     } else {
-      tomados.forEach(tb => lines.push(`${tb.emoji} ${tb.key}: ${p.tubos[tb.key]}`));
+      tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
     }
-    if (p.valorCobro > 0) {
+    if (isFsfb(p)) {
       lines.push("");
-      lines.push(`💳 Forma de pago: ${paymentLabel(p.formaPago)}`);
+      lines.push(`📄 *Entregó orden*: ${p.entregoOrden ? "Sí" : "No"}`);
+      if ((p.valorCobro || 0) > 0) {
+        lines.push(`💳 *Forma de pago*: ${paymentLabel(p.formaPago)}`);
+      }
     }
     if (p.novedades && p.novedades.trim()) {
       lines.push("");
-      lines.push(`📝 Novedades: ${p.novedades.trim()}`);
+      lines.push(`📝 *Novedades*: ${p.novedades.trim()}`);
     }
     sendWhatsAppText(lines.join("\n"));
   }
@@ -704,6 +938,7 @@
 
     patientCardTitle.textContent = p.nombrePaciente || "(sin nombre)";
     patientCardMeta.textContent = `${p.tipoCliente} · N° ${p.solicitud} · Cita ${p.horaCita}`;
+    patientValorBadge.textContent = `$${(p.valorCobro || 0).toLocaleString("es-CO")}`;
 
     patientCardExamsBadge.textContent = p.examenes.length;
     patientCardExamsList.innerHTML = p.examenes.length
@@ -711,17 +946,18 @@
       : '<p class="card-hint">Sin exámenes registrados.</p>';
 
     patientTimeGrid.innerHTML = TIME_FIELDS.map(f => {
-      const salidaWarning = (f.key === "horaSalida" && !p[f.key]) ? checkSalidaRequirements(p) : null;
+      const isSalida = f.key === "horaSalida";
+      const salidaWarning = (isSalida && !p[f.key]) ? checkSalidaRequirements(p) : null;
+      const valueHtml = p[f.key]
+        ? `<span class="patient-time-set">${escapeHtmlAux(p[f.key])}</span><button type="button" class="patient-time-clear" data-key="${f.key}" title="Borrar">✕</button>`
+        : (isSalida
+            ? `<span class="patient-time-hint">Se marca al Finalizar ↓</span>`
+            : `<button type="button" class="ghost-btn patient-time-mark" data-key="${f.key}" style="margin:0;">Marcar ahora</button>`);
       return `
       <div class="patient-time-row-wrap">
         <div class="patient-time-row">
           <span class="patient-time-label">${f.label}</span>
-          <div class="patient-time-value">
-            ${p[f.key]
-              ? `<span class="patient-time-set">${escapeHtmlAux(p[f.key])}</span><button type="button" class="patient-time-clear" data-key="${f.key}" title="Borrar">✕</button>`
-              : `<button type="button" class="ghost-btn patient-time-mark" data-key="${f.key}" style="margin:0;">Marcar ahora</button>`
-            }
-          </div>
+          <div class="patient-time-value">${valueHtml}</div>
         </div>
         ${salidaWarning ? `<div class="patient-time-warning">⚠️ ${escapeHtmlAux(salidaWarning)}</div>` : ""}
       </div>
@@ -732,20 +968,16 @@
       btn.addEventListener("click", () => {
         const key = btn.dataset.key;
 
-        if (key === "horaSalida") {
-          const warning = checkSalidaRequirements(p);
-          if (warning) { showToast(warning, 3200); return; }
-        }
-
         p[key] = nowTimeLabelAux();
         persistOpenPatient();
         renderPatientCard();
         renderPatientsList(currentPatients);
 
-        if (key === "arriboSitio" || key === "arriboPaciente") {
-          sendArriboWhatsApp(p, key);
-        } else if (key === "horaSalida") {
-          sendFinalReportWhatsApp(p);
+        if (key === "arriboSitio") {
+          sendArriboWhatsApp(p);
+        } else if (key === "horaToma") {
+          const tubesDetails = document.getElementById("patientTubesDetails");
+          if (tubesDetails) tubesDetails.open = true;
         }
       });
     });
@@ -788,6 +1020,26 @@
       });
     });
 
+    const fsfbPatient = isFsfb(p);
+    patientOrdenDetails.hidden = !fsfbPatient;
+    if (fsfbPatient) {
+      patientOrdenButtons.innerHTML = [
+        { key: "si", label: "✅ Sí" },
+        { key: "no", label: "❌ No" },
+      ].map(o => `
+        <button type="button" class="company-tube-btn payment-chip${(p.entregoOrden === (o.key === "si")) ? " active" : ""}" data-key="${o.key}">
+          <span class="co-btn-label">${o.label}</span>
+        </button>
+      `).join("");
+      patientOrdenButtons.querySelectorAll(".payment-chip").forEach(btn => {
+        btn.addEventListener("click", () => {
+          p.entregoOrden = (btn.dataset.key === "si");
+          persistOpenPatient();
+          renderPatientCard();
+        });
+      });
+    }
+
     patientPaymentButtons.innerHTML = PAYMENT_METHODS.map(m => `
       <button type="button" class="company-tube-btn payment-chip${p.formaPago === m.key ? " active" : ""}" data-key="${m.key}">
         <span class="co-btn-label">${m.label}</span>
@@ -800,6 +1052,8 @@
         renderPatientCard();
       });
     });
+
+    patientCardDone.textContent = p.horaSalida ? "Cerrar" : "✅ Finalizar y enviar reporte";
 
     patientNovedades.value = p.novedades || "";
   }
@@ -822,7 +1076,20 @@
     renderPatientsList(currentPatients);
   }
   patientCardClose.addEventListener("click", closePatientCard);
-  patientCardDone.addEventListener("click", closePatientCard);
+  patientCardDone.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) { closePatientCard(); return; }
+
+    if (!p.horaSalida) {
+      const warning = checkSalidaRequirements(p);
+      if (warning) { showToast(warning, 3200); return; }
+      p.horaSalida = nowTimeLabelAux();
+      persistOpenPatient();
+      sendFinalReportWhatsApp(p);
+      renderPatientsList(currentPatients);
+    }
+    closePatientCard();
+  });
   patientCardModal.addEventListener("click", (e) => {
     if (e.target === patientCardModal) closePatientCard();
   });

@@ -740,8 +740,14 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   border:1px solid var(--border);
   border-radius:var(--radius-m);
   padding:10px 12px;
-  transition:box-shadow .15s ease;
+  transition:box-shadow .15s ease, background .2s ease, border-color .2s ease, opacity .2s ease;
 }
+.patient-row-done{
+  background:rgba(31,210,144,0.08);
+  border-color:rgba(31,210,144,0.35);
+  opacity:.75;
+}
+.patient-row-done .patient-name{color:var(--send);}
 .patient-row.dragging{
   box-shadow:0 14px 30px -10px rgba(0,0,0,0.7);
   z-index:20;
@@ -769,12 +775,12 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-row.dragging .patient-drag-handle{cursor:grabbing; color:var(--send);}
 .patient-num-input{
   flex-shrink:0;
-  width:28px;
-  height:28px;
+  width:50px;
+  height:50px;
   border-radius:50%;
   background:transparent;
-  border:1.5px solid transparent;
-  font-size:11px;
+  border:2px solid transparent;
+  font-size:21px;
   font-weight:800;
   color:var(--text-dim);
   font-family:inherit;
@@ -794,11 +800,65 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-num-input::-webkit-outer-spin-button,
 .patient-num-input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
 .patient-num-input:focus{outline:none; border-color:var(--send); color:var(--send);}
+.patient-num-input.tapped{
+  background:var(--send);
+  border-color:var(--send);
+  color:#062017;
+}
+
+/* ---------------- Resumen del día ---------------- */
+.summary-groups{display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;}
+.hour-group .summary-groups{padding:8px 2px 4px;}
+.summary-group{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-m);
+  padding:12px 10px;
+}
+.summary-group-title{font-size:12.5px; font-weight:800; color:var(--text); margin-bottom:8px; text-align:center;}
+.summary-stats{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:10px;}
+.summary-stat{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+  background:var(--surface-3);
+  border-radius:8px;
+  padding:6px 2px;
+}
+.summary-stat-num{font-size:15px; font-weight:800; color:var(--text);}
+.summary-stat-label{font-size:8.5px; font-weight:700; color:var(--text-faint); text-align:center; line-height:1.2;}
+.summary-money{display:flex; flex-direction:column; gap:4px;}
+.summary-money-row{
+  display:flex;
+  justify-content:space-between;
+  font-size:11px;
+  font-weight:700;
+  color:var(--text-dim);
+  padding:3px 2px;
+  border-top:1px solid var(--border);
+}
+.summary-money-row:first-child{border-top:none;}
+
+.schedule-time-input{
+  flex-shrink:0;
+  background:var(--surface-3);
+  border:1.5px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-family:inherit;
+  font-size:12px;
+  font-weight:700;
+  padding:6px 8px;
+  color-scheme:dark;
+}
 .patient-body{flex:1; min-width:0;}
 .patient-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
 .patient-name{font-weight:800; font-size:13px; color:var(--text);}
 .patient-time{font-size:11.5px; color:var(--text-faint); font-weight:700; white-space:nowrap; flex-shrink:0;}
 .patient-meta{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-top:2px;}
+.patient-address{font-size:11.5px; color:var(--text-faint); font-weight:600; margin-top:3px; line-height:1.4;}
+
 .patient-actions{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:10px;}
 .patient-actions .place-action{width:100%;}
 
@@ -858,6 +918,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-time-label{font-size:12.5px; font-weight:700; color:var(--text-dim);}
 .patient-time-value{display:flex; align-items:center; gap:8px;}
 .patient-time-set{font-size:12.5px; font-weight:800; color:var(--send);}
+.patient-time-hint{font-size:11px; font-weight:700; color:var(--text-faint); font-style:italic;}
 .patient-time-clear{
   width:22px; height:22px;
   border-radius:50%;
