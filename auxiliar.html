@@ -99,6 +99,11 @@
       <h2 class="card-title">📤 Entregar al logístico</h2>
       <p id="handoffHint" class="card-hint">—</p>
       <button id="handoffBtn" class="btn btn-primary" type="button" style="width:100%;">📤 Entregar pacientes completados</button>
+
+      <details id="handoffHistoryDetails" class="hour-group" hidden>
+        <summary><span class="group-label">📜 Ya entregados hoy</span><span id="handoffHistoryBadge" class="group-badge">0</span></summary>
+        <div id="handoffHistoryList" class="handoff-history-list"></div>
+      </details>
     </section>
 
     <!-- Pacientes importados -->
@@ -352,6 +357,7 @@
         entregoOrden: null,
         tubos: {},
         entregadoLogistico: false,
+        entregadoLogisticoHora: "",
         motivoCancelacion: "",
         estado: "pendiente",
       });
@@ -464,6 +470,24 @@
       handoffBtn.disabled = false;
       handoffBtn.style.opacity = "1";
     }
+    renderHandoffHistory(patients);
+  }
+
+  const handoffHistoryDetails = document.getElementById("handoffHistoryDetails");
+  const handoffHistoryBadge = document.getElementById("handoffHistoryBadge");
+  const handoffHistoryList = document.getElementById("handoffHistoryList");
+
+  function renderHandoffHistory(patients) {
+    const delivered = patients.filter(p => p.entregadoLogistico);
+    if (delivered.length === 0) { handoffHistoryDetails.hidden = true; return; }
+    handoffHistoryDetails.hidden = false;
+    handoffHistoryBadge.textContent = delivered.length;
+    handoffHistoryList.innerHTML = delivered.map(p => `
+      <div class="handoff-history-row">
+        <span class="handoff-history-name">${p.estado === "cancelado" ? "❌" : "✅"} ${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
+        <span class="handoff-history-time">${escapeHtmlAux(p.entregadoLogisticoHora || "—")}</span>
+      </div>
+    `).join("");
   }
 
   function buildHandoffSummary(pending) {
@@ -523,7 +547,7 @@
       return;
     }
 
-    pending.forEach(p => { p.entregadoLogistico = true; });
+    pending.forEach(p => { p.entregadoLogistico = true; p.entregadoLogisticoHora = nowTimeLabelAux(); });
     savePatients(currentPatients);
     renderHandoffCard(currentPatients);
     showToast(`✅ ${pending.length} paciente${pending.length !== 1 ? "s" : ""} entregado${pending.length !== 1 ? "s" : ""} al logístico`, 2800);
@@ -1168,6 +1192,11 @@
       btn.addEventListener("click", () => {
         p[btn.dataset.key] = "";
         persistOpenPatient();
+        if (p.entregadoLogistico && p.estado !== "listo" && p.estado !== "cancelado") {
+          p.entregadoLogistico = false;
+          p.entregadoLogisticoHora = "";
+          savePatients(currentPatients);
+        }
         renderPatientCard();
         renderPatientsList(currentPatients);
       });
@@ -1370,6 +1399,10 @@
     p.estado = "";
     p.motivoCancelacion = "";
     updatePatientEstado(p);
+    if (p.entregadoLogistico) {
+      p.entregadoLogistico = false;
+      p.entregadoLogisticoHora = "";
+    }
     savePatients(currentPatients);
     renderPatientCard();
     renderPatientsList(currentPatients);

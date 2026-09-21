@@ -873,6 +873,20 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-meta{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-top:2px;}
 .patient-address{font-size:11.5px; color:var(--text-faint); font-weight:600; margin-top:3px; line-height:1.4;}
 
+.handoff-history-list{display:flex; flex-direction:column; gap:6px;}
+.handoff-history-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:7px 10px;
+}
+.handoff-history-name{font-size:12px; font-weight:700; color:var(--text-dim);}
+.handoff-history-time{font-size:11.5px; font-weight:800; color:var(--text-faint); white-space:nowrap;}
+
 .patient-actions{display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-top:10px;}
 .patient-actions .place-action{
   width:100%;
