@@ -131,6 +131,7 @@
     </div>
     <div id="schedulePreviewList" class="papeleria-list" style="margin-top:14px;"></div>
     <button id="scheduleConfirmBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">✅ Aplicar orden y horario</button>
+    <button id="scheduleOrderOnlyBtn" class="ghost-btn" type="button">📋 Solo aplicar el orden (sin cambiar la hora)</button>
   </div>
 </div>
 
@@ -442,7 +443,7 @@
   const handoffBtn = document.getElementById("handoffBtn");
 
   function pendingHandoffPatients(patients) {
-    return patients.filter(p => p.estado === "listo" && !p.entregadoLogistico);
+    return patients.filter(p => (p.estado === "listo" || p.estado === "cancelado") && !p.entregadoLogistico);
   }
 
   function renderHandoffCard(patients) {
@@ -450,11 +451,16 @@
     if (patients.length === 0) { handoffSection.hidden = true; return; }
     handoffSection.hidden = false;
     if (pending.length === 0) {
-      handoffHint.textContent = "No hay pacientes completados nuevos por entregar.";
+      handoffHint.textContent = "No hay pacientes nuevos por entregar (completados o cancelados).";
       handoffBtn.disabled = true;
       handoffBtn.style.opacity = ".5";
     } else {
-      handoffHint.textContent = `${pending.length} paciente${pending.length !== 1 ? "s" : ""} completado${pending.length !== 1 ? "s" : ""} listo${pending.length !== 1 ? "s" : ""} para entregar.`;
+      const cancelados = pending.filter(p => p.estado === "cancelado").length;
+      const completados = pending.length - cancelados;
+      const parts = [];
+      if (completados > 0) parts.push(`${completados} completado${completados !== 1 ? "s" : ""}`);
+      if (cancelados > 0) parts.push(`${cancelados} cancelado${cancelados !== 1 ? "s" : ""}`);
+      handoffHint.textContent = `${parts.join(" y ")} listo${pending.length !== 1 ? "s" : ""} para entregar.`;
       handoffBtn.disabled = false;
       handoffBtn.style.opacity = "1";
     }
@@ -465,14 +471,18 @@
     const summary = { vip: mk(), fsfb: mk() };
     pending.forEach(p => {
       const bucket = isFsfb(p) ? summary.fsfb : summary.vip;
+      const cancelled = p.estado === "cancelado";
       bucket.patients.push({
         name: p.nombrePaciente || "(sin nombre)",
         time: p.horaProgramada || p.horaCita || "",
+        cancelled,
       });
-      Object.keys(p.tubos || {}).forEach(key => {
-        const qty = p.tubos[key] || 0;
-        if (qty > 0) bucket.tubes[key] = (bucket.tubes[key] || 0) + qty;
-      });
+      if (!cancelled) {
+        Object.keys(p.tubos || {}).forEach(key => {
+          const qty = p.tubos[key] || 0;
+          if (qty > 0) bucket.tubes[key] = (bucket.tubes[key] || 0) + qty;
+        });
+      }
     });
     return summary;
   }
@@ -763,6 +773,7 @@
   const scheduleStartButtons = document.getElementById("scheduleStartButtons");
   const schedulePreviewList = document.getElementById("schedulePreviewList");
   const scheduleConfirmBtn = document.getElementById("scheduleConfirmBtn");
+  const scheduleOrderOnlyBtn = document.getElementById("scheduleOrderOnlyBtn");
 
   let scheduleOrder = [];
   let scheduleTimes = [];
@@ -859,6 +870,18 @@
     tapSequence = [];
     renderPatientsList(currentPatients);
     showToast("Orden y horario aplicados", 2200);
+  });
+
+  // Reordena la lista tal cual quedó (los tocados primero, en ese orden,
+  // luego el resto) pero SIN tocar horaProgramada ni horaCita de nadie —
+  // cada paciente conserva su hora original de la planilla.
+  scheduleOrderOnlyBtn.addEventListener("click", () => {
+    currentPatients = scheduleOrder;
+    savePatients(currentPatients);
+    scheduleModal.hidden = true;
+    tapSequence = [];
+    renderPatientsList(currentPatients);
+    showToast("Orden aplicado, hora original sin cambios", 2200);
   });
 
 

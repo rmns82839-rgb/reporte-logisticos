@@ -2016,51 +2016,82 @@ function renderHandoffBanner(docs) {
   currentHandoffDocs = docs || [];
   if (currentHandoffDocs.length === 0) { handoffBanner.hidden = true; return; }
 
-  let vipPatients = 0, fsfbPatients = 0, tubeTotal = 0;
+  let vipPatients = 0, fsfbPatients = 0, cancelados = 0, tubeTotal = 0;
   currentHandoffDocs.forEach(d => {
     vipPatients += (d.vip && d.vip.patients && d.vip.patients.length) || 0;
     fsfbPatients += (d.fsfb && d.fsfb.patients && d.fsfb.patients.length) || 0;
     [d.vip, d.fsfb].forEach(bucket => {
-      if (!bucket || !bucket.tubes) return;
-      Object.values(bucket.tubes).forEach(q => { tubeTotal += q || 0; });
+      if (!bucket) return;
+      (bucket.patients || []).forEach(p => { if (p.cancelled) cancelados++; });
+      if (bucket.tubes) Object.values(bucket.tubes).forEach(q => { tubeTotal += q || 0; });
     });
   });
 
   const totalPatients = vipPatients + fsfbPatients;
+  const completados = totalPatients - cancelados;
   handoffBannerText.textContent =
     `${currentAuxName()} te entregó ${totalPatients} paciente${totalPatients !== 1 ? "s" : ""} `
-    + `(${vipPatients} VIP, ${fsfbPatients} FSFB) y ${tubeTotal} tubo${tubeTotal !== 1 ? "s" : ""}. `
-    + `Tócalo para agregarlo a tu recogida actual.`;
+    + `(${vipPatients} VIP, ${fsfbPatients} FSFB — ${completados} completado${completados !== 1 ? "s" : ""}, ${cancelados} cancelado${cancelados !== 1 ? "s" : ""}) `
+    + `y ${tubeTotal} tubo${tubeTotal !== 1 ? "s" : ""}. `
+    + `Tócalo para marcar las horas reales de tu recogida actual.`;
   handoffBanner.hidden = false;
 }
 
-// Los "extras" guardan la hora en formato 24h (mismo que <input type="time">),
-// pero el auxiliar entrega la hora en 12h con AM/PM — hay que convertir.
-function to24hTime(label) {
+// Los "extras" guardan la hora en formato 24h (mismo que <input type="time">);
+function timeLabelToMinutes(label) {
   const m = String(label || "").match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!m) return "";
+  if (!m) return null;
   let h = parseInt(m[1], 10);
-  const min = m[2];
+  const min = parseInt(m[2], 10);
   const period = m[3].toUpperCase();
   if (period === "PM" && h !== 12) h += 12;
   if (period === "AM" && h === 12) h = 0;
-  return `${String(h).padStart(2, "0")}:${min}`;
+  return h * 60 + min;
+}
+
+// Marca la franja de hora fija más cercana a la que trae el paciente del
+// auxiliar, como si el logístico la hubiera tocado a mano — nada de
+// "extras". Si ya está tomada por la misma compañía, suma ×N en vez de
+// pisarla; si está tomada por otra compañía, busca la siguiente más
+// cercana libre. Solo si de verdad no queda ninguna, avisa que no cupo.
+function claimHourSlotForHandoff(data, company, timeLabel, cancelled) {
+  const targetMin = timeLabelToMinutes(timeLabel);
+  if (targetMin === null) return false;
+
+  const candidates = data.hours
+    .map((h, i) => ({ i, diff: Math.abs((timeLabelToMinutes(h.time) ?? 0) - targetMin) }))
+    .sort((a, b) => a.diff - b.diff);
+
+  for (const c of candidates) {
+    const h = data.hours[c.i];
+    const free = !h.selected && !h.cancelled;
+    if (free) {
+      h.company = company;
+      if (cancelled) h.cancelled = true;
+      else h.selected = true;
+      return true;
+    }
+    if (!cancelled && h.selected && h.company === company) {
+      h.count = (h.count || 1) + 1;
+      return true;
+    }
+  }
+  return false;
 }
 
 handoffBannerImportBtn.addEventListener("click", async () => {
   if (currentHandoffDocs.length === 0) return;
   const data = currentData();
-  const now = new Date();
-  const nowLabel24 = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const docsToClaim = currentHandoffDocs.slice();
+  let sinCupo = 0;
 
   docsToClaim.forEach(d => {
     ["vip", "fsfb"].forEach(company => {
       const bucket = d[company];
       if (!bucket) return;
       (bucket.patients || []).forEach(patient => {
-        const time = to24hTime(patient.time) || nowLabel24;
-        data.extras.push({ time, company, pickup: null, id: nextExtraId() });
+        const ok = claimHourSlotForHandoff(data, company, patient.time, !!patient.cancelled);
+        if (!ok) sinCupo++;
       });
       Object.keys(bucket.tubes || {}).forEach(key => {
         if (!data.tubes[key]) return;
@@ -2072,7 +2103,12 @@ handoffBannerImportBtn.addEventListener("click", async () => {
   saveState();
   renderAll();
   handoffBanner.hidden = true;
-  showToast("✅ Entrega importada a tu recogida actual", 2600);
+  showToast(
+    sinCupo > 0
+      ? `✅ Entrega importada — ${sinCupo} paciente${sinCupo !== 1 ? "s" : ""} no encontró franja libre, revisa las horas`
+      : "✅ Entrega importada a tu recogida actual",
+    3200
+  );
 
   if (window.ReporteSync) {
     for (const d of docsToClaim) {
