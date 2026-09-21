@@ -2018,16 +2018,12 @@ function renderHandoffBanner(docs) {
 
   let vipPatients = 0, fsfbPatients = 0, cancelados = 0, tubeTotal = 0;
   currentHandoffDocs.forEach(d => {
-    vipPatients += (d.vip && d.vip.patients && d.vip.patients.length) || 0;
-    fsfbPatients += (d.fsfb && d.fsfb.patients && d.fsfb.patients.length) || 0;
-    [d.vip, d.fsfb].forEach(bucket => {
-      if (!bucket) return;
-      (bucket.patients || []).forEach(p => { if (p.cancelled) cancelados++; });
-      if (bucket.tubes) Object.values(bucket.tubes).forEach(q => { tubeTotal += q || 0; });
-    });
+    if (d.company === "fsfb") fsfbPatients++; else vipPatients++;
+    if (d.cancelled) cancelados++;
+    if (d.tubes) Object.values(d.tubes).forEach(q => { tubeTotal += q || 0; });
   });
 
-  const totalPatients = vipPatients + fsfbPatients;
+  const totalPatients = currentHandoffDocs.length;
   const completados = totalPatients - cancelados;
   handoffBannerText.textContent =
     `${currentAuxName()} te entregó ${totalPatients} paciente${totalPatients !== 1 ? "s" : ""} `
@@ -2086,17 +2082,11 @@ handoffBannerImportBtn.addEventListener("click", async () => {
   let sinCupo = 0;
 
   docsToClaim.forEach(d => {
-    ["vip", "fsfb"].forEach(company => {
-      const bucket = d[company];
-      if (!bucket) return;
-      (bucket.patients || []).forEach(patient => {
-        const ok = claimHourSlotForHandoff(data, company, patient.time, !!patient.cancelled);
-        if (!ok) sinCupo++;
-      });
-      Object.keys(bucket.tubes || {}).forEach(key => {
-        if (!data.tubes[key]) return;
-        data.tubes[key][company] = (data.tubes[key][company] || 0) + (bucket.tubes[key] || 0);
-      });
+    const ok = claimHourSlotForHandoff(data, d.company, d.time, !!d.cancelled);
+    if (!ok) sinCupo++;
+    Object.keys(d.tubes || {}).forEach(key => {
+      if (!data.tubes[key]) return;
+      data.tubes[key][d.company] = (data.tubes[key][d.company] || 0) + (d.tubes[key] || 0);
     });
   });
 

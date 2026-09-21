@@ -49,12 +49,13 @@
 
     <!-- Importar planilla -->
     <section class="card">
-      <h2 class="card-title">📥 Importar planilla del día</h2>
-      <p class="card-hint">Sube el Excel completo (con las hojas de todos) — se detecta sola tu hoja por tu nombre, sin que tengas que buscarla.</p>
-
-      <input id="importExcelInput" type="file" accept=".xlsx,.xls" hidden>
-      <button id="importExcelBtn" class="btn btn-primary" type="button" style="width:100%;">📂 Elegir archivo Excel</button>
-      <p id="importStatus" class="import-status" hidden></p>
+      <details class="hour-group">
+        <summary><span class="group-label">📥 Importar planilla del día</span></summary>
+        <p class="card-hint">Sube el Excel completo (con las hojas de todos) — se detecta sola tu hoja por tu nombre, sin que tengas que buscarla.</p>
+        <input id="importExcelInput" type="file" accept=".xlsx,.xls" hidden>
+        <button id="importExcelBtn" class="btn btn-primary" type="button" style="width:100%;">📂 Elegir archivo Excel</button>
+        <p id="importStatus" class="import-status" hidden></p>
+      </details>
     </section>
 
     <!-- Resumen del día -->
@@ -64,6 +65,7 @@
         <div class="summary-groups">
           <div class="summary-group">
             <div class="summary-group-title">🏥 FSFB</div>
+            <div class="summary-group-convenio">Convenio 05577</div>
             <div class="summary-stats">
               <div class="summary-stat"><span id="sumFsfbListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
               <div class="summary-stat"><span id="sumFsfbProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
@@ -78,6 +80,7 @@
           </div>
           <div class="summary-group">
             <div class="summary-group-title">🔴 VIP</div>
+            <div class="summary-group-convenio">Convenio 89631</div>
             <div class="summary-stats">
               <div class="summary-stat"><span id="sumRestoListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
               <div class="summary-stat"><span id="sumRestoProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
@@ -91,18 +94,30 @@
             </div>
           </div>
         </div>
+
+        <div class="card-divider"></div>
+        <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">💰 Total recaudo general</div>
+        <div class="summary-money summary-money-total">
+          <div class="summary-money-row"><span>💵 Efectivo general</span><span id="sumTotalEfectivo">$0</span></div>
+          <div class="summary-money-row"><span>💳 Tarjeta general</span><span id="sumTotalTarjeta">$0</span></div>
+          <div class="summary-money-row"><span>🏦 PSE general</span><span id="sumTotalPse">$0</span></div>
+          <div class="summary-money-row summary-money-grand"><span>💰 Total general</span><span id="sumTotalGeneral">$0</span></div>
+        </div>
       </details>
     </section>
 
     <!-- Entregar al logístico -->
     <section id="handoffSection" class="card" hidden>
-      <h2 class="card-title">📤 Entregar al logístico</h2>
-      <p id="handoffHint" class="card-hint">—</p>
-      <button id="handoffBtn" class="btn btn-primary" type="button" style="width:100%;">📤 Entregar pacientes completados</button>
+      <details class="hour-group">
+        <summary><span class="group-label">📤 Entregar al logístico</span></summary>
+        <p id="handoffHint" class="card-hint">—</p>
+        <button id="handoffBtn" class="btn btn-primary" type="button" style="width:100%;">📤 Entregar pacientes completados</button>
 
-      <details id="handoffHistoryDetails" class="hour-group" hidden>
-        <summary><span class="group-label">📜 Ya entregados hoy</span><span id="handoffHistoryBadge" class="group-badge">0</span></summary>
-        <div id="handoffHistoryList" class="handoff-history-list"></div>
+        <details id="handoffHistoryDetails" class="hour-group" hidden>
+          <summary><span class="group-label">📜 Ya entregados hoy</span><span id="handoffHistoryBadge" class="group-badge">0</span></summary>
+          <button id="handoffRevertAllBtn" type="button" class="ghost-btn" style="margin:0 0 8px;">↩️ Revertir todas las entregas de hoy</button>
+          <div id="handoffHistoryList" class="handoff-history-list"></div>
+        </details>
       </details>
     </section>
 
@@ -119,6 +134,16 @@
 
   </main>
 
+</div>
+
+<div id="handoffSelectModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="handoffSelectClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>📤 Elegir a quién entregar</h3>
+    <p class="card-hint">Todos los completados/cancelados sin entregar salen marcados — desmarca los que no quieras entregar todavía.</p>
+    <div id="handoffSelectList" class="handoff-select-list"></div>
+    <button id="handoffSelectConfirmBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">✅ Entregar seleccionados</button>
+  </div>
 </div>
 
 <div id="scheduleModal" class="modal-overlay" hidden>
@@ -179,6 +204,16 @@
     <details class="hour-group" open>
       <summary><span class="group-label">💳 Forma de pago</span><span id="patientValorBadge" class="group-badge">$0</span></summary>
       <div id="patientPaymentButtons" class="company-tube-buttons"></div>
+
+      <div id="valorOriginalNote" class="card-hint" style="margin:10px 0 0;"></div>
+      <button id="valorAdjustToggle" type="button" class="ghost-btn" style="margin-top:8px;">✏️ Le agregaron exámenes / ajustar valor</button>
+      <div id="valorAdjustForm" hidden style="margin-top:10px;">
+        <p class="card-hint" style="margin:0 0 4px;">Opción 1 — sumar o restar un ajuste (examen extra = positivo, examen que se retiró = negativo):</p>
+        <input type="number" id="valorAdicionalInput" class="text-input" placeholder="Ej: 50000 o -30000" inputmode="numeric">
+        <p class="card-hint" style="margin:10px 0 4px;">Opción 2 — poner el valor final directo (esto reemplaza el cálculo de arriba):</p>
+        <input type="number" id="valorFinalInput" class="text-input" placeholder="Dejar vacío si usas el adicional" min="0" inputmode="numeric">
+        <button type="button" id="valorAdjustSaveBtn" class="btn btn-primary" style="width:100%; margin-top:10px;">Guardar valor</button>
+      </div>
     </details>
 
     <textarea id="patientNovedades" class="text-input" placeholder="Novedades (opcional)" style="min-height:64px; text-align:left; font-weight:500; margin-top:14px;"></textarea>
@@ -205,7 +240,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-  import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { getFirestore, collection, doc, writeBatch, getDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -346,6 +381,10 @@
         horaCita: formatHoraCita(row[6]),
         examenes: parseExamenes(row[7]),
         valorCobro: Number(row[8]) || 0,
+        valorAjuste: 0,
+        valorFinalManual: null,
+        valorAdicional: 0,
+        valorFinalOverride: null,
         arriboSitio: "",
         arriboPaciente: "",
         horaToma: "",
@@ -358,6 +397,7 @@
         tubos: {},
         entregadoLogistico: false,
         entregadoLogisticoHora: "",
+        entregadoLogisticoDocId: "",
         motivoCancelacion: "",
         estado: "pendiente",
       });
@@ -418,8 +458,8 @@
       else if (p.estado === "cancelado") bucket.cancelado++;
       else bucket.pendiente++;
 
-      if (p.horaSalida && p.formaPago && (p.valorCobro || 0) > 0 && bucket[p.formaPago] !== undefined) {
-        bucket[p.formaPago] += p.valorCobro;
+      if (p.horaSalida && p.formaPago && getValorFinal(p) > 0 && bucket[p.formaPago] !== undefined) {
+        bucket[p.formaPago] += getValorFinal(p);
       }
     });
 
@@ -438,6 +478,14 @@
     sumRestoTarjeta.textContent = moneyLabel(stats.resto.tarjeta);
     sumRestoPse.textContent = moneyLabel(stats.resto.pse);
     document.getElementById("sumRestoCancelado").textContent = stats.resto.cancelado;
+
+    const totalEfectivo = stats.fsfb.efectivo + stats.resto.efectivo;
+    const totalTarjeta = stats.fsfb.tarjeta + stats.resto.tarjeta;
+    const totalPse = stats.fsfb.pse + stats.resto.pse;
+    document.getElementById("sumTotalEfectivo").textContent = moneyLabel(totalEfectivo);
+    document.getElementById("sumTotalTarjeta").textContent = moneyLabel(totalTarjeta);
+    document.getElementById("sumTotalPse").textContent = moneyLabel(totalPse);
+    document.getElementById("sumTotalGeneral").textContent = moneyLabel(totalEfectivo + totalTarjeta + totalPse);
   }
 
   // ---------------- Entregar al logístico ----------------
@@ -476,6 +524,29 @@
   const handoffHistoryDetails = document.getElementById("handoffHistoryDetails");
   const handoffHistoryBadge = document.getElementById("handoffHistoryBadge");
   const handoffHistoryList = document.getElementById("handoffHistoryList");
+  const handoffRevertAllBtn = document.getElementById("handoffRevertAllBtn");
+
+  // Borra el documento de Firebase de esa entrega (si aún no se ha
+  // importado del todo lado logístico) y limpia las marcas locales.
+  // Reusada tanto por el ↩️ individual como por "Revertir todas".
+  async function revertHandoffPatient(patient) {
+    let warned = false;
+    const docId = patient.entregadoLogisticoDocId;
+    if (docId) {
+      try {
+        const ref = doc(db, "auxiliarHandoffs", docId);
+        const snap = await getDoc(ref);
+        if (snap.exists() && snap.data().claimed) warned = true;
+        await deleteDoc(ref);
+      } catch (e) {
+        console.warn("[auxiliar.html] No se pudo borrar la entrega en Firebase:", e);
+      }
+    }
+    patient.entregadoLogistico = false;
+    patient.entregadoLogisticoHora = "";
+    patient.entregadoLogisticoDocId = "";
+    return warned;
+  }
 
   function renderHandoffHistory(patients) {
     const delivered = patients.filter(p => p.entregadoLogistico);
@@ -486,71 +557,145 @@
       <div class="handoff-history-row">
         <span class="handoff-history-name">${p.estado === "cancelado" ? "❌" : "✅"} ${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
         <span class="handoff-history-time">${escapeHtmlAux(p.entregadoLogisticoHora || "—")}</span>
+        <button type="button" class="handoff-revert-btn" data-id="${p.id}" title="Revertir entrega">↩️</button>
       </div>
     `).join("");
-  }
-
-  function buildHandoffSummary(pending) {
-    const mk = () => ({ patients: [], tubes: {} });
-    const summary = { vip: mk(), fsfb: mk() };
-    pending.forEach(p => {
-      const bucket = isFsfb(p) ? summary.fsfb : summary.vip;
-      const cancelled = p.estado === "cancelado";
-      bucket.patients.push({
-        name: p.nombrePaciente || "(sin nombre)",
-        time: p.horaProgramada || p.horaCita || "",
-        cancelled,
+    handoffHistoryList.querySelectorAll(".handoff-revert-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const patient = currentPatients.find(x => x.id === btn.dataset.id);
+        if (!patient) return;
+        btn.disabled = true;
+        const warned = await revertHandoffPatient(patient);
+        savePatients(currentPatients);
+        renderPatientsList(currentPatients);
+        showToast(
+          "Entrega revertida" + (warned ? " — ojo: el logístico ya la había importado, avísale" : ""),
+          warned ? 4000 : 2400
+        );
       });
-      if (!cancelled) {
-        Object.keys(p.tubos || {}).forEach(key => {
-          const qty = p.tubos[key] || 0;
-          if (qty > 0) bucket.tubes[key] = (bucket.tubes[key] || 0) + qty;
-        });
-      }
     });
-    return summary;
   }
 
-  async function submitAuxiliarHandoff(summary) {
+  handoffRevertAllBtn.addEventListener("click", async () => {
+    const delivered = currentPatients.filter(p => p.entregadoLogistico);
+    if (delivered.length === 0) return;
+
+    handoffRevertAllBtn.disabled = true;
+    let warnedCount = 0;
+    for (const patient of delivered) {
+      const warned = await revertHandoffPatient(patient);
+      if (warned) warnedCount++;
+    }
+    savePatients(currentPatients);
+    handoffRevertAllBtn.disabled = false;
+    renderPatientsList(currentPatients);
+    showToast(
+      `Se revirtieron ${delivered.length} entrega${delivered.length !== 1 ? "s" : ""}`
+      + (warnedCount > 0 ? ` — ${warnedCount} ya las había importado el logístico, avísale` : ""),
+      warnedCount > 0 ? 4200 : 2600
+    );
+  });
+
+  // Un documento de Firebase POR PACIENTE (no un lote agrupado) — así
+  // revertir uno solo puede borrar exactamente ese documento sin tocar
+  // los demás que se hayan entregado en la misma tanda.
+  async function submitAuxiliarHandoff(selected) {
     try {
-      await addDoc(collection(db, "auxiliarHandoffs"), {
-        auxiliarPhone: me.phone,
-        auxiliarName: me.name,
-        date: localDateKey(),
-        createdAt: serverTimestamp(),
-        claimed: false,
-        vip: summary.vip,
-        fsfb: summary.fsfb,
+      const batch = writeBatch(db);
+      const results = {};
+      selected.forEach(p => {
+        const cancelled = p.estado === "cancelado";
+        const tubes = {};
+        if (!cancelled) {
+          Object.keys(p.tubos || {}).forEach(key => {
+            const qty = p.tubos[key] || 0;
+            if (qty > 0) tubes[key] = qty;
+          });
+        }
+        const ref = doc(collection(db, "auxiliarHandoffs"));
+        batch.set(ref, {
+          auxiliarPhone: me.phone,
+          auxiliarName: me.name,
+          date: localDateKey(),
+          createdAt: serverTimestamp(),
+          claimed: false,
+          company: isFsfb(p) ? "fsfb" : "vip",
+          patientName: p.nombrePaciente || "(sin nombre)",
+          time: p.horaProgramada || p.horaCita || "",
+          cancelled,
+          tubes,
+        });
+        results[p.id] = ref.id;
       });
-      return true;
+      await batch.commit();
+      return results;
     } catch (e) {
       console.warn("[auxiliar.html] No se pudo entregar al logístico:", e);
-      return false;
+      return null;
     }
   }
 
-  handoffBtn.addEventListener("click", async () => {
+  handoffBtn.addEventListener("click", () => {
     const pending = pendingHandoffPatients(currentPatients);
     if (pending.length === 0) return;
+    openHandoffSelectModal(pending);
+  });
+
+  const handoffSelectModal = document.getElementById("handoffSelectModal");
+  const handoffSelectClose = document.getElementById("handoffSelectClose");
+  const handoffSelectList = document.getElementById("handoffSelectList");
+  const handoffSelectConfirmBtn = document.getElementById("handoffSelectConfirmBtn");
+
+  function openHandoffSelectModal(pending) {
+    handoffSelectList.innerHTML = pending.map(p => `
+      <label class="handoff-select-row">
+        <input type="checkbox" class="handoff-select-checkbox" data-id="${p.id}" checked>
+        <span class="handoff-select-info">
+          <span class="handoff-select-name">${p.estado === "cancelado" ? "❌" : "✅"} ${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
+          <span class="handoff-select-meta">${escapeHtmlAux(p.tipoCliente)} · ${escapeHtmlAux(p.horaProgramada || p.horaCita)}</span>
+        </span>
+      </label>
+    `).join("");
+    handoffSelectModal.hidden = false;
+  }
+  function closeHandoffSelectModal() { handoffSelectModal.hidden = true; }
+
+  handoffSelectClose.addEventListener("click", closeHandoffSelectModal);
+  handoffSelectModal.addEventListener("click", (e) => {
+    if (e.target === handoffSelectModal) closeHandoffSelectModal();
+  });
+
+  handoffSelectConfirmBtn.addEventListener("click", async () => {
+    const checkedIds = [...handoffSelectList.querySelectorAll(".handoff-select-checkbox:checked")].map(cb => cb.dataset.id);
+    const selected = currentPatients.filter(p => checkedIds.includes(p.id));
+    if (selected.length === 0) {
+      showToast("Selecciona al menos un paciente.", 2200);
+      return;
+    }
     if (!me) {
       showToast("No se pudo conectar para entregar. Intenta de nuevo.", 3000);
       return;
     }
 
-    handoffBtn.disabled = true;
-    const summary = buildHandoffSummary(pending);
-    const ok = await submitAuxiliarHandoff(summary);
+    handoffSelectConfirmBtn.disabled = true;
+    const results = await submitAuxiliarHandoff(selected);
 
-    if (!ok) {
+    if (!results) {
       showToast("No se pudo entregar — revisa tu conexión e intenta de nuevo.", 3200);
-      handoffBtn.disabled = false;
+      handoffSelectConfirmBtn.disabled = false;
       return;
     }
 
-    pending.forEach(p => { p.entregadoLogistico = true; p.entregadoLogisticoHora = nowTimeLabelAux(); });
+    selected.forEach(p => {
+      p.entregadoLogistico = true;
+      p.entregadoLogisticoHora = nowTimeLabelAux();
+      p.entregadoLogisticoDocId = results[p.id] || "";
+    });
     savePatients(currentPatients);
+    handoffSelectConfirmBtn.disabled = false;
+    closeHandoffSelectModal();
     renderHandoffCard(currentPatients);
-    showToast(`✅ ${pending.length} paciente${pending.length !== 1 ? "s" : ""} entregado${pending.length !== 1 ? "s" : ""} al logístico`, 2800);
+    showToast(`✅ ${selected.length} paciente${selected.length !== 1 ? "s" : ""} entregado${selected.length !== 1 ? "s" : ""} al logístico`, 2800);
   });
 
   const patientsSection = document.getElementById("patientsSection");
@@ -585,7 +730,6 @@
   function buildPatientText(p, withExams) {
     const lines = [
       p.nombrePaciente || "(sin nombre)",
-      p.direccion || "",
       `Hora cita: ${p.horaCita || "—"}`,
       `N° Solicitud: ${p.solicitud || "—"}`,
     ];
@@ -637,7 +781,8 @@
 
   function buildPatientRow(p, index) {
     const row = document.createElement("div");
-    row.className = "patient-row" + (p.estado === "listo" ? " patient-row-done" : "") + (p.estado === "cancelado" ? " patient-row-cancelled" : "");
+    row.className = "patient-row patient-row-co" + (p.estado === "listo" ? " patient-row-done" : "") + (p.estado === "cancelado" ? " patient-row-cancelled" : "");
+    row.style.setProperty("--co-color", isFsfb(p) ? "var(--fsfb)" : "var(--vip)");
     row.dataset.id = p.id;
 
     row.innerHTML = `
@@ -1009,6 +1154,12 @@
   const patientTubesGrid = document.getElementById("patientTubesGrid");
   const patientTubesBadge = document.getElementById("patientTubesBadge");
   const patientValorBadge = document.getElementById("patientValorBadge");
+  const valorOriginalNote = document.getElementById("valorOriginalNote");
+  const valorAdjustToggle = document.getElementById("valorAdjustToggle");
+  const valorAdjustForm = document.getElementById("valorAdjustForm");
+  const valorAdicionalInput = document.getElementById("valorAdicionalInput");
+  const valorFinalInput = document.getElementById("valorFinalInput");
+  const valorAdjustSaveBtn = document.getElementById("valorAdjustSaveBtn");
   const patientOrdenDetails = document.getElementById("patientOrdenDetails");
   const patientOrdenButtons = document.getElementById("patientOrdenButtons");
   const patientPaymentButtons = document.getElementById("patientPaymentButtons");
@@ -1045,6 +1196,16 @@
     return String(p.tipoCliente || "").toUpperCase().includes("FSFB");
   }
 
+  // El valor final es: lo que trae la planilla + el ajuste (puede ser
+  // negativo), a menos que se haya puesto un valor final a mano, que
+  // reemplaza el cálculo por completo.
+  function getValorFinal(p) {
+    if (p.valorFinalManual !== null && p.valorFinalManual !== undefined) {
+      return p.valorFinalManual;
+    }
+    return (p.valorCobro || 0) + (p.valorAjuste || 0);
+  }
+
   // No se puede marcar salida sin al menos un tubo contado. Si el paciente
   // paga (valor cobro > 0) o es de FSFB, también hace falta la forma de
   // pago. Y si es de FSFB, además hay que decir si entregó la orden.
@@ -1055,7 +1216,7 @@
       warnings.push("Cuenta al menos un tubo.");
     }
     const fsfb = isFsfb(p);
-    if (((p.valorCobro || 0) > 0 || fsfb) && !p.formaPago) {
+    if ((getValorFinal(p) > 0 || fsfb) && !p.formaPago) {
       warnings.push("Selecciona la forma de pago.");
     }
     if (fsfb && p.entregoOrden === null) {
@@ -1103,10 +1264,14 @@
     } else {
       tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
     }
+    if (getValorFinal(p) > 0) {
+      lines.push("");
+      lines.push(`💰 *Valor a cobrar*: $${getValorFinal(p).toLocaleString("es-CO")}`);
+    }
     if (isFsfb(p)) {
       lines.push("");
       lines.push(`📄 *Entregó orden*: ${p.entregoOrden ? "Sí" : "No"}`);
-      if ((p.valorCobro || 0) > 0) {
+      if (getValorFinal(p) > 0) {
         lines.push(`💳 *Forma de pago*: ${paymentLabel(p.formaPago)}`);
       }
     }
@@ -1128,9 +1293,27 @@
     const p = getOpenPatient();
     if (!p) return;
 
-    patientCardTitle.textContent = p.nombrePaciente || "(sin nombre)";
-    patientCardMeta.textContent = `${p.tipoCliente} · N° ${p.solicitud} · Cita ${p.horaCita} · Doc: ${p.tipoDocumento} ${p.numDocumento} · $${(p.valorCobro || 0).toLocaleString("es-CO")}`;
-    patientValorBadge.textContent = `$${(p.valorCobro || 0).toLocaleString("es-CO")}`;
+    patientCardTitle.innerHTML = `<span class="co-dot" style="background:${isFsfb(p) ? "var(--fsfb)" : "var(--vip)"}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}`;
+    const valorFinal = getValorFinal(p);
+    patientCardMeta.innerHTML = `${escapeHtmlAux(p.tipoCliente)} · N° ${escapeHtmlAux(p.solicitud)} · Cita ${escapeHtmlAux(p.horaCita)} · Doc: <strong style="color:var(--text);">${escapeHtmlAux(p.tipoDocumento)} ${escapeHtmlAux(p.numDocumento)}</strong> · $${valorFinal.toLocaleString("es-CO")}`;
+    patientValorBadge.textContent = `$${valorFinal.toLocaleString("es-CO")}`;
+
+    const hasAdjustment = (p.valorAjuste && p.valorAjuste !== 0) || p.valorFinalManual !== null;
+    if (hasAdjustment) {
+      const parts = [`Valor planilla: $${(p.valorCobro || 0).toLocaleString("es-CO")}`];
+      if (p.valorFinalManual !== null) {
+        parts.push("valor final puesto a mano");
+      } else if (p.valorAjuste) {
+        parts.push(`${p.valorAjuste > 0 ? "+" : ""}$${p.valorAjuste.toLocaleString("es-CO")} de ajuste`);
+      }
+      valorOriginalNote.textContent = parts.join(" · ");
+      valorOriginalNote.hidden = false;
+    } else {
+      valorOriginalNote.hidden = true;
+    }
+    valorAdicionalInput.value = p.valorAjuste || "";
+    valorFinalInput.value = p.valorFinalManual !== null ? p.valorFinalManual : "";
+    valorAdjustForm.hidden = true;
 
     const isCancelled = p.estado === "cancelado";
     patientCancelBtn.hidden = isCancelled;
@@ -1281,6 +1464,37 @@
 
     patientNovedades.value = p.novedades || "";
   }
+
+  valorAdjustToggle.addEventListener("click", () => {
+    valorAdjustForm.hidden = !valorAdjustForm.hidden;
+  });
+
+  // Las dos opciones son excluyentes: si guarda un valor final a mano,
+  // el ajuste queda en 0 (y viceversa) — para no sumar las dos formas
+  // a la vez y confundir el cálculo.
+  valorAdjustSaveBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+
+    const finalRaw = valorFinalInput.value.trim();
+    const adicRaw = valorAdicionalInput.value.trim();
+
+    if (finalRaw !== "") {
+      p.valorFinalManual = Number(finalRaw);
+      p.valorAjuste = 0;
+    } else if (adicRaw !== "") {
+      p.valorAjuste = Number(adicRaw);
+      p.valorFinalManual = null;
+    } else {
+      p.valorAjuste = 0;
+      p.valorFinalManual = null;
+    }
+
+    persistOpenPatient();
+    renderPatientCard();
+    renderPatientsList(currentPatients);
+    showToast("Valor actualizado", 2000);
+  });
 
   patientNovedades.addEventListener("change", () => {
     const p = getOpenPatient();
