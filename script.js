@@ -1777,6 +1777,7 @@ function renderAll() {
   renderTubes();
   renderPapeleria();
   renderPreview();
+  startHandoffListener();
   if (dayResetHappened) {
     dayResetHappened = false;
     showToast("🗓️ Nuevo día — se reinició el reporte de " + currentAuxName(), 3200);
@@ -1983,6 +1984,103 @@ assignmentBannerDoneBtn.addEventListener("click", () => {
   showToast("Asignación marcada como hecha");
 });
 
+// ---------------- Entrega del auxiliar (módulo de auxiliares) ----------------
+// Se re-suscribe solo cuando cambia el auxiliar activo (no en cada
+// renderAll). Al importar, cada paciente entregado se agrega como un
+// "extra" (con la hora actual) y sus tubos se suman a la recogida
+// pendiente — el logístico solo revisa y envía, como quedamos.
+const handoffBanner = document.getElementById("handoffBanner");
+const handoffBannerText = document.getElementById("handoffBannerText");
+const handoffBannerImportBtn = document.getElementById("handoffBannerImportBtn");
+
+let currentHandoffDocs = [];
+let stopHandoffListener = null;
+let handoffListenerAuxName = null;
+
+function startHandoffListener() {
+  if (!window.ReporteSync) return;
+  const auxName = currentAuxName();
+  if (auxName === handoffListenerAuxName) return;
+  if (stopHandoffListener) { stopHandoffListener(); stopHandoffListener = null; }
+  handoffListenerAuxName = auxName;
+
+  if (auxName === "(sin seleccionar)" || auxName === "(sin nombre)") {
+    currentHandoffDocs = [];
+    handoffBanner.hidden = true;
+    return;
+  }
+  stopHandoffListener = window.ReporteSync.listenAuxiliarHandoffs(auxName, renderHandoffBanner);
+}
+
+function renderHandoffBanner(docs) {
+  currentHandoffDocs = docs || [];
+  if (currentHandoffDocs.length === 0) { handoffBanner.hidden = true; return; }
+
+  let vipPatients = 0, fsfbPatients = 0, tubeTotal = 0;
+  currentHandoffDocs.forEach(d => {
+    vipPatients += (d.vip && d.vip.patients && d.vip.patients.length) || 0;
+    fsfbPatients += (d.fsfb && d.fsfb.patients && d.fsfb.patients.length) || 0;
+    [d.vip, d.fsfb].forEach(bucket => {
+      if (!bucket || !bucket.tubes) return;
+      Object.values(bucket.tubes).forEach(q => { tubeTotal += q || 0; });
+    });
+  });
+
+  const totalPatients = vipPatients + fsfbPatients;
+  handoffBannerText.textContent =
+    `${currentAuxName()} te entregó ${totalPatients} paciente${totalPatients !== 1 ? "s" : ""} `
+    + `(${vipPatients} VIP, ${fsfbPatients} FSFB) y ${tubeTotal} tubo${tubeTotal !== 1 ? "s" : ""}. `
+    + `Tócalo para agregarlo a tu recogida actual.`;
+  handoffBanner.hidden = false;
+}
+
+// Los "extras" guardan la hora en formato 24h (mismo que <input type="time">),
+// pero el auxiliar entrega la hora en 12h con AM/PM — hay que convertir.
+function to24hTime(label) {
+  const m = String(label || "").match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!m) return "";
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  const period = m[3].toUpperCase();
+  if (period === "PM" && h !== 12) h += 12;
+  if (period === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${min}`;
+}
+
+handoffBannerImportBtn.addEventListener("click", async () => {
+  if (currentHandoffDocs.length === 0) return;
+  const data = currentData();
+  const now = new Date();
+  const nowLabel24 = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const docsToClaim = currentHandoffDocs.slice();
+
+  docsToClaim.forEach(d => {
+    ["vip", "fsfb"].forEach(company => {
+      const bucket = d[company];
+      if (!bucket) return;
+      (bucket.patients || []).forEach(patient => {
+        const time = to24hTime(patient.time) || nowLabel24;
+        data.extras.push({ time, company, pickup: null, id: nextExtraId() });
+      });
+      Object.keys(bucket.tubes || {}).forEach(key => {
+        if (!data.tubes[key]) return;
+        data.tubes[key][company] = (data.tubes[key][company] || 0) + (bucket.tubes[key] || 0);
+      });
+    });
+  });
+
+  saveState();
+  renderAll();
+  handoffBanner.hidden = true;
+  showToast("✅ Entrega importada a tu recogida actual", 2600);
+
+  if (window.ReporteSync) {
+    for (const d of docsToClaim) {
+      await window.ReporteSync.claimAuxiliarHandoff(d.id);
+    }
+  }
+});
+
 // ---------------- Saludo con avatar del logístico ----------------
 function renderWelcomeStrip() {
   if (!window.ReporteSync) { welcomeStrip.hidden = true; return; }
@@ -2004,6 +2102,7 @@ welcomeLogoutBtn.addEventListener("click", () => {
 window.addEventListener("load", () => {
   renderWelcomeStrip();
   setTimeout(startAssignmentListener, 800);
+  setTimeout(startHandoffListener, 800);
 });
 
 // ---------------- Red de logísticos: quién le recibe a quién, en vivo ----------------
@@ -2216,6 +2315,7 @@ roleGateEnterBtn.addEventListener("click", () => {
     roleGateScreen.hidden = true;
     pushCoordinatorSync();
     startAssignmentListener();
+    startHandoffListener();
     renderWelcomeStrip();
     showToast(`¡Listo, ${person.name}! 👋`, 2400);
   } else if (roleGateChosen === "auxiliar") {

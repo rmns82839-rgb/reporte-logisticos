@@ -11,7 +11,7 @@ import {
   getAuth, signInAnonymously, onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, serverTimestamp,
+  getFirestore, doc, setDoc, getDoc, deleteDoc, serverTimestamp,
   collection, query, where, onSnapshot, updateDoc, addDoc, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { lookupPerson, lookupAuxiliar } from "./people.js";
@@ -321,10 +321,71 @@ function listenPickupHistory(callback) {
   return () => { if (unsub) unsub(); };
 }
 
+// ---------------- Entrega del auxiliar al logístico ----------------
+// El auxiliar escribe un documento por cada tanda que entrega (no se
+// fusionan, uno por toque de "Entregar al logístico"). El logístico
+// escucha los que le correspondan a su auxiliar actual y no estén
+// reclamados, los importa a su recogida actual, y los marca reclamados.
+async function submitAuxiliarHandoff(auxiliar, summary) {
+  if (!db) return false;
+  try {
+    await whenReady();
+    await addDoc(collection(db, "auxiliarHandoffs"), {
+      auxiliarPhone: auxiliar.phone,
+      auxiliarName: auxiliar.name,
+      date: localDateKey(),
+      createdAt: serverTimestamp(),
+      claimed: false,
+      vip: summary.vip,
+      fsfb: summary.fsfb,
+    });
+    return true;
+  } catch (e) {
+    console.warn("[sync.js] No se pudo entregar al logístico:", e);
+    return false;
+  }
+}
+
+function listenAuxiliarHandoffs(auxName, callback) {
+  if (!db) return () => {};
+  let unsub = null;
+  const dateKey = localDateKey();
+  const q = query(
+    collection(db, "auxiliarHandoffs"),
+    where("date", "==", dateKey),
+    where("auxiliarName", "==", auxName),
+    where("claimed", "==", false)
+  );
+
+  whenReady().then(() => {
+    unsub = onSnapshot(q, (snap) => {
+      const docs = [];
+      snap.forEach(docSnap => docs.push({ id: docSnap.id, ...docSnap.data() }));
+      callback(docs);
+    }, (e) => {
+      console.warn("[sync.js] No se pudo escuchar las entregas del auxiliar:", e);
+      callback(null);
+    });
+  });
+
+  return () => { if (unsub) unsub(); };
+}
+
+async function claimAuxiliarHandoff(handoffId) {
+  if (!db) return;
+  try {
+    await whenReady();
+    await updateDoc(doc(db, "auxiliarHandoffs", handoffId), { claimed: true });
+  } catch (e) {
+    console.warn("[sync.js] No se pudo marcar la entrega como reclamada:", e);
+  }
+}
+
 window.ReporteSync = {
   getMyIdentity, loginWithPhone, logout, syncAux,
   listenMyAssignments, markAssignmentSeen, markAssignmentDone,
   listenAllStatus, logPickupEvent, listenPickupHistory,
   listenAllAssignments,
   getMyAuxiliarIdentity, loginAuxiliarWithPhone, logoutAuxiliar,
+  submitAuxiliarHandoff, listenAuxiliarHandoffs, claimAuxiliarHandoff,
 };

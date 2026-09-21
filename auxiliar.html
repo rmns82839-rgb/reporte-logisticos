@@ -76,7 +76,7 @@
             </div>
           </div>
           <div class="summary-group">
-            <div class="summary-group-title">🔴 VIP</div>
+            <div class="summary-group-title">🔴 VIP y resto</div>
             <div class="summary-stats">
               <div class="summary-stat"><span id="sumRestoListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
               <div class="summary-stat"><span id="sumRestoProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
@@ -92,6 +92,13 @@
       </details>
     </section>
 
+    <!-- Entregar al logístico -->
+    <section id="handoffSection" class="card" hidden>
+      <h2 class="card-title">📤 Entregar al logístico</h2>
+      <p id="handoffHint" class="card-hint">—</p>
+      <button id="handoffBtn" class="btn btn-primary" type="button" style="width:100%;">📤 Entregar pacientes completados</button>
+    </section>
+
     <!-- Pacientes importados -->
     <section id="patientsSection" class="card" hidden>
       <div class="card-head-row">
@@ -102,7 +109,6 @@
       <button id="reorderModeBtn" class="ghost-btn" type="button">🔀 Reorganizar ruta</button>
       <div id="patientsList" class="papeleria-list"></div>
     </section>
-
 
   </main>
 
@@ -159,6 +165,7 @@
 
     <textarea id="patientNovedades" class="text-input" placeholder="Novedades (opcional)" style="min-height:64px; text-align:left; font-weight:500; margin-top:14px;"></textarea>
 
+    <div id="patientFinalizeWarning" class="modal-warning" hidden></div>
     <button id="patientCardDone" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">Guardar y cerrar</button>
   </div>
 </div>
@@ -319,6 +326,7 @@
         formaPago: "",
         entregoOrden: null,
         tubos: {},
+        entregadoLogistico: false,
         estado: "pendiente",
       });
     }
@@ -396,6 +404,74 @@
     sumRestoTarjeta.textContent = moneyLabel(stats.resto.tarjeta);
     sumRestoPse.textContent = moneyLabel(stats.resto.pse);
   }
+
+  // ---------------- Entregar al logístico ----------------
+  // Solo cuenta pacientes ya finalizados (estado "listo") que todavía no
+  // se hayan entregado. FSFB va a su propio grupo; todo lo demás (VIP,
+  // AXA, Particular...) cae en "vip", según confirmó Iván.
+  const handoffSection = document.getElementById("handoffSection");
+  const handoffHint = document.getElementById("handoffHint");
+  const handoffBtn = document.getElementById("handoffBtn");
+
+  function pendingHandoffPatients(patients) {
+    return patients.filter(p => p.estado === "listo" && !p.entregadoLogistico);
+  }
+
+  function renderHandoffCard(patients) {
+    const pending = pendingHandoffPatients(patients);
+    if (patients.length === 0) { handoffSection.hidden = true; return; }
+    handoffSection.hidden = false;
+    if (pending.length === 0) {
+      handoffHint.textContent = "No hay pacientes completados nuevos por entregar.";
+      handoffBtn.disabled = true;
+      handoffBtn.style.opacity = ".5";
+    } else {
+      handoffHint.textContent = `${pending.length} paciente${pending.length !== 1 ? "s" : ""} completado${pending.length !== 1 ? "s" : ""} listo${pending.length !== 1 ? "s" : ""} para entregar.`;
+      handoffBtn.disabled = false;
+      handoffBtn.style.opacity = "1";
+    }
+  }
+
+  function buildHandoffSummary(pending) {
+    const mk = () => ({ patients: [], tubes: {} });
+    const summary = { vip: mk(), fsfb: mk() };
+    pending.forEach(p => {
+      const bucket = isFsfb(p) ? summary.fsfb : summary.vip;
+      bucket.patients.push({
+        name: p.nombrePaciente || "(sin nombre)",
+        time: p.horaProgramada || p.horaCita || "",
+      });
+      Object.keys(p.tubos || {}).forEach(key => {
+        const qty = p.tubos[key] || 0;
+        if (qty > 0) bucket.tubes[key] = (bucket.tubes[key] || 0) + qty;
+      });
+    });
+    return summary;
+  }
+
+  handoffBtn.addEventListener("click", async () => {
+    const pending = pendingHandoffPatients(currentPatients);
+    if (pending.length === 0) return;
+    if (!window.ReporteSync || !me) {
+      showToast("No se pudo conectar para entregar. Intenta de nuevo.", 3000);
+      return;
+    }
+
+    handoffBtn.disabled = true;
+    const summary = buildHandoffSummary(pending);
+    const ok = await window.ReporteSync.submitAuxiliarHandoff(me, summary);
+
+    if (!ok) {
+      showToast("No se pudo entregar — revisa tu conexión e intenta de nuevo.", 3200);
+      handoffBtn.disabled = false;
+      return;
+    }
+
+    pending.forEach(p => { p.entregadoLogistico = true; });
+    savePatients(currentPatients);
+    renderHandoffCard(currentPatients);
+    showToast(`✅ ${pending.length} paciente${pending.length !== 1 ? "s" : ""} entregado${pending.length !== 1 ? "s" : ""} al logístico`, 2800);
+  });
 
   const patientsSection = document.getElementById("patientsSection");
   const patientsList = document.getElementById("patientsList");
@@ -548,6 +624,7 @@
       patientsList.appendChild(buildPatientRow(p, i));
     });
     renderDaySummary(currentPatients);
+    renderHandoffCard(currentPatients);
   }
 
   // Modo "toca para numerar": cada toque en el número, mientras el modo
@@ -835,6 +912,7 @@
   const patientPaymentButtons = document.getElementById("patientPaymentButtons");
   const patientNovedades = document.getElementById("patientNovedades");
   const patientCardDone = document.getElementById("patientCardDone");
+  const patientFinalizeWarning = document.getElementById("patientFinalizeWarning");
 
   let openPatientId = null;
 
@@ -857,19 +935,25 @@
   // No se puede marcar salida sin al menos un tubo contado. Si el paciente
   // paga (valor cobro > 0) o es de FSFB, también hace falta la forma de
   // pago. Y si es de FSFB, además hay que decir si entregó la orden.
-  function checkSalidaRequirements(p) {
+  function getSalidaWarnings(p) {
+    const warnings = [];
     const totalTubos = Object.values(p.tubos || {}).reduce((a, b) => a + b, 0);
     if (totalTubos === 0) {
-      return "No puedes marcar salida sin contar al menos un tubo.";
+      warnings.push("Cuenta al menos un tubo.");
     }
     const fsfb = isFsfb(p);
-    if ((p.valorCobro || 0) > 0 && !p.formaPago) {
-      return "Selecciona la forma de pago antes de marcar salida.";
+    if (((p.valorCobro || 0) > 0 || fsfb) && !p.formaPago) {
+      warnings.push("Selecciona la forma de pago.");
     }
     if (fsfb && p.entregoOrden === null) {
-      return "Marca si entregó la orden o no, antes de marcar salida.";
+      warnings.push("Marca si entregó la orden o no.");
     }
-    return null;
+    return warnings;
+  }
+
+  function checkSalidaRequirements(p) {
+    const warnings = getSalidaWarnings(p);
+    return warnings.length > 0 ? warnings.join(" ") : null;
   }
 
   function paymentLabel(key) {
@@ -882,12 +966,7 @@
   }
 
   function sendArriboWhatsApp(p) {
-    const text = [
-      `📍 *Arribo*`,
-      `👤 ${p.nombrePaciente || "(sin nombre)"}`,
-      `N° Solicitud: ${p.solicitud || "—"}`,
-      `🕐 Hora: ${p.arriboSitio}`,
-    ].join("\n");
+    const text = `${p.solicitud || "—"}\n\nArribo ${p.arriboSitio}`;
     sendWhatsAppText(text);
   }
 
@@ -947,9 +1026,8 @@
 
     patientTimeGrid.innerHTML = TIME_FIELDS.map(f => {
       const isSalida = f.key === "horaSalida";
-      const salidaWarning = (isSalida && !p[f.key]) ? checkSalidaRequirements(p) : null;
       const valueHtml = p[f.key]
-        ? `<span class="patient-time-set">${escapeHtmlAux(p[f.key])}</span><button type="button" class="patient-time-clear" data-key="${f.key}" title="Borrar">✕</button>`
+        ? `<input type="time" class="patient-time-input" data-key="${f.key}" value="${toHtmlTime(p[f.key])}"><button type="button" class="patient-time-clear" data-key="${f.key}" title="Revertir">✕</button>`
         : (isSalida
             ? `<span class="patient-time-hint">Se marca al Finalizar ↓</span>`
             : `<button type="button" class="ghost-btn patient-time-mark" data-key="${f.key}" style="margin:0;">Marcar ahora</button>`);
@@ -959,7 +1037,6 @@
           <span class="patient-time-label">${f.label}</span>
           <div class="patient-time-value">${valueHtml}</div>
         </div>
-        ${salidaWarning ? `<div class="patient-time-warning">⚠️ ${escapeHtmlAux(salidaWarning)}</div>` : ""}
       </div>
     `;
     }).join("");
@@ -979,6 +1056,14 @@
           const tubesDetails = document.getElementById("patientTubesDetails");
           if (tubesDetails) tubesDetails.open = true;
         }
+      });
+    });
+    patientTimeGrid.querySelectorAll(".patient-time-input").forEach(inp => {
+      inp.addEventListener("change", () => {
+        if (!inp.value) return;
+        p[inp.dataset.key] = fromHtmlTime(inp.value);
+        persistOpenPatient();
+        renderPatientsList(currentPatients);
       });
     });
     patientTimeGrid.querySelectorAll(".patient-time-clear").forEach(btn => {
@@ -1054,6 +1139,18 @@
     });
 
     patientCardDone.textContent = p.horaSalida ? "Cerrar" : "✅ Finalizar y enviar reporte";
+
+    if (p.horaSalida) {
+      patientFinalizeWarning.hidden = true;
+    } else {
+      const warnings = getSalidaWarnings(p);
+      if (warnings.length > 0) {
+        patientFinalizeWarning.innerHTML = "⚠️ Antes de finalizar:<br>" + warnings.map(w => `• ${escapeHtmlAux(w)}`).join("<br>");
+        patientFinalizeWarning.hidden = false;
+      } else {
+        patientFinalizeWarning.hidden = true;
+      }
+    }
 
     patientNovedades.value = p.novedades || "";
   }
