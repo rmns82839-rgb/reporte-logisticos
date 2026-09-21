@@ -54,7 +54,7 @@
 
       <input id="importExcelInput" type="file" accept=".xlsx,.xls" hidden>
       <button id="importExcelBtn" class="btn btn-primary" type="button" style="width:100%;">📂 Elegir archivo Excel</button>
-      <p id="importStatus" class="pickup-info" hidden></p>
+      <p id="importStatus" class="import-status" hidden></p>
     </section>
 
     <!-- Resumen del día -->
@@ -73,10 +73,11 @@
               <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumFsfbEfectivo">$0</span></div>
               <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumFsfbTarjeta">$0</span></div>
               <div class="summary-money-row"><span>🏦 PSE</span><span id="sumFsfbPse">$0</span></div>
+              <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumFsfbCancelado">0</span></div>
             </div>
           </div>
           <div class="summary-group">
-            <div class="summary-group-title">🔴 VIP y resto</div>
+            <div class="summary-group-title">🔴 VIP</div>
             <div class="summary-stats">
               <div class="summary-stat"><span id="sumRestoListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
               <div class="summary-stat"><span id="sumRestoProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
@@ -86,6 +87,7 @@
               <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumRestoEfectivo">$0</span></div>
               <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumRestoTarjeta">$0</span></div>
               <div class="summary-money-row"><span>🏦 PSE</span><span id="sumRestoPse">$0</span></div>
+              <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumRestoCancelado">0</span></div>
             </div>
           </div>
         </div>
@@ -136,8 +138,18 @@
   <div class="modal-card modal-card-wide">
     <button id="patientCardClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
     <h3 id="patientCardTitle">Paciente</h3>
-    <p id="patientCardMeta" class="card-hint">—</p>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+      <p id="patientCardMeta" class="card-hint" style="margin:0;">—</p>
+      <button id="patientCancelBtn" type="button" class="cancel-link-btn">❌ Cancelar</button>
+    </div>
 
+    <div id="patientCancelledBanner" class="cancelled-banner" hidden>
+      <div class="cancelled-banner-title">❌ Paciente cancelado</div>
+      <div id="patientCancelledReason" class="cancelled-banner-reason">—</div>
+      <button id="patientUncancelBtn" type="button" class="ghost-btn">🔄 Revertir cancelación</button>
+    </div>
+
+    <div id="patientNormalFlow">
     <details class="hour-group" open>
       <summary><span class="group-label">🩺 Exámenes</span><span id="patientCardExamsBadge" class="group-badge">0</span></summary>
       <div id="patientCardExamsList" class="exam-list"></div>
@@ -167,6 +179,18 @@
 
     <div id="patientFinalizeWarning" class="modal-warning" hidden></div>
     <button id="patientCardDone" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">Guardar y cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="cancelReasonModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="cancelReasonClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>❌ Cancelar paciente</h3>
+    <p class="card-hint">Elige el motivo — se le manda el aviso por WhatsApp apenas confirmes.</p>
+    <div id="cancelReasonList" class="reason-list"></div>
+    <textarea id="cancelReasonOtherText" class="text-input" placeholder="Escribe el motivo" style="min-height:56px; text-align:left; font-weight:500; margin-top:10px;" hidden></textarea>
+    <button id="cancelReasonConfirmBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">Confirmar cancelación</button>
   </div>
 </div>
 
@@ -175,7 +199,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -327,6 +351,7 @@
         entregoOrden: null,
         tubos: {},
         entregadoLogistico: false,
+        motivoCancelacion: "",
         estado: "pendiente",
       });
     }
@@ -376,13 +401,14 @@
     }
     summarySection.hidden = false;
 
-    const mk = () => ({ listo: 0, proceso: 0, pendiente: 0, efectivo: 0, tarjeta: 0, pse: 0 });
+    const mk = () => ({ listo: 0, proceso: 0, pendiente: 0, cancelado: 0, efectivo: 0, tarjeta: 0, pse: 0 });
     const stats = { fsfb: mk(), resto: mk() };
 
     patients.forEach(p => {
       const bucket = isFsfb(p) ? stats.fsfb : stats.resto;
       if (p.estado === "listo") bucket.listo++;
       else if (p.estado === "en_proceso") bucket.proceso++;
+      else if (p.estado === "cancelado") bucket.cancelado++;
       else bucket.pendiente++;
 
       if (p.horaSalida && p.formaPago && (p.valorCobro || 0) > 0 && bucket[p.formaPago] !== undefined) {
@@ -396,6 +422,7 @@
     sumFsfbEfectivo.textContent = moneyLabel(stats.fsfb.efectivo);
     sumFsfbTarjeta.textContent = moneyLabel(stats.fsfb.tarjeta);
     sumFsfbPse.textContent = moneyLabel(stats.fsfb.pse);
+    document.getElementById("sumFsfbCancelado").textContent = stats.fsfb.cancelado;
 
     sumRestoListo.textContent = stats.resto.listo;
     sumRestoProceso.textContent = stats.resto.proceso;
@@ -403,6 +430,7 @@
     sumRestoEfectivo.textContent = moneyLabel(stats.resto.efectivo);
     sumRestoTarjeta.textContent = moneyLabel(stats.resto.tarjeta);
     sumRestoPse.textContent = moneyLabel(stats.resto.pse);
+    document.getElementById("sumRestoCancelado").textContent = stats.resto.cancelado;
   }
 
   // ---------------- Entregar al logístico ----------------
@@ -449,17 +477,35 @@
     return summary;
   }
 
+  async function submitAuxiliarHandoff(summary) {
+    try {
+      await addDoc(collection(db, "auxiliarHandoffs"), {
+        auxiliarPhone: me.phone,
+        auxiliarName: me.name,
+        date: localDateKey(),
+        createdAt: serverTimestamp(),
+        claimed: false,
+        vip: summary.vip,
+        fsfb: summary.fsfb,
+      });
+      return true;
+    } catch (e) {
+      console.warn("[auxiliar.html] No se pudo entregar al logístico:", e);
+      return false;
+    }
+  }
+
   handoffBtn.addEventListener("click", async () => {
     const pending = pendingHandoffPatients(currentPatients);
     if (pending.length === 0) return;
-    if (!window.ReporteSync || !me) {
+    if (!me) {
       showToast("No se pudo conectar para entregar. Intenta de nuevo.", 3000);
       return;
     }
 
     handoffBtn.disabled = true;
     const summary = buildHandoffSummary(pending);
-    const ok = await window.ReporteSync.submitAuxiliarHandoff(me, summary);
+    const ok = await submitAuxiliarHandoff(summary);
 
     if (!ok) {
       showToast("No se pudo entregar — revisa tu conexión e intenta de nuevo.", 3200);
@@ -557,7 +603,7 @@
 
   function buildPatientRow(p, index) {
     const row = document.createElement("div");
-    row.className = "patient-row" + (p.estado === "listo" ? " patient-row-done" : "");
+    row.className = "patient-row" + (p.estado === "listo" ? " patient-row-done" : "") + (p.estado === "cancelado" ? " patient-row-cancelled" : "");
     row.dataset.id = p.id;
 
     row.innerHTML = `
@@ -889,6 +935,15 @@
     { key: "pse",      label: "🏦 PSE" },
   ];
 
+  const CANCEL_REASONS = [
+    { key: "no_recoge",       label: "No recoge la muestra, por favor reprogramar." },
+    { key: "hospitalizado",   label: "Paciente hospitalizado" },
+    { key: "no_contesta",     label: "No contesta el citófono ni el celular" },
+    { key: "no_domicilio",    label: "No se encuentra en el domicilio" },
+    { key: "fallecio",        label: "Paciente falleció" },
+    { key: "otro",            label: "Otro" },
+  ];
+
   function nowTimeLabelAux() {
     const d = new Date();
     let h = d.getHours(), m = d.getMinutes();
@@ -913,6 +968,16 @@
   const patientNovedades = document.getElementById("patientNovedades");
   const patientCardDone = document.getElementById("patientCardDone");
   const patientFinalizeWarning = document.getElementById("patientFinalizeWarning");
+  const patientCancelBtn = document.getElementById("patientCancelBtn");
+  const patientCancelledBanner = document.getElementById("patientCancelledBanner");
+  const patientCancelledReason = document.getElementById("patientCancelledReason");
+  const patientUncancelBtn = document.getElementById("patientUncancelBtn");
+  const patientNormalFlow = document.getElementById("patientNormalFlow");
+  const cancelReasonModal = document.getElementById("cancelReasonModal");
+  const cancelReasonClose = document.getElementById("cancelReasonClose");
+  const cancelReasonList = document.getElementById("cancelReasonList");
+  const cancelReasonOtherText = document.getElementById("cancelReasonOtherText");
+  const cancelReasonConfirmBtn = document.getElementById("cancelReasonConfirmBtn");
 
   let openPatientId = null;
 
@@ -923,6 +988,7 @@
   // pendiente -> nada marcado. en_proceso -> ya llegó o tomó pero no ha
   // salido. listo -> ya se fue (tiene hora de salida).
   function updatePatientEstado(p) {
+    if (p.estado === "cancelado") return;
     if (p.horaSalida) p.estado = "listo";
     else if (p.arriboSitio || p.arriboPaciente || p.horaToma) p.estado = "en_proceso";
     else p.estado = "pendiente";
@@ -1016,8 +1082,17 @@
     if (!p) return;
 
     patientCardTitle.textContent = p.nombrePaciente || "(sin nombre)";
-    patientCardMeta.textContent = `${p.tipoCliente} · N° ${p.solicitud} · Cita ${p.horaCita}`;
+    patientCardMeta.textContent = `${p.tipoCliente} · N° ${p.solicitud} · Cita ${p.horaCita} · Doc: ${p.tipoDocumento} ${p.numDocumento} · $${(p.valorCobro || 0).toLocaleString("es-CO")}`;
     patientValorBadge.textContent = `$${(p.valorCobro || 0).toLocaleString("es-CO")}`;
+
+    const isCancelled = p.estado === "cancelado";
+    patientCancelBtn.hidden = isCancelled;
+    patientCancelledBanner.hidden = !isCancelled;
+    patientNormalFlow.hidden = isCancelled;
+    if (isCancelled) {
+      patientCancelledReason.textContent = p.motivoCancelacion || "—";
+      return;
+    }
 
     patientCardExamsBadge.textContent = p.examenes.length;
     patientCardExamsList.innerHTML = p.examenes.length
@@ -1166,6 +1241,9 @@
     openPatientId = patient.id;
     renderPatientCard();
     patientCardModal.hidden = false;
+    patientCardModal.scrollTop = 0;
+    const card = patientCardModal.querySelector(".modal-card");
+    if (card) card.scrollTop = 0;
   }
   function closePatientCard() {
     patientCardModal.hidden = true;
@@ -1189,6 +1267,90 @@
   });
   patientCardModal.addEventListener("click", (e) => {
     if (e.target === patientCardModal) closePatientCard();
+  });
+
+  // ---------------- Cancelar paciente ----------------
+  let selectedCancelReason = null;
+
+  function sendCancelWhatsApp(p) {
+    const text = [
+      p.solicitud || "—",
+      "",
+      "❌ *Cancelado*",
+      `Motivo: ${p.motivoCancelacion || "—"}`,
+    ].join("\n");
+    sendWhatsAppText(text);
+  }
+
+  function openCancelReasonModal() {
+    selectedCancelReason = null;
+    cancelReasonOtherText.hidden = true;
+    cancelReasonOtherText.value = "";
+    cancelReasonList.innerHTML = CANCEL_REASONS.map(r => `
+      <button type="button" class="reason-chip" data-key="${r.key}">
+        <span class="reason-chip-radio"></span>
+        <span>${escapeHtmlAux(r.label)}</span>
+      </button>
+    `).join("");
+    cancelReasonList.querySelectorAll(".reason-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        selectedCancelReason = chip.dataset.key;
+        cancelReasonList.querySelectorAll(".reason-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        cancelReasonOtherText.hidden = selectedCancelReason !== "otro";
+        if (selectedCancelReason === "otro") cancelReasonOtherText.focus();
+      });
+    });
+    cancelReasonModal.hidden = false;
+  }
+  function closeCancelReasonModal() { cancelReasonModal.hidden = true; }
+
+  patientCancelBtn.addEventListener("click", openCancelReasonModal);
+  cancelReasonClose.addEventListener("click", closeCancelReasonModal);
+  cancelReasonModal.addEventListener("click", (e) => {
+    if (e.target === cancelReasonModal) closeCancelReasonModal();
+  });
+
+  cancelReasonConfirmBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+
+    if (!selectedCancelReason) {
+      showToast("Elige un motivo antes de confirmar.", 2400);
+      return;
+    }
+    let motivo;
+    if (selectedCancelReason === "otro") {
+      motivo = cancelReasonOtherText.value.trim();
+      if (!motivo) {
+        showToast("Escribe el motivo antes de confirmar.", 2400);
+        return;
+      }
+    } else {
+      motivo = CANCEL_REASONS.find(r => r.key === selectedCancelReason).label;
+    }
+
+    p.estado = "cancelado";
+    p.motivoCancelacion = motivo;
+    savePatients(currentPatients);
+    sendCancelWhatsApp(p);
+
+    closeCancelReasonModal();
+    renderPatientCard();
+    renderPatientsList(currentPatients);
+    showToast("Paciente cancelado", 2000);
+  });
+
+  patientUncancelBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    p.estado = "";
+    p.motivoCancelacion = "";
+    updatePatientEstado(p);
+    savePatients(currentPatients);
+    renderPatientCard();
+    renderPatientsList(currentPatients);
+    showToast("Cancelación revertida", 2000);
   });
 
   // Si ya se importó hoy, muéstralo de una vez sin pedir el archivo de nuevo.

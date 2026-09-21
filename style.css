@@ -704,6 +704,12 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   font-weight:700;
   color:var(--send);
 }
+.import-status{
+  margin:12px 0 0;
+  font-size:11.5px;
+  font-weight:700;
+  color:var(--send);
+}
 .pickup-summary{display:flex; flex-direction:column; gap:6px; margin:0 0 14px;}
 .pickup-summary-row{
   display:flex;
@@ -734,7 +740,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 #patientsList{display:flex; flex-direction:column; gap:8px;}
 .patient-row{
   display:flex;
-  align-items:flex-start;
+  align-items:center;
   gap:8px;
   background:var(--surface-2);
   border:1px solid var(--border);
@@ -748,6 +754,12 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   opacity:.75;
 }
 .patient-row-done .patient-name{color:var(--send);}
+.patient-row-cancelled{
+  background:rgba(255,92,92,0.08);
+  border-color:rgba(255,92,92,0.35);
+  opacity:.6;
+}
+.patient-row-cancelled .patient-name{color:var(--danger); text-decoration:line-through;}
 .patient-row.dragging{
   box-shadow:0 14px 30px -10px rgba(0,0,0,0.7);
   z-index:20;
@@ -756,15 +768,15 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 }
 .patient-drag-handle{
   flex-shrink:0;
-  width:30px;
-  height:30px;
+  width:26px;
+  height:26px;
   display:flex;
   align-items:center;
   justify-content:center;
-  border-radius:8px;
+  border-radius:7px;
   background:var(--surface-3);
   color:var(--text-faint);
-  font-size:15px;
+  font-size:13px;
   cursor:grab;
   touch-action:none;
   user-select:none;
@@ -775,12 +787,12 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-row.dragging .patient-drag-handle{cursor:grabbing; color:var(--send);}
 .patient-num-input{
   flex-shrink:0;
-  width:50px;
-  height:50px;
+  width:36px;
+  height:36px;
   border-radius:50%;
   background:transparent;
   border:2px solid transparent;
-  font-size:21px;
+  font-size:15px;
   font-weight:800;
   color:var(--text-dim);
   font-family:inherit;
@@ -807,17 +819,19 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 }
 
 /* ---------------- Resumen del día ---------------- */
-.summary-groups{display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;}
+.summary-groups{display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; min-width:0;}
 .hour-group .summary-groups{padding:8px 2px 4px;}
 .summary-group{
+  min-width:0;
   background:var(--surface-2);
   border:1px solid var(--border);
   border-radius:var(--radius-m);
-  padding:12px 10px;
+  padding:12px 8px;
 }
-.summary-group-title{font-size:12.5px; font-weight:800; color:var(--text); margin-bottom:8px; text-align:center;}
-.summary-stats{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:10px;}
+.summary-group-title{font-size:12px; font-weight:800; color:var(--text); margin-bottom:8px; text-align:center; overflow-wrap:break-word;}
+.summary-stats{display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin-bottom:10px; min-width:0;}
 .summary-stat{
+  min-width:0;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -859,8 +873,14 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-meta{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-top:2px;}
 .patient-address{font-size:11.5px; color:var(--text-faint); font-weight:600; margin-top:3px; line-height:1.4;}
 
-.patient-actions{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:10px;}
-.patient-actions .place-action{width:100%;}
+.patient-actions{display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-top:10px;}
+.patient-actions .place-action{
+  width:100%;
+  white-space:normal;
+  line-height:1.25;
+  padding:8px 6px;
+  text-align:center;
+}
 
 /* ---------------- Modal "Mover a la posición": cuadrícula pareja de chips ---------------- */
 .move-position-grid{
@@ -892,6 +912,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-status-dot.status-pendiente{background:var(--text-faint);}
 .patient-status-dot.status-en_proceso{background:var(--poliza);}
 .patient-status-dot.status-listo{background:var(--send);}
+.patient-status-dot.status-cancelado{background:var(--danger);}
 
 .exam-list{display:flex; flex-direction:column; gap:6px;}
 .exam-row{
@@ -957,6 +978,65 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 }
 .payment-chip.active .co-btn-label{color:var(--send);}
 .patient-actions .place-action{min-height:32px; padding:0 10px; font-size:11px;}
+
+/* ---------------- Cancelar paciente ---------------- */
+.cancel-link-btn{
+  flex-shrink:0;
+  background:none;
+  border:none;
+  color:var(--danger);
+  font-family:inherit;
+  font-size:11.5px;
+  font-weight:700;
+  text-decoration:underline;
+  cursor:pointer;
+  padding:4px;
+}
+.cancelled-banner{
+  margin-top:14px;
+  padding:14px;
+  border-radius:var(--radius-m);
+  background:rgba(255,92,92,0.1);
+  border:1.5px solid rgba(255,92,92,0.35);
+  text-align:center;
+}
+.cancelled-banner-title{font-size:15px; font-weight:800; color:var(--danger); margin-bottom:6px;}
+.cancelled-banner-reason{font-size:12.5px; color:var(--text-dim); font-weight:600; margin-bottom:12px; line-height:1.4;}
+
+.reason-list{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
+.reason-chip{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  border-radius:var(--radius-m);
+  border:1.5px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text-dim);
+  font-family:inherit;
+  font-size:13px;
+  font-weight:600;
+  text-align:left;
+  cursor:pointer;
+  line-height:1.35;
+}
+.reason-chip.active{
+  border-color:var(--danger);
+  background:rgba(255,92,92,0.1);
+  color:var(--text);
+}
+.reason-chip-radio{
+  flex-shrink:0;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  border:2px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.reason-chip.active .reason-chip-radio{border-color:var(--danger);}
+.reason-chip.active .reason-chip-radio::after{content:""; width:9px; height:9px; border-radius:50%; background:var(--danger);}
 
 /* ---------------- Auxiliar elegido, en grande (efecto zoom) ---------------- */
 .aux-hero{
