@@ -2009,7 +2009,9 @@ function startHandoffListener() {
     handoffBanner.hidden = true;
     return;
   }
-  stopHandoffListener = window.ReporteSync.listenAuxiliarHandoffs(auxName, renderHandoffBanner);
+  const myIdentity = window.ReporteSync.getMyIdentity();
+  if (!myIdentity) { currentHandoffDocs = []; handoffBanner.hidden = true; return; }
+  stopHandoffListener = window.ReporteSync.listenAuxiliarHandoffs(auxName, myIdentity.phone, renderHandoffBanner);
 }
 
 function renderHandoffBanner(docs) {

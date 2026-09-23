@@ -31,6 +31,7 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <button id="freshdeskToggleBtn" class="icon-btn" type="button" title="Sincronización con Freshdesk: apagada" aria-label="Sincronización con Freshdesk">🔗</button>
       <button id="logoutBtn" class="icon-btn" type="button" title="Cerrar sesión" aria-label="Cerrar sesión">
         <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/></svg>
       </button>
@@ -103,6 +104,10 @@
           <div class="summary-money-row"><span>🏦 PSE general</span><span id="sumTotalPse">$0</span></div>
           <div class="summary-money-row summary-money-grand"><span>💰 Total general</span><span id="sumTotalGeneral">$0</span></div>
         </div>
+
+        <div class="card-divider"></div>
+        <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">🧾 Desglose de pagos</div>
+        <div id="paymentBreakdownList" class="payment-breakdown-list"></div>
       </details>
     </section>
 
@@ -140,7 +145,9 @@
   <div class="modal-card modal-card-wide">
     <button id="handoffSelectClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
     <h3>📤 Elegir a quién entregar</h3>
-    <p class="card-hint">Todos los completados/cancelados sin entregar salen marcados — desmarca los que no quieras entregar todavía.</p>
+    <p class="card-hint">¿A quién de logística le vas a entregar?</p>
+    <div id="handoffLogisticoChips" class="company-tube-buttons"></div>
+    <p class="card-hint" style="margin-top:14px;">Todos los completados/cancelados sin entregar salen marcados — desmarca los que no quieras entregar todavía.</p>
     <div id="handoffSelectList" class="handoff-select-list"></div>
     <button id="handoffSelectConfirmBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">✅ Entregar seleccionados</button>
   </div>
@@ -204,6 +211,7 @@
     <details class="hour-group" open>
       <summary><span class="group-label">💳 Forma de pago</span><span id="patientValorBadge" class="group-badge">$0</span></summary>
       <div id="patientPaymentButtons" class="company-tube-buttons"></div>
+      <button id="patientPaymentNoticeBtn" type="button" class="ghost-btn" hidden>📤 Avisar pago por WhatsApp</button>
 
       <div id="valorOriginalNote" class="card-hint" style="margin:10px 0 0;"></div>
       <button id="valorAdjustToggle" type="button" class="ghost-btn" style="margin-top:8px;">✏️ Le agregaron exámenes / ajustar valor</button>
@@ -219,6 +227,10 @@
     <textarea id="patientNovedades" class="text-input" placeholder="Novedades (opcional)" style="min-height:64px; text-align:left; font-weight:500; margin-top:14px;"></textarea>
 
     <div id="patientFinalizeWarning" class="modal-warning" hidden></div>
+    <div id="patientResendRow" class="patient-resend-row" hidden>
+      <button id="patientResendCopyBtn" type="button" class="ghost-btn" style="margin:0;">📋 Copiar reporte</button>
+      <button id="patientResendWaBtn" type="button" class="ghost-btn" style="margin:0;">📤 Reenviar por WhatsApp</button>
+    </div>
     <button id="patientCardDone" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">Guardar y cerrar</button>
     </div>
   </div>
@@ -240,7 +252,8 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-  import { getFirestore, collection, doc, writeBatch, getDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { getFirestore, collection, doc, writeBatch, getDoc, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { PEOPLE } from "./people.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -312,6 +325,65 @@
 
   function escapeHtmlAux(s) {
     return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ---------------- Sincronización con Freshdesk ----------------
+  // Apagado por defecto — hay que activarlo a propósito con el botón 🔗
+  // del topbar, para poder probarlo primero. Se guarda por celular, no
+  // por auxiliar, en localStorage.
+  const FD_ON_KEY = "reporte_logisticos_auxiliar_freshdesk_on";
+  const freshdeskToggleBtn = document.getElementById("freshdeskToggleBtn");
+
+  function fdActivo() {
+    try { return localStorage.getItem(FD_ON_KEY) === "1"; } catch (e) { return false; }
+  }
+  function setFdActivo(on) {
+    try { localStorage.setItem(FD_ON_KEY, on ? "1" : "0"); } catch (e) {}
+    freshdeskToggleBtn.classList.toggle("active", on);
+    freshdeskToggleBtn.title = `Sincronización con Freshdesk: ${on ? "encendida" : "apagada"}`;
+  }
+  setFdActivo(fdActivo());
+  freshdeskToggleBtn.addEventListener("click", () => {
+    const on = !fdActivo();
+    setFdActivo(on);
+    showToast(`🔗 Freshdesk ${on ? "activado" : "desactivado"}`, 2000);
+  });
+
+  // Los tiempos de la app están en "H:MM AM/PM"; Freshdesk (igual que en
+  // RutaLab) espera "H:MM" en 24h — sin la conversión, un "6:05 AM" y un
+  // "6:05 PM" llegarían idénticos.
+  function to24hLabel(label) {
+    const m = String(label || "").match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!m) return "";
+    let h = parseInt(m[1], 10);
+    const min = m[2];
+    const period = m[3].toUpperCase();
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    return `${h}:${min}`;
+  }
+
+  async function syncFreshdeskIfOn(p) {
+    if (!fdActivo()) return;
+    if (!p.solicitud) return;
+    try {
+      await fetch("/api/freshdesk-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          solicitudes: [p.solicitud],
+          tiempos: {
+            fecha: localDateKey(),
+            arriboSitio: to24hLabel(p.arriboSitio),
+            arriboPac: to24hLabel(p.arriboPaciente),
+            toma: to24hLabel(p.horaToma),
+            salida: to24hLabel(p.horaSalida),
+          },
+        }),
+      });
+    } catch (e) {
+      console.warn("[auxiliar.html] No se pudo sincronizar con Freshdesk:", e);
+    }
   }
 
   // ---------------- Importar planilla (Excel) ----------------
@@ -486,6 +558,76 @@
     document.getElementById("sumTotalTarjeta").textContent = moneyLabel(totalTarjeta);
     document.getElementById("sumTotalPse").textContent = moneyLabel(totalPse);
     document.getElementById("sumTotalGeneral").textContent = moneyLabel(totalEfectivo + totalTarjeta + totalPse);
+
+    renderPaymentBreakdown(patients);
+    pushAuxiliarStatus(patients, stats);
+  }
+
+  // Publica el estado del auxiliar en vivo, para que el coordinador lo
+  // vea en tiempo real (tiempos, pagos, estado de cada paciente). Con un
+  // pequeño debounce para no escribir en Firebase en cada tecla.
+  let pushStatusTimer = null;
+  function pushAuxiliarStatus(patients, stats) {
+    if (!me) return;
+    clearTimeout(pushStatusTimer);
+    pushStatusTimer = setTimeout(async () => {
+      try {
+        const lightPatients = patients.map(p => ({
+          id: p.id,
+          nombre: p.nombrePaciente || "",
+          tipoCliente: p.tipoCliente || "",
+          hora: p.horaProgramada || p.horaCita || "",
+          arriboSitio: p.arriboSitio || "",
+          arriboPaciente: p.arriboPaciente || "",
+          horaToma: p.horaToma || "",
+          horaSalida: p.horaSalida || "",
+          estado: p.estado,
+          formaPago: p.formaPago || "",
+          valorFinal: getValorFinal(p),
+          motivoCancelacion: p.motivoCancelacion || "",
+        }));
+        await setDoc(doc(db, "auxiliarStatus", `${me.phone}_${localDateKey()}`), {
+          auxiliarPhone: me.phone,
+          auxiliarName: me.name,
+          date: localDateKey(),
+          updatedAt: serverTimestamp(),
+          stats,
+          patients: lightPatients,
+        });
+      } catch (e) {
+        console.warn("[auxiliar.html] No se pudo publicar el estado en vivo:", e);
+      }
+    }, 900);
+  }
+
+  // Lista, uno por uno, quién pagó con qué — separado por método, con
+  // scroll si hay muchos. Solo cuenta pacientes ya finalizados.
+  function renderPaymentBreakdown(patients) {
+    const groups = { efectivo: [], tarjeta: [], pse: [] };
+    patients.forEach(p => {
+      if (p.estado === "listo" && p.formaPago && getValorFinal(p) > 0 && groups[p.formaPago]) {
+        groups[p.formaPago].push(p);
+      }
+    });
+
+    const methodLabels = { efectivo: "💵 Efectivo", tarjeta: "💳 Tarjeta", pse: "🏦 PSE" };
+    const list = document.getElementById("paymentBreakdownList");
+    const sections = Object.keys(groups)
+      .filter(key => groups[key].length > 0)
+      .map(key => `
+        <div class="payment-breakdown-group">
+          <div class="payment-breakdown-group-title">${methodLabels[key]}</div>
+          ${groups[key].map(p => `
+            <div class="payment-breakdown-row">
+              <span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
+              <span>$${getValorFinal(p).toLocaleString("es-CO")}</span>
+            </div>
+          `).join("")}
+        </div>
+      `);
+    list.innerHTML = sections.length > 0
+      ? sections.join("")
+      : '<p class="card-hint" style="margin:0;">Todavía no hay pagos registrados.</p>';
   }
 
   // ---------------- Entregar al logístico ----------------
@@ -599,7 +741,7 @@
   // Un documento de Firebase POR PACIENTE (no un lote agrupado) — así
   // revertir uno solo puede borrar exactamente ese documento sin tocar
   // los demás que se hayan entregado en la misma tanda.
-  async function submitAuxiliarHandoff(selected) {
+  async function submitAuxiliarHandoff(selected, logistico) {
     try {
       const batch = writeBatch(db);
       const results = {};
@@ -616,6 +758,8 @@
         batch.set(ref, {
           auxiliarPhone: me.phone,
           auxiliarName: me.name,
+          logisticoPhone: logistico.phone,
+          logisticoName: logistico.name,
           date: localDateKey(),
           createdAt: serverTimestamp(),
           claimed: false,
@@ -646,7 +790,24 @@
   const handoffSelectList = document.getElementById("handoffSelectList");
   const handoffSelectConfirmBtn = document.getElementById("handoffSelectConfirmBtn");
 
+  let selectedLogisticoPhone = null;
+
   function openHandoffSelectModal(pending) {
+    selectedLogisticoPhone = null;
+    const handoffLogisticoChips = document.getElementById("handoffLogisticoChips");
+    handoffLogisticoChips.innerHTML = Object.entries(PEOPLE).map(([phone, info]) => `
+      <button type="button" class="company-tube-btn payment-chip" data-phone="${phone}">
+        <span class="co-btn-label">${escapeHtmlAux(info.name)}</span>
+      </button>
+    `).join("");
+    handoffLogisticoChips.querySelectorAll(".payment-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        selectedLogisticoPhone = chip.dataset.phone;
+        handoffLogisticoChips.querySelectorAll(".payment-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+      });
+    });
+
     handoffSelectList.innerHTML = pending.map(p => `
       <label class="handoff-select-row">
         <input type="checkbox" class="handoff-select-checkbox" data-id="${p.id}" checked>
@@ -668,6 +829,10 @@
   handoffSelectConfirmBtn.addEventListener("click", async () => {
     const checkedIds = [...handoffSelectList.querySelectorAll(".handoff-select-checkbox:checked")].map(cb => cb.dataset.id);
     const selected = currentPatients.filter(p => checkedIds.includes(p.id));
+    if (!selectedLogisticoPhone) {
+      showToast("Elige a quién le vas a entregar.", 2400);
+      return;
+    }
     if (selected.length === 0) {
       showToast("Selecciona al menos un paciente.", 2200);
       return;
@@ -678,7 +843,8 @@
     }
 
     handoffSelectConfirmBtn.disabled = true;
-    const results = await submitAuxiliarHandoff(selected);
+    const logistico = { phone: selectedLogisticoPhone, name: PEOPLE[selectedLogisticoPhone].name };
+    const results = await submitAuxiliarHandoff(selected, logistico);
 
     if (!results) {
       showToast("No se pudo entregar — revisa tu conexión e intenta de nuevo.", 3200);
@@ -695,7 +861,7 @@
     handoffSelectConfirmBtn.disabled = false;
     closeHandoffSelectModal();
     renderHandoffCard(currentPatients);
-    showToast(`✅ ${selected.length} paciente${selected.length !== 1 ? "s" : ""} entregado${selected.length !== 1 ? "s" : ""} al logístico`, 2800);
+    showToast(`✅ ${selected.length} paciente${selected.length !== 1 ? "s" : ""} entregado${selected.length !== 1 ? "s" : ""} a ${logistico.name}`, 2800);
   });
 
   const patientsSection = document.getElementById("patientsSection");
@@ -1099,6 +1265,23 @@
   });
 
   // ---------------- Tarjeta de paciente (módulo 3) ----------------
+  // Un emoji fijo por auxiliar, para reconocer de un vistazo de quién es
+  // cada reporte en el chat, sin tener que leer el nombre.
+  const AUXILIAR_EMOJIS = {
+    "Cristian": "🔵",
+    "Iván": "🟢",
+    "Brenda": "🟣",
+    "Jonathan": "🟠",
+    "Marlio": "🟡",
+    "Camilo": "🔴",
+    "Milena": "⚪",
+    "Luis": "🟤",
+    "Edison": "⚫",
+  };
+  function myReportEmoji() {
+    return (me && AUXILIAR_EMOJIS[me.name]) || "🧪";
+  }
+
   const TUBOS_AUX = [
     { key: "Amarillo",      emoji: "🟡" },
     { key: "Lila",          emoji: "🟣" },
@@ -1163,8 +1346,31 @@
   const patientOrdenDetails = document.getElementById("patientOrdenDetails");
   const patientOrdenButtons = document.getElementById("patientOrdenButtons");
   const patientPaymentButtons = document.getElementById("patientPaymentButtons");
+  const patientPaymentNoticeBtn = document.getElementById("patientPaymentNoticeBtn");
+
+  patientPaymentNoticeBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    const metodo = p.formaPago === "tarjeta" ? "tarjeta" : "PSE";
+    const text = `${myReportEmoji()} *${p.solicitud || "—"}* ${p.nombrePaciente || "(sin nombre)"}\nPagó con ${metodo} $${getValorFinal(p).toLocaleString("es-CO")}`;
+    sendWhatsAppText(text);
+  });
   const patientNovedades = document.getElementById("patientNovedades");
   const patientCardDone = document.getElementById("patientCardDone");
+  const patientResendRow = document.getElementById("patientResendRow");
+  const patientResendCopyBtn = document.getElementById("patientResendCopyBtn");
+  const patientResendWaBtn = document.getElementById("patientResendWaBtn");
+
+  patientResendCopyBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    copyToClipboard(buildFinalReportText(p), "Reporte copiado");
+  });
+  patientResendWaBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    sendFinalReportWhatsApp(p);
+  });
   const patientFinalizeWarning = document.getElementById("patientFinalizeWarning");
   const patientCancelBtn = document.getElementById("patientCancelBtn");
   const patientCancelledBanner = document.getElementById("patientCancelledBanner");
@@ -1240,16 +1446,16 @@
   }
 
   function sendArriboWhatsApp(p) {
-    const text = `${p.solicitud || "—"}\n\nArribo ${p.arriboSitio}`;
+    const text = `${myReportEmoji()} *${p.solicitud || "—"}*\n\n📍 Arribo: ${p.arriboSitio}`;
     sendWhatsAppText(text);
   }
 
   // Formato pedido: número de solicitud solo, luego cada dato en su
   // propia línea, con negrita y emoji. Los tubos van como "cantidad
   // nombre". A los de FSFB se les agrega orden entregada y forma de pago.
-  function sendFinalReportWhatsApp(p) {
+  function buildFinalReportText(p) {
     const lines = [
-      p.solicitud || "—",
+      `${myReportEmoji()} *${p.solicitud || "—"}*`,
       "",
       `🕐 *Arribo*: ${p.arriboSitio || "—"}`,
       `🚪 *Paciente*: ${p.arriboPaciente || "—"}`,
@@ -1264,14 +1470,11 @@
     } else {
       tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
     }
-    if (getValorFinal(p) > 0) {
-      lines.push("");
-      lines.push(`💰 *Valor a cobrar*: $${getValorFinal(p).toLocaleString("es-CO")}`);
-    }
     if (isFsfb(p)) {
       lines.push("");
       lines.push(`📄 *Entregó orden*: ${p.entregoOrden ? "Sí" : "No"}`);
       if (getValorFinal(p) > 0) {
+        lines.push(`💰 *Valor a cobrar*: $${getValorFinal(p).toLocaleString("es-CO")}`);
         lines.push(`💳 *Forma de pago*: ${paymentLabel(p.formaPago)}`);
       }
     }
@@ -1279,7 +1482,11 @@
       lines.push("");
       lines.push(`📝 *Novedades*: ${p.novedades.trim()}`);
     }
-    sendWhatsAppText(lines.join("\n"));
+    return lines.join("\n");
+  }
+
+  function sendFinalReportWhatsApp(p) {
+    sendWhatsAppText(buildFinalReportText(p));
   }
 
   function persistOpenPatient() {
@@ -1354,6 +1561,7 @@
         persistOpenPatient();
         renderPatientCard();
         renderPatientsList(currentPatients);
+        syncFreshdeskIfOn(p);
 
         if (key === "arriboSitio") {
           sendArriboWhatsApp(p);
@@ -1369,6 +1577,7 @@
         p[inp.dataset.key] = fromHtmlTime(inp.value);
         persistOpenPatient();
         renderPatientsList(currentPatients);
+        syncFreshdeskIfOn(p);
       });
     });
     patientTimeGrid.querySelectorAll(".patient-time-clear").forEach(btn => {
@@ -1448,7 +1657,16 @@
       });
     });
 
+    // El aviso de pago solo aplica a tarjeta/PSE — el efectivo no se avisa.
+    if (p.formaPago === "tarjeta" || p.formaPago === "pse") {
+      patientPaymentNoticeBtn.hidden = false;
+      patientPaymentNoticeBtn.textContent = `📤 Avisar pago por ${p.formaPago === "tarjeta" ? "tarjeta" : "PSE"}`;
+    } else {
+      patientPaymentNoticeBtn.hidden = true;
+    }
+
     patientCardDone.textContent = p.horaSalida ? "Cerrar" : "✅ Finalizar y enviar reporte";
+    patientResendRow.hidden = !p.horaSalida;
 
     if (p.horaSalida) {
       patientFinalizeWarning.hidden = true;
@@ -1540,7 +1758,7 @@
 
   function sendCancelWhatsApp(p) {
     const text = [
-      p.solicitud || "—",
+      `${myReportEmoji()} *${p.solicitud || "—"}*`,
       "",
       "❌ *Cancelado*",
       `Motivo: ${p.motivoCancelacion || "—"}`,

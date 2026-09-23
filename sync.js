@@ -346,7 +346,7 @@ async function submitAuxiliarHandoff(auxiliar, summary) {
   }
 }
 
-function listenAuxiliarHandoffs(auxName, callback) {
+function listenAuxiliarHandoffs(auxName, myPhone, callback) {
   if (!db) return () => {};
   let unsub = null;
   const dateKey = localDateKey();
@@ -354,6 +354,7 @@ function listenAuxiliarHandoffs(auxName, callback) {
     collection(db, "auxiliarHandoffs"),
     where("date", "==", dateKey),
     where("auxiliarName", "==", auxName),
+    where("logisticoPhone", "==", myPhone),
     where("claimed", "==", false)
   );
 

@@ -222,6 +222,7 @@ html,body{
   cursor:pointer;
   flex-shrink:0;
 }
+#freshdeskToggleBtn.active{background:var(--send-soft); border-color:var(--send); color:var(--send);}
 .icon-btn:active{background:var(--surface-2); transform:scale(0.95);}
 .icon-btn.install-btn{color:var(--send); border-color:rgba(31,210,144,0.35);}
 @media (prefers-reduced-motion: no-preference){
@@ -836,6 +837,22 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .summary-money-total{margin-top:4px;}
 .summary-money-grand{border-top:1.5px solid var(--send); margin-top:4px; padding-top:8px; font-size:13px;}
 .summary-money-grand span:last-child{color:var(--send); font-weight:800;}
+
+.payment-breakdown-list{max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;}
+.payment-breakdown-group-title{font-size:11.5px; font-weight:800; color:var(--text); margin-bottom:4px;}
+.payment-breakdown-row{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  font-size:11.5px;
+  font-weight:600;
+  color:var(--text-dim);
+  padding:5px 8px;
+  background:var(--surface-3);
+  border-radius:7px;
+  margin-bottom:4px;
+}
+.payment-breakdown-row span:last-child{font-weight:800; color:var(--send);}
 .summary-stats{display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin-bottom:10px; min-width:0;}
 .summary-stat{
   min-width:0;
@@ -1214,6 +1231,8 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   flex-shrink:0;
 }
 .extra-row .del-btn:active{background:rgba(255,92,92,0.15);}
+
+.patient-resend-row{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:14px;}
 
 .ghost-btn{
   margin-top:12px;

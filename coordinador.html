@@ -212,6 +212,17 @@
     transition:border-color .3s ease;
   }
   .card.stale{border-left-color:var(--text-faint); opacity:.72;}
+  .aux-live-stats{display:flex; gap:10px; font-size:12.5px; font-weight:700; color:var(--text-dim); margin-bottom:6px;}
+  .aux-live-money{font-size:11.5px; font-weight:700; color:var(--send); margin-bottom:8px;}
+  .aux-live-patients{max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:5px;}
+  .aux-live-patient{
+    display:flex; align-items:center; gap:8px;
+    font-size:11.5px; font-weight:600; color:var(--text-dim);
+    background:var(--surface-3); border-radius:7px; padding:5px 8px;
+  }
+  .aux-live-patient-name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .aux-live-patient-hora{color:var(--text-faint); white-space:nowrap;}
+  .aux-live-patient-estado{white-space:nowrap; font-weight:700;}
   .card-top{
     display:flex;
     justify-content:space-between;
@@ -390,6 +401,14 @@
   </div>
 
   <div class="dash-section">
+    <h2 class="dash-title">🧪 Auxiliares en tiempo real</h2>
+    <p class="assign-hint">Estado de cada auxiliar activo hoy — pacientes, pagos y tiempos, al minuto.</p>
+    <div id="auxLiveCards" class="cards">
+      <p class="dash-empty">Sin datos todavía</p>
+    </div>
+  </div>
+
+  <div class="dash-section">
     <h2 class="dash-title">🚚 Pacientes por logístico</h2>
     <div id="chartLog" class="bar-chart"><p class="dash-empty">Sin datos todavía</p></div>
   </div>
@@ -496,6 +515,50 @@
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  const ESTADO_LABELS = { listo: "✅ Listo", en_proceso: "🕓 En ruta", pendiente: "⏳ Pendiente", cancelado: "❌ Cancelado" };
+
+  function renderAuxLiveCards(docs) {
+    const el = document.getElementById("auxLiveCards");
+    if (!docs || docs.length === 0) {
+      el.innerHTML = '<p class="dash-empty">Sin datos todavía</p>';
+      return;
+    }
+
+    el.innerHTML = docs.map(d => {
+      const fsfb = (d.stats && d.stats.fsfb) || {};
+      const resto = (d.stats && d.stats.resto) || {};
+      const listo = (fsfb.listo || 0) + (resto.listo || 0);
+      const proceso = (fsfb.proceso || 0) + (resto.proceso || 0);
+      const pendiente = (fsfb.pendiente || 0) + (resto.pendiente || 0);
+      const cancelado = (fsfb.cancelado || 0) + (resto.cancelado || 0);
+      const efectivo = (fsfb.efectivo || 0) + (resto.efectivo || 0);
+      const tarjeta = (fsfb.tarjeta || 0) + (resto.tarjeta || 0);
+      const pse = (fsfb.pse || 0) + (resto.pse || 0);
+
+      const patientsHtml = (d.patients || []).map(p => `
+        <div class="aux-live-patient">
+          <span class="aux-live-patient-name">${escapeHtml(p.nombre || "(sin nombre)")}</span>
+          <span class="aux-live-patient-hora">${escapeHtml(p.hora || "—")}</span>
+          <span class="aux-live-patient-estado">${ESTADO_LABELS[p.estado] || p.estado}</span>
+        </div>
+      `).join("");
+
+      return `
+        <div class="card">
+          <div class="card-top">
+            <span class="who">${escapeHtml(d.auxiliarName || "—")}</span>
+            <span class="live-badge"><span class="live-dot"></span>EN VIVO</span>
+          </div>
+          <div class="aux-live-stats">
+            <span>✅ ${listo}</span><span>🕓 ${proceso}</span><span>⏳ ${pendiente}</span><span>❌ ${cancelado}</span>
+          </div>
+          <div class="aux-live-money">💵 $${efectivo.toLocaleString("es-CO")} · 💳 $${tarjeta.toLocaleString("es-CO")} · 🏦 $${pse.toLocaleString("es-CO")}</div>
+          <div class="aux-live-patients">${patientsHtml || '<p class="dash-empty" style="margin:4px 0;">Sin pacientes importados</p>'}</div>
+        </div>
+      `;
+    }).join("");
   }
 
   let lastDocs = [];
@@ -671,6 +734,15 @@
         statusDot.classList.remove("online");
         statusText.textContent = "Error de conexión";
         console.error(err);
+      });
+
+      const auxQ = query(collection(db, "auxiliarStatus"), where("date", "==", today));
+      onSnapshot(auxQ, (snap) => {
+        const docs = [];
+        snap.forEach(docSnap => docs.push(docSnap.data()));
+        renderAuxLiveCards(docs);
+      }, (err) => {
+        console.warn("No se pudo escuchar auxiliarStatus:", err);
       });
     });
 
