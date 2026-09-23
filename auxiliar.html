@@ -477,7 +477,14 @@
     return patients;
   }
 
+  // La lista de pacientes ya NO se reinicia con la fecha — se queda ahí
+  // (igual que en RutaLab) hasta que se importe un Excel nuevo, que la
+  // reemplaza por completo. Antes sí estaba ligada al día; esto migra lo
+  // que hubiera guardado hoy con la clave vieja, para no perderlo.
   function patientsStorageKey() {
+    return `reporte_logisticos_auxiliar_pacientes_${me.phone}`;
+  }
+  function legacyPatientsStorageKey() {
     return `reporte_logisticos_auxiliar_pacientes_${me.phone}_${localDateKey()}`;
   }
 
@@ -488,7 +495,15 @@
   function loadPatients() {
     try {
       const raw = localStorage.getItem(patientsStorageKey());
-      return raw ? JSON.parse(raw) : null;
+      if (raw) return JSON.parse(raw);
+
+      const legacyRaw = localStorage.getItem(legacyPatientsStorageKey());
+      if (legacyRaw) {
+        localStorage.setItem(patientsStorageKey(), legacyRaw);
+        localStorage.removeItem(legacyPatientsStorageKey());
+        return JSON.parse(legacyRaw);
+      }
+      return null;
     } catch (e) { return null; }
   }
 
@@ -906,18 +921,35 @@
     return lines.filter(Boolean).join("\n");
   }
 
-  async function copyToClipboard(text, okMsg) {
+  async function copyToClipboard(text, okMsg, btn) {
+    let ok = true;
     try {
       await navigator.clipboard.writeText(text);
-      showToast(okMsg || "Copiado", 1800);
     } catch (e) {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      showToast(okMsg || "Copiado", 1800);
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch (e2) {
+        ok = false;
+      }
+    }
+    showToast(ok ? (okMsg || "Copiado") : "No se pudo copiar", 1800);
+
+    // Además del toast, el botón mismo cambia un instante — para que se
+    // note aunque no se esté mirando el toast de abajo.
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = ok ? "✅ Copiado" : "⚠️ No se pudo copiar";
+      btn.disabled = true;
+      clearTimeout(btn._resetTimer);
+      btn._resetTimer = setTimeout(() => {
+        btn.textContent = original;
+        btn.disabled = false;
+      }, 1500);
     }
   }
 
@@ -986,14 +1018,14 @@
       updateNumberBadges();
     });
 
-    row.querySelector(".patient-copy-addr").addEventListener("click", () => {
-      copyToClipboard(p.direccion || "", "Dirección copiada");
+    row.querySelector(".patient-copy-addr").addEventListener("click", (e) => {
+      copyToClipboard(p.direccion || "", "Dirección copiada", e.currentTarget);
     });
-    row.querySelector(".patient-copy").addEventListener("click", () => {
-      copyToClipboard(buildPatientText(p, false), "Paciente copiado");
+    row.querySelector(".patient-copy").addEventListener("click", (e) => {
+      copyToClipboard(buildPatientText(p, false), "Paciente copiado", e.currentTarget);
     });
-    row.querySelector(".patient-copy-exams").addEventListener("click", () => {
-      copyToClipboard(buildPatientText(p, true), "Paciente + exámenes copiado");
+    row.querySelector(".patient-copy-exams").addEventListener("click", (e) => {
+      copyToClipboard(buildPatientText(p, true), "Paciente + exámenes copiado", e.currentTarget);
     });
 
     bindDragHandle(row.querySelector(".patient-drag-handle"), row);
@@ -1364,7 +1396,7 @@
   patientResendCopyBtn.addEventListener("click", () => {
     const p = getOpenPatient();
     if (!p) return;
-    copyToClipboard(buildFinalReportText(p), "Reporte copiado");
+    copyToClipboard(buildFinalReportText(p), "Reporte copiado", patientResendCopyBtn);
   });
   patientResendWaBtn.addEventListener("click", () => {
     const p = getOpenPatient();
