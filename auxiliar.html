@@ -46,6 +46,8 @@
     </div>
   </div>
 
+  <div id="offlineBanner" class="offline-banner" hidden>🔌 Sin conexión — los pacientes se siguen guardando en el celular; entregar, Freshdesk y el catálogo de exámenes se reanudan solos cuando vuelva la señal.</div>
+
   <main style="display:block;">
 
     <!-- Importar planilla -->
@@ -59,7 +61,15 @@
       </details>
     </section>
 
-    <!-- Resumen del día -->
+    <!-- Guía de exámenes -->
+    <section class="card">
+      <details class="hour-group">
+        <summary><span class="group-label">🧪 Guía de exámenes</span><span id="examGuideBadge" class="group-badge">0</span></summary>
+        <p class="card-hint">Se construye sola con cada planilla que importas — busca por nombre o código, toca el tubo para corregirlo si hace falta.</p>
+        <input type="text" id="examGuideSearch" class="text-input" placeholder="Buscar por nombre o código...">
+        <div id="examGuideList" class="exam-guide-list"></div>
+      </details>
+    </section>
     <section id="summarySection" class="card" hidden>
       <details class="hour-group">
         <summary><span class="group-label">📊 Resumen del día</span></summary>
@@ -111,6 +121,18 @@
       </details>
     </section>
 
+    <!-- Papelería del día -->
+    <section id="papeleriaSection" class="card" hidden>
+      <details class="hour-group">
+        <summary><span class="group-label">📋 Papelería del día</span></summary>
+        <p class="card-hint">Cuánto papeleo llevar antes de salir, y cuántos tubos en total hacen falta hoy.</p>
+        <div id="papeleriaResumen"></div>
+        <div class="card-divider"></div>
+        <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">👤 Por paciente</div>
+        <div id="papeleriaLista" class="papeleria-list"></div>
+      </details>
+    </section>
+
     <!-- Entregar al logístico -->
     <section id="handoffSection" class="card" hidden>
       <details class="hour-group">
@@ -139,6 +161,36 @@
 
   </main>
 
+</div>
+
+<div id="examGuideEditModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="examGuideEditClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>🧪 Editar clasificación</h3>
+    <p id="examGuideEditName" class="card-hint">—</p>
+    <div id="examGuideEditChips" class="exam-clasificar-chips"></div>
+    <div class="exam-clasificar-extra">
+      <label class="exam-clasificar-extra-field">
+        ¿Cómo se toma este examen?
+        <select id="examGuideEditBehavior" class="text-input"></select>
+      </label>
+      <label class="exam-clasificar-extra-field exam-clasificar-solo">
+        <input type="checkbox" id="examGuideEditLuz">
+        🌑 Cubrir de la luz
+      </label>
+    </div>
+    <button id="examGuideEditSaveBtn" type="button" class="btn btn-primary" style="width:100%; margin-top:10px;">Guardar cambios</button>
+  </div>
+</div>
+
+<div id="examClasificarModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <h3>🧪 Exámenes nuevos — clasifícalos</h3>
+    <p class="card-hint">Aparecieron por primera vez en esta planilla. Dile a cada uno qué tubo necesita — así queda guardado para todas las próximas veces que salga.</p>
+    <div id="examClasificarList" class="exam-clasificar-list"></div>
+    <button id="examClasificarSkipBtn" type="button" class="ghost-btn">Dejarlos sin clasificar por ahora</button>
+    <button id="examClasificarContinueBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:8px;" disabled>Guardar y continuar</button>
+  </div>
 </div>
 
 <div id="handoffSelectModal" class="modal-overlay" hidden>
@@ -176,10 +228,12 @@
   <div class="modal-card modal-card-wide">
     <button id="patientCardClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
     <h3 id="patientCardTitle">Paciente</h3>
+    <div id="patientCardKeyRow" class="patient-card-key-row"></div>
     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
       <p id="patientCardMeta" class="card-hint" style="margin:0;">—</p>
       <button id="patientCancelBtn" type="button" class="cancel-link-btn">❌ Cancelar</button>
     </div>
+    <p id="patientCardAddress" class="patient-card-address"></p>
 
     <div id="patientCancelledBanner" class="cancelled-banner" hidden>
       <div class="cancelled-banner-title">❌ Paciente cancelado</div>
@@ -191,6 +245,7 @@
     <details class="hour-group" open>
       <summary><span class="group-label">🩺 Exámenes</span><span id="patientCardExamsBadge" class="group-badge">0</span></summary>
       <div id="patientCardExamsList" class="exam-list"></div>
+      <div id="patientCardTubeEstimate" class="tube-count-box"></div>
     </details>
 
     <details class="hour-group" open>
@@ -252,8 +307,10 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-  import { getFirestore, collection, doc, writeBatch, getDoc, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { getFirestore, collection, doc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
+  import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml } from "./exams.js";
+  import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml } from "./papeleria.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -297,6 +354,9 @@
     avatarEl.style.background = avatarColor(me.name);
   }
 
+  const examGuide = initExamGuide({ db, me, escapeHtml: escapeHtmlAux, showToast });
+  getCatalogoCached(db); // precarga en segundo plano, para que los chips de la tarjeta ya tengan color desde el primer paciente que se abra
+
   document.getElementById("logoutBtn").addEventListener("click", () => {
     try {
       localStorage.removeItem(AUXILIAR_IDENTITY_KEY);
@@ -304,6 +364,15 @@
     } catch (e) {}
     window.location.href = "index.html";
   });
+
+  // ---------------- Indicador de conexión ----------------
+  const offlineBanner = document.getElementById("offlineBanner");
+  function updateOfflineBanner() {
+    offlineBanner.hidden = navigator.onLine;
+  }
+  window.addEventListener("online", updateOfflineBanner);
+  window.addEventListener("offline", updateOfflineBanner);
+  updateOfflineBanner();
 
   // ---------------- Toast (igual que en index.html) ----------------
   const toast = document.getElementById("toast");
@@ -325,6 +394,13 @@
 
   function escapeHtmlAux(s) {
     return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // "21304718" -> "21.304.718" (formato colombiano de cédula)
+  function formatCedula(numDoc) {
+    const digits = String(numDoc || "").replace(/\D/g, "");
+    if (!digits) return numDoc || "";
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
 
   // ---------------- Sincronización con Freshdesk ----------------
@@ -455,8 +531,6 @@
         valorCobro: Number(row[8]) || 0,
         valorAjuste: 0,
         valorFinalManual: null,
-        valorAdicional: 0,
-        valorFinalOverride: null,
         arriboSitio: "",
         arriboPaciente: "",
         horaToma: "",
@@ -528,6 +602,20 @@
   // Completados = ya tiene hora de salida. En ruta = algo marcado pero
   // sin salida. Pendiente = nada marcado todavía. El dinero solo cuenta
   // una vez el paciente ya salió (recaudo real, no lo que falta cobrar).
+  const papeleriaSection = document.getElementById("papeleriaSection");
+  const papeleriaResumen = document.getElementById("papeleriaResumen");
+  const papeleriaLista = document.getElementById("papeleriaLista");
+
+  function renderPapeleria(patients) {
+    if (!patients || patients.length === 0) { papeleriaSection.hidden = true; return; }
+    papeleriaSection.hidden = false;
+    getCatalogoCached(db).then(catalogo => {
+      const resumen = resumenDelDia(catalogo, patients, getValorFinal, isFsfb);
+      papeleriaResumen.innerHTML = renderResumenDelDiaHtml(resumen);
+      papeleriaLista.innerHTML = renderChecklistListaHtml(catalogo, patients, getValorFinal, isFsfb, escapeHtmlAux);
+    });
+  }
+
   function renderDaySummary(patients) {
     if (!patients || patients.length === 0) {
       summarySection.hidden = true;
@@ -995,12 +1083,14 @@
           ${escapeHtmlAux(p.tipoCliente)} · N° ${escapeHtmlAux(p.solicitud)} · ${p.examenes.length} examen${p.examenes.length !== 1 ? "es" : ""}
         </div>
         <div class="patient-address">📍 ${escapeHtmlAux(p.direccion || "Sin dirección")}</div>
+        <div class="patient-doc">🪪 ${escapeHtmlAux(p.tipoDocumento || "")} ${escapeHtmlAux(formatCedula(p.numDocumento))}</div>
         <div class="patient-actions">
           <a class="place-action patient-action-map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buildMapsQuery(p.direccion))}" target="_blank" rel="noopener">🗺️ Maps</a>
           <a class="place-action patient-action-waze" href="https://waze.com/ul?q=${encodeURIComponent(buildMapsQuery(p.direccion))}&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>
           <button type="button" class="place-action patient-copy-addr">📋 Dirección</button>
           <button type="button" class="place-action patient-copy">👤 Copiar</button>
           <button type="button" class="place-action patient-copy-exams">🧪 Copiar + exámenes</button>
+          <button type="button" class="place-action patient-adres">🪪 Validar EPS (ADRES)</button>
         </div>
       </div>`;
 
@@ -1027,6 +1117,11 @@
     row.querySelector(".patient-copy-exams").addEventListener("click", (e) => {
       copyToClipboard(buildPatientText(p, true), "Paciente + exámenes copiado", e.currentTarget);
     });
+    row.querySelector(".patient-adres").addEventListener("click", (e) => {
+      window.open("https://www.adres.gov.co/consulte-su-eps", "_blank", "noopener");
+      const cedulaSinPuntos = String(p.numDocumento || "").replace(/\D/g, "");
+      copyToClipboard(cedulaSinPuntos, "Cédula copiada — pégala en ADRES", e.currentTarget);
+    });
 
     bindDragHandle(row.querySelector(".patient-drag-handle"), row);
 
@@ -1047,6 +1142,7 @@
       patientsList.appendChild(buildPatientRow(p, i));
     });
     renderDaySummary(currentPatients);
+    renderPapeleria(currentPatients);
     renderHandoffCard(currentPatients);
   }
 
@@ -1256,6 +1352,13 @@
     document.getElementById("importExcelInput").click();
   });
 
+  function finalizeImport(allPatients) {
+    savePatients(allPatients);
+    renderPatientsList(allPatients);
+    importStatus.textContent = `✅ Se importaron ${allPatients.length} pacientes.`;
+    showToast(`${allPatients.length} pacientes importados`, 2400);
+  }
+
   document.getElementById("importExcelInput").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1281,10 +1384,15 @@
           return;
         }
 
-        savePatients(allPatients);
-        renderPatientsList(allPatients);
-        importStatus.textContent = `✅ Se importaron ${allPatients.length} pacientes.`;
-        showToast(`${allPatients.length} pacientes importados`, 2400);
+        importStatus.textContent = "Revisando exámenes contra el catálogo...";
+        checkAndClassifyNewExams(
+          { db, me, escapeHtml: escapeHtmlAux, showToast, examScanFilter: (p) => !isFsfb(p) },
+          allPatients,
+          (patients, nuevosCount) => {
+            if (nuevosCount > 0) examGuide.invalidate();
+            finalizeImport(patients);
+          }
+        );
       } catch (err) {
         console.error(err);
         importStatus.textContent = "No se pudo leer el archivo. ¿Seguro que es un Excel válido?";
@@ -1313,21 +1421,6 @@
   function myReportEmoji() {
     return (me && AUXILIAR_EMOJIS[me.name]) || "🧪";
   }
-
-  const TUBOS_AUX = [
-    { key: "Amarillo",      emoji: "🟡" },
-    { key: "Lila",          emoji: "🟣" },
-    { key: "Azul",          emoji: "🔵" },
-    { key: "Rojo",          emoji: "🔴" },
-    { key: "Azul rey",      emoji: "👑" },
-    { key: "Transparente",  emoji: "⚪" },
-    { key: "Orina",         emoji: "💧" },
-    { key: "Orina 24h",     emoji: "🕐" },
-    { key: "Saliva",        emoji: "💦" },
-    { key: "Materia fecal", emoji: "💩" },
-    { key: "Laminas",       emoji: "🩸" },
-    { key: "Hisopo nasal",  emoji: "👃" },
-  ];
 
   const TIME_FIELDS = [
     { key: "arriboSitio",    label: "📍 Arribo al sitio" },
@@ -1363,7 +1456,10 @@
   const patientCardClose = document.getElementById("patientCardClose");
   const patientCardTitle = document.getElementById("patientCardTitle");
   const patientCardMeta = document.getElementById("patientCardMeta");
+  const patientCardKeyRow = document.getElementById("patientCardKeyRow");
+  const patientCardAddress = document.getElementById("patientCardAddress");
   const patientCardExamsList = document.getElementById("patientCardExamsList");
+  const patientCardTubeEstimate = document.getElementById("patientCardTubeEstimate");
   const patientCardExamsBadge = document.getElementById("patientCardExamsBadge");
   const patientTimeGrid = document.getElementById("patientTimeGrid");
   const patientTubesGrid = document.getElementById("patientTubesGrid");
@@ -1454,7 +1550,7 @@
       warnings.push("Cuenta al menos un tubo.");
     }
     const fsfb = isFsfb(p);
-    if ((getValorFinal(p) > 0 || fsfb) && !p.formaPago) {
+    if (getValorFinal(p) > 0 && !p.formaPago) {
       warnings.push("Selecciona la forma de pago.");
     }
     if (fsfb && p.entregoOrden === null) {
@@ -1532,9 +1628,19 @@
     const p = getOpenPatient();
     if (!p) return;
 
-    patientCardTitle.innerHTML = `<span class="co-dot" style="background:${isFsfb(p) ? "var(--fsfb)" : "var(--vip)"}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}`;
+    const coColor = isFsfb(p) ? "var(--fsfb)" : "var(--vip)";
+    patientCardTitle.innerHTML = `<span class="co-dot" style="background:${coColor}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}`;
+
     const valorFinal = getValorFinal(p);
-    patientCardMeta.innerHTML = `${escapeHtmlAux(p.tipoCliente)} · N° ${escapeHtmlAux(p.solicitud)} · Cita ${escapeHtmlAux(p.horaCita)} · Doc: <strong style="color:var(--text);">${escapeHtmlAux(p.tipoDocumento)} ${escapeHtmlAux(p.numDocumento)}</strong> · $${valorFinal.toLocaleString("es-CO")}`;
+    const pagado = valorFinal === 0 || !!p.formaPago;
+    const cedulaFormateada = formatCedula(p.numDocumento);
+
+    patientCardKeyRow.innerHTML = `
+      <span class="patient-card-solicitud" style="color:${coColor};">N° ${escapeHtmlAux(p.solicitud)}</span>
+      <span class="patient-card-valor" style="color:${pagado ? "var(--send)" : "var(--danger)"};">$${valorFinal.toLocaleString("es-CO")}</span>
+    `;
+    patientCardMeta.innerHTML = `${escapeHtmlAux(p.tipoCliente)} · Cita ${escapeHtmlAux(p.horaCita)} · Doc: <strong style="color:var(--text);">${escapeHtmlAux(p.tipoDocumento)} ${escapeHtmlAux(cedulaFormateada)}</strong>`;
+    patientCardAddress.textContent = p.direccion ? `📍 ${p.direccion}` : "";
     patientValorBadge.textContent = `$${valorFinal.toLocaleString("es-CO")}`;
 
     const hasAdjustment = (p.valorAjuste && p.valorAjuste !== 0) || p.valorFinalManual !== null;
@@ -1567,6 +1673,17 @@
     patientCardExamsList.innerHTML = p.examenes.length
       ? p.examenes.map(e => `<div class="exam-row">${escapeHtmlAux(e)}</div>`).join("")
       : '<p class="card-hint">Sin exámenes registrados.</p>';
+    patientCardTubeEstimate.innerHTML = "";
+    if (p.examenes.length) {
+      getCatalogoCached(db).then(catalogo => {
+        // Si el auxiliar ya cerró esta tarjeta o abrió otro paciente
+        // mientras se cargaba el catálogo, no pisar lo que se ve ahora.
+        if (getOpenPatient()?.id !== p.id) return;
+        patientCardExamsList.innerHTML = renderExamChipsHtml(catalogo, p.examenes, escapeHtmlAux);
+        const conteo = computeTubeCounts(catalogo, p.examenes);
+        patientCardTubeEstimate.innerHTML = renderTubeCountHtml(conteo, escapeHtmlAux);
+      });
+    }
 
     patientTimeGrid.innerHTML = TIME_FIELDS.map(f => {
       const isSalida = f.key === "horaSalida";
