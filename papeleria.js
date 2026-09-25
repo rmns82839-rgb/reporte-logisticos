@@ -192,7 +192,7 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
     // Para FSFB esa columna trae recomendaciones, no exámenes reales — ya
     // se muestra arriba como "Recomendaciones FSFB", no hay que repetirla.
     const examenesHtml = (!esFsfb && p.examenes && p.examenes.length > 0)
-      ? `<div class="papeleria-examenes">
+      ? `<div class="papeleria-examenes" data-pid="${p.id}">
           <span class="papeleria-examenes-label">🧪 Exámenes a tomar</span>
           <div class="exam-list">${renderExamChipsHtml(catalogo, p.examenes, escapeHtml)}</div>
         </div>`

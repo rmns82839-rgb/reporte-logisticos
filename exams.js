@@ -106,12 +106,69 @@ export function invalidateCatalogoCache() {
   catalogoCache = null;
 }
 
+// ---------------- Correcciones de nombres pegados ----------------
+// Cuando el auxiliar corrige o separa un examen que vino mal armado
+// desde el Excel, se guarda esa corrección para siempre en Firebase
+// (con quién y cuándo) — así, si el mismo texto pegado vuelve a
+// aparecer en otra planilla (el mismo error de la fuente original se
+// repite seguido), se aplica solo, sin que toque corregirlo de nuevo.
+function correccionDocId(textoOriginal) {
+  return normStr(textoOriginal).replace(/\s+/g, "_").slice(0, 120) || "correccion";
+}
+
+export async function guardarCorreccionExamen(db, textoOriginal, partes, editadoPor) {
+  try {
+    await setDoc(doc(db, "correccionesExamenes", correccionDocId(textoOriginal)), {
+      original: textoOriginal,
+      partes,
+      editadoPor: editadoPor || "",
+      actualizadoEn: serverTimestamp(),
+    }, { merge: true });
+    return true;
+  } catch (e) {
+    console.warn("[exams.js] No se pudo guardar la corrección:", e);
+    return false;
+  }
+}
+
+let correccionesCache = null;
+export async function getCorreccionesCached(db) {
+  if (correccionesCache) return correccionesCache;
+  try {
+    const snap = await getDocs(collection(db, "correccionesExamenes"));
+    const map = new Map();
+    snap.forEach(d => map.set(d.data().original, d.data().partes));
+    correccionesCache = map;
+  } catch (e) {
+    console.warn("[exams.js] No se pudo traer las correcciones de exámenes:", e);
+    correccionesCache = new Map();
+  }
+  return correccionesCache;
+}
+export function invalidateCorreccionesCache() {
+  correccionesCache = null;
+}
+
+// Aplica las correcciones ya conocidas a una lista de exámenes recién
+// importada — si un texto coincide EXACTO con uno ya corregido antes,
+// se reemplaza solo por sus partes corregidas.
+export function aplicarCorrecciones(examenes, correccionesMap) {
+  if (!correccionesMap || correccionesMap.size === 0) return examenes;
+  const resultado = [];
+  examenes.forEach(texto => {
+    const partes = correccionesMap.get(texto);
+    if (partes && partes.length) resultado.push(...partes);
+    else resultado.push(texto);
+  });
+  return resultado;
+}
+
 // Chips de colores para la lista de exámenes de la tarjeta del paciente
 // — cada examen se pinta con el color real del tubo que le corresponde
 // según el catálogo. Sin clasificar todavía = chip gris con "?".
 export function renderExamChipsHtml(catalogo, examenes, escapeHtml) {
   if (!examenes || examenes.length === 0) return "";
-  return examenes.map(examStr => {
+  return examenes.map((examStr, idx) => {
     const { codigo, nombre } = splitExamCodeName(examStr);
     const r = findInCatalogo(catalogo, codigo, nombre);
     const tb = r.entry ? TUBOS_AUX.find(t => t.key === r.entry.tubo) : null;
@@ -121,7 +178,7 @@ export function renderExamChipsHtml(catalogo, examenes, escapeHtml) {
     const sinClasificar = !r.entry;
     const cls = sinClasificar ? "exam-chip exam-chip-unclassified" : "exam-chip";
     const attrs = sinClasificar ? ` data-codigo="${escapeHtml(codigo)}" data-nombre="${escapeHtml(nombre)}" title="Toca para clasificar"` : "";
-    return `<div class="${cls}" style="border-left-color:${color};"${attrs}><span class="exam-chip-tube">${emoji}</span><span class="exam-chip-name">${escapeHtml(examStr)}${luz}</span></div>`;
+    return `<div class="${cls}" style="border-left-color:${color};"${attrs}><span class="exam-chip-tube">${emoji}</span><span class="exam-chip-name">${escapeHtml(examStr)}${luz}</span><button type="button" class="exam-chip-edit-btn" data-idx="${idx}" title="Editar o separar el nombre">✏️</button></div>`;
   }).join("");
 }
 

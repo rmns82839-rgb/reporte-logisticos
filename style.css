@@ -1105,6 +1105,16 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .exam-chip-tube{flex-shrink:0; font-size:13px;}
 .exam-chip-name{min-width:0; overflow-wrap:break-word;}
 .exam-chip-unclassified{cursor:pointer;}
+.exam-chip-edit-btn{
+  flex-shrink:0;
+  width:24px; height:24px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  font-size:11px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
 .exam-chip-unclassified:active{opacity:.7;}
 
 .tube-count-box:empty{display:none;}

@@ -210,6 +210,18 @@
   </div>
 </div>
 
+<div id="examRenameModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="examRenameClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>✏️ Editar examen</h3>
+    <p class="card-hint">Corrige el nombre si quedó mal, o sepáralo si dos exámenes quedaron pegados en uno solo.</p>
+    <input type="text" id="examRenameInput1" class="text-input" style="margin-bottom:8px;">
+    <input type="text" id="examRenameInput2" class="text-input" hidden>
+    <button id="examRenameSplitBtn" type="button" class="ghost-btn" style="width:100%; margin-top:4px;">✂️ Está pegado con otro — dividir en 2</button>
+    <button id="examRenameSaveBtn" type="button" class="btn btn-primary" style="width:100%; margin-top:10px;">Guardar</button>
+  </div>
+</div>
+
 <div id="examClasificarModal" class="modal-overlay" hidden>
   <div class="modal-card modal-card-wide">
     <h3>🧪 Exámenes nuevos — clasifícalos</h3>
@@ -349,7 +361,7 @@
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
   import { getFirestore, collection, doc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
-  import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml } from "./exams.js";
+  import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones } from "./exams.js";
   import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
 
   const firebaseConfig = {
@@ -696,6 +708,15 @@
         chip.addEventListener("click", (e) => {
           e.preventDefault(); // no cerrar el <details> del paciente al tocar el chip
           examGuide.openEditForExam(chip.dataset.codigo, chip.dataset.nombre, () => renderPapeleria(currentPatients));
+        });
+      });
+      papeleriaLista.querySelectorAll(".exam-chip-edit-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const pid = btn.closest(".papeleria-examenes")?.dataset.pid;
+          const p = currentPatients.find(x => x.id === pid);
+          if (p) openExamRenameModal(p, parseInt(btn.dataset.idx, 10));
         });
       });
       papeleriaLista.querySelectorAll(".papeleria-done-btn").forEach(btn => {
@@ -1484,7 +1505,7 @@
     importStatus.textContent = "Leyendo el archivo...";
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
         const data = new Uint8Array(ev.target.result);
         const workbook = XLSX.read(data, { type: "array", cellDates: true });
@@ -1499,6 +1520,16 @@
         if (allPatients.length === 0) {
           importStatus.textContent = `No encontré pacientes en una hoja para "${me.name}" en este archivo. Revisa que sea el Excel correcto.`;
           return;
+        }
+
+        // Aplica correcciones de nombres pegados ya conocidas de antes —
+        // si algo falla aquí, se importa igual sin corregir, nunca se
+        // bloquea el import por esto.
+        try {
+          const correcciones = await getCorreccionesCached(db);
+          allPatients.forEach(p => { p.examenes = aplicarCorrecciones(p.examenes, correcciones); });
+        } catch (e) {
+          console.warn("[auxiliar.html] No se pudieron aplicar las correcciones de exámenes:", e);
         }
 
         importStatus.textContent = "Revisando exámenes contra el catálogo...";
@@ -1646,6 +1677,57 @@
   });
 
   const patientCardExamsList = document.getElementById("patientCardExamsList");
+  const examRenameModal = document.getElementById("examRenameModal");
+  const examRenameClose = document.getElementById("examRenameClose");
+  const examRenameInput1 = document.getElementById("examRenameInput1");
+  const examRenameInput2 = document.getElementById("examRenameInput2");
+  const examRenameSplitBtn = document.getElementById("examRenameSplitBtn");
+  const examRenameSaveBtn = document.getElementById("examRenameSaveBtn");
+  let examRenameIdx = null;
+  let examRenamePatient = null;
+
+  function openExamRenameModal(p, idx) {
+    if (!p || !p.examenes[idx]) return;
+    examRenamePatient = p;
+    examRenameIdx = idx;
+    examRenameInput1.value = p.examenes[idx];
+    examRenameInput2.hidden = true;
+    examRenameInput2.value = "";
+    examRenameSplitBtn.hidden = false;
+    examRenameModal.hidden = false;
+  }
+  examRenameClose.addEventListener("click", () => { examRenameModal.hidden = true; });
+  examRenameModal.addEventListener("click", (e) => {
+    if (e.target === examRenameModal) examRenameModal.hidden = true;
+  });
+  examRenameSplitBtn.addEventListener("click", () => {
+    examRenameInput2.hidden = false;
+    examRenameInput2.value = examRenameInput1.value;
+    examRenameSplitBtn.hidden = true;
+  });
+  examRenameSaveBtn.addEventListener("click", async () => {
+    const p = examRenamePatient;
+    if (!p || examRenameIdx === null) return;
+    const original = p.examenes[examRenameIdx];
+    const nuevo1 = examRenameInput1.value.trim();
+    const nuevo2 = examRenameInput2.hidden ? null : examRenameInput2.value.trim();
+    const nuevos = [nuevo1, nuevo2].filter(Boolean);
+    if (nuevos.length === 0) { showToast("Escribe al menos un nombre", 1800); return; }
+
+    p.examenes.splice(examRenameIdx, 1, ...nuevos);
+    savePatients(currentPatients);
+    examRenameModal.hidden = true;
+    if (getOpenPatient()?.id === p.id) renderPatientCard();
+    renderPapeleria(currentPatients);
+    showToast(nuevos.length > 1 ? "Examen separado en dos" : "Examen actualizado", 1800);
+
+    // Se guarda para siempre — así si el mismo texto pegado vuelve a
+    // salir en otra planilla, se corrige solo, sin volver a tocarlo.
+    const ok = await guardarCorreccionExamen(db, original, nuevos, me ? me.name : "");
+    invalidateCorreccionesCache();
+    if (!ok) showToast("Se corrigió aquí, pero no se pudo guardar para futuras planillas — revisa tu conexión", 3600);
+  });
+
   const patientCardTubeEstimate = document.getElementById("patientCardTubeEstimate");
   const patientCardExamsBadge = document.getElementById("patientCardExamsBadge");
   const patientTimeGrid = document.getElementById("patientTimeGrid");
@@ -2100,6 +2182,12 @@
         patientCardExamsList.querySelectorAll(".exam-chip-unclassified").forEach(chip => {
           chip.addEventListener("click", () => {
             examGuide.openEditForExam(chip.dataset.codigo, chip.dataset.nombre, () => renderPatientCard());
+          });
+        });
+        patientCardExamsList.querySelectorAll(".exam-chip-edit-btn").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation(); // que no dispare también el clasificar del chip sin clasificar
+            openExamRenameModal(p, parseInt(btn.dataset.idx, 10));
           });
         });
         const conteo = computeTubeCounts(catalogo, p.examenes);
