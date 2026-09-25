@@ -837,7 +837,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   padding:12px 8px;
 }
 .summary-group-title{font-size:12px; font-weight:800; color:var(--text); margin-bottom:8px; text-align:center; overflow-wrap:break-word;}
-.summary-group-convenio{font-size:10px; font-weight:700; color:var(--text-faint); text-align:center; margin:-4px 0 8px;}
+.summary-group-convenio{font-size:11px; font-weight:800; text-align:center; margin:-4px 0 8px;}
 .summary-company-breakdown{display:flex; flex-wrap:wrap; justify-content:center; gap:5px; margin-top:8px;}
 .summary-company-chip{
   font-size:10px;
@@ -895,7 +895,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   padding:6px 2px;
 }
 .summary-stat-num{font-size:15px; font-weight:800; color:var(--text);}
-.summary-stat-label{font-size:8.5px; font-weight:700; color:var(--text-faint); text-align:center; line-height:1.2;}
+.summary-stat-label{font-size:8.5px; font-weight:800; color:var(--text-dim); text-align:center; line-height:1.2;}
 .summary-money{display:flex; flex-direction:column; gap:4px;}
 .summary-money-row{
   display:grid;
@@ -910,7 +910,20 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   white-space:nowrap;
 }
 .summary-money-row span:first-child{overflow:hidden; text-overflow:ellipsis;}
+.summary-money-row span:last-child{color:var(--send); font-weight:800;}
 .summary-money-row:first-child{border-top:none;}
+/* Dentro de las tarjetas angostas de FSFB/VIP, apilar en vez de
+   apretar en una sola línea — ahí es donde "Efectivo" se cortaba. */
+.summary-group .summary-money-row{
+  grid-template-columns:1fr;
+  grid-template-rows:auto auto;
+  white-space:normal;
+  text-align:center;
+  gap:1px;
+  padding:5px 2px;
+}
+.summary-group .summary-money-row span:first-child{overflow:visible; text-overflow:clip; font-size:10px; color:var(--text-faint);}
+.summary-group .summary-money-row span:last-child{font-size:13px;}
 
 .schedule-time-input{
   flex-shrink:0;
