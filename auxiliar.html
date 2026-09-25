@@ -110,6 +110,7 @@
                   <div class="summary-money-row"><span>🏦 PSE</span><span id="sumRestoPse">$0</span></div>
                   <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumRestoCancelado">0</span></div>
                 </div>
+                <div id="sumRestoPorCompania" class="summary-company-breakdown"></div>
               </div>
             </div>
 
@@ -546,6 +547,30 @@
   // La planilla trae DOS plantillas distintas por persona (ej. "IVAN M."
   // y "IVAN M. 1") — solo la que tiene "Valor cobro" trae pacientes de
   // verdad; la otra es un formulario interno que siempre viene vacío.
+  // A veces la misma persona sale en 2 (o más) filas de la planilla —
+  // unos exámenes se cobran, otros no, y quedan en filas separadas con
+  // números de solicitud distintos. Si el número de documento coincide,
+  // es la misma persona: se unifica en UNA sola tarjeta — exámenes y
+  // valor a cobrar se suman, número de solicitud queda con los dos
+  // pegados. Así no toca hacer 2 arribos ni 2 tarjetas para la misma
+  // visita.
+  function mergeDuplicatePatientRows(patients) {
+    const resultado = [];
+    patients.forEach(p => {
+      const key = String(p.numDocumento || "").replace(/\D/g, "");
+      const existente = key ? resultado.find(x => String(x.numDocumento || "").replace(/\D/g, "") === key) : null;
+      if (!existente) {
+        resultado.push(p);
+        return;
+      }
+      existente.solicitud = [existente.solicitud, p.solicitud].filter(Boolean).join(" ");
+      existente.examenes = [...existente.examenes, ...p.examenes];
+      existente.valorCobro = (existente.valorCobro || 0) + (p.valorCobro || 0);
+      existente.id = `${existente.id}_${p.id}`;
+    });
+    return resultado;
+  }
+
   function parseAuxiliarSheet(workbook, sheetName) {
     const ws = workbook.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
@@ -666,7 +691,7 @@
     getCatalogoCached(db).then(catalogo => {
       const resumen = resumenDelDia(catalogo, patients, getValorFinal, isFsfb);
       papeleriaResumen.innerHTML = renderResumenDelDiaHtml(resumen);
-      papeleriaLista.innerHTML = renderChecklistListaHtml(catalogo, patients, getValorFinal, isFsfb, escapeHtmlAux);
+      papeleriaLista.innerHTML = renderChecklistListaHtml(catalogo, patients, getValorFinal, isFsfb, escapeHtmlAux, (p) => getCompanyInfo(p).color);
       papeleriaLista.querySelectorAll(".exam-chip-unclassified").forEach(chip => {
         chip.addEventListener("click", (e) => {
           e.preventDefault(); // no cerrar el <details> del paciente al tocar el chip
@@ -731,6 +756,19 @@
     sumRestoTarjeta.textContent = moneyLabel(stats.resto.tarjeta);
     sumRestoPse.textContent = moneyLabel(stats.resto.pse);
     document.getElementById("sumRestoCancelado").textContent = stats.resto.cancelado;
+
+    const porCompania = {};
+    patients.forEach(p => {
+      if (isFsfb(p) || p.estado === "cancelado") return;
+      const info = getCompanyInfo(p);
+      if (info.key === "vip") return; // "VIP" genérico ya está en el total, no hace falta repetirlo
+      porCompania[info.key] = (porCompania[info.key] || { label: info.label, color: info.color, n: 0 });
+      porCompania[info.key].n++;
+    });
+    const companiaEntries = Object.values(porCompania);
+    document.getElementById("sumRestoPorCompania").innerHTML = companiaEntries.length
+      ? companiaEntries.map(c => `<span class="summary-company-chip" style="border-color:${c.color}66; color:${c.color};">${c.n} ${escapeHtmlAux(c.label)}</span>`).join("")
+      : "";
 
     const totalEfectivo = stats.fsfb.efectivo + stats.resto.efectivo;
     const totalTarjeta = stats.fsfb.tarjeta + stats.resto.tarjeta;
@@ -944,7 +982,7 @@
           date: localDateKey(),
           createdAt: serverTimestamp(),
           claimed: false,
-          company: isFsfb(p) ? "fsfb" : "vip",
+          company: handoffCompanyKey(p),
           patientName: p.nombrePaciente || "(sin nombre)",
           time: p.horaProgramada || p.horaCita || "",
           cancelled,
@@ -1146,7 +1184,7 @@
   function buildPatientRow(p, index) {
     const row = document.createElement("div");
     row.className = "patient-row patient-row-co" + (p.estado === "listo" ? " patient-row-done" : "") + (p.estado === "cancelado" ? " patient-row-cancelled" : "");
-    row.style.setProperty("--co-color", isFsfb(p) ? "var(--fsfb)" : "var(--vip)");
+    row.style.setProperty("--co-color", getCompanyInfo(p).color);
     row.dataset.id = p.id;
 
     row.innerHTML = `
@@ -1456,6 +1494,7 @@
         sheets.forEach(sheetName => {
           allPatients = allPatients.concat(parseAuxiliarSheet(workbook, sheetName));
         });
+        allPatients = mergeDuplicatePatientRows(allPatients);
 
         if (allPatients.length === 0) {
           importStatus.textContent = `No encontré pacientes en una hoja para "${me.name}" en este archivo. Revisa que sea el Excel correcto.`;
@@ -1743,6 +1782,45 @@
     return String(p.tipoCliente || "").toUpperCase().includes("FSFB");
   }
 
+  // Clasifica al paciente por su compañía real (no solo FSFB/VIP) — para
+  // colorear la lista, la tarjeta y papelería con más distinción, y para
+  // avisarle al logístico cuando lo que recibe es una póliza. FSFB sigue
+  // siendo su propio convenio; todo lo demás es "VIP" para la
+  // facturación, pero cada compañía tiene su propio color.
+  const COMPANY_COLORS = {
+    fsfb: "var(--fsfb)",
+    emermedica: "#e5484d",
+    axa: "#a855f7",
+    poliza: "#f59e0b",
+    particular: "#10b981",
+    vip: "var(--vip)",
+  };
+  function normalizarPalabras(texto) {
+    return String(texto || "").toUpperCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .split(/[^A-Z0-9]+/).filter(Boolean);
+  }
+  function getCompanyInfo(p) {
+    const palabras = normalizarPalabras(p.tipoCliente);
+    let key = "vip", label = "VIP";
+    if (palabras.includes("FSFB")) { key = "fsfb"; label = "FSFB"; }
+    else if (palabras.includes("POLIZA")) { key = "poliza"; label = "Póliza"; }
+    else if (palabras.includes("EMERMEDICA")) { key = "emermedica"; label = "Emermédica"; }
+    else if (palabras.includes("AXA")) { key = "axa"; label = "AXA"; }
+    else if (palabras.includes("PARTICULAR")) { key = "particular"; label = "Particular"; }
+    return { key, label, color: COMPANY_COLORS[key] };
+  }
+
+  // El módulo del logístico solo tiene 3 casilleros reales: fsfb, vip y
+  // poliza (con su propio botón y contador aparte). Emermédica, AXA,
+  // Particular y el VIP genérico caen todos en "vip" para el logístico
+  // — la única que necesita su propio casillero allá es póliza.
+  function handoffCompanyKey(p) {
+    const key = getCompanyInfo(p).key;
+    if (key === "fsfb" || key === "poliza") return key;
+    return "vip";
+  }
+
   // El valor final es: lo que trae la planilla + el ajuste (puede ser
   // negativo), a menos que se haya puesto un valor final a mano, que
   // reemplaza el cálculo por completo.
@@ -1802,42 +1880,57 @@
   }
 
   function sendArriboWhatsApp(p) {
-    const text = `${myReportEmoji()} *${p.solicitud || "—"}*\n\n📍 Arribo: ${p.arriboSitio}`;
+    const all = p.grupoId ? getGroupAll(p) : [p];
+    const solicitudes = all.map(x => `*${x.solicitud || "—"}*`).join(" + ");
+    const etiqueta = all.length > 1 ? " (mismo domicilio)" : "";
+    const text = `${myReportEmoji()} ${solicitudes}${etiqueta}\n\n📍 Arribo: ${p.arriboSitio}`;
     sendWhatsAppText(text);
   }
 
   // Formato pedido: número de solicitud solo, luego cada dato en su
   // propia línea, con negrita y emoji. Los tubos van como "cantidad
   // nombre". A los de FSFB se les agrega orden entregada y forma de pago.
+  function ordenLabel(entrego) {
+    return entrego ? "✅ *SI* entrega orden" : "❌ *NO* entrega orden";
+  }
+
   function buildFinalReportText(p) {
     const lines = [
       `${myReportEmoji()} *${p.solicitud || "—"}*`,
       "",
       `🕐 *Arribo*: ${p.arriboSitio || "—"}`,
+      "",
       `🚪 *Paciente*: ${p.arriboPaciente || "—"}`,
+      "",
       `🩸 *Toma*: ${p.horaToma || "—"}`,
+      "",
       `🚶 *Salida*: ${p.horaSalida || "—"}`,
       "",
       "🧪 *Tubos*:",
+      "",
     ];
     const tomados = TUBOS_AUX.filter(tb => (p.tubos[tb.key] || 0) > 0);
     if (tomados.length === 0) {
       lines.push("Sin tubos registrados");
+      lines.push("");
     } else {
-      tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
+      tomados.forEach(tb => { lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`); lines.push(""); });
     }
     if (isFsfb(p)) {
+      lines.push(ordenLabel(p.entregoOrden));
       lines.push("");
-      lines.push(`📄 *Entregó orden*: ${p.entregoOrden ? "Sí" : "No"}`);
       if (getValorFinal(p) > 0) {
         lines.push(`💰 *Valor a cobrar*: $${getValorFinal(p).toLocaleString("es-CO")}`);
+        lines.push("");
         lines.push(`💳 *Forma de pago*: ${paymentLabel(p.formaPago)}`);
+        lines.push("");
       }
     }
     if (p.novedades && p.novedades.trim()) {
-      lines.push("");
       lines.push(`📝 *Novedades*: ${p.novedades.trim()}`);
     }
+    // Quitar líneas en blanco sobrantes al final
+    while (lines.length && lines[lines.length - 1] === "") lines.pop();
     return lines.join("\n");
   }
 
@@ -1858,25 +1951,35 @@
       `${myReportEmoji()} ${solicitudes} (mismo domicilio)`,
       "",
       `🕐 *Arribo*: ${p0.arriboSitio || "—"}`,
+      "",
       `🚪 *Paciente*: ${p0.arriboPaciente || "—"}`,
+      "",
       `🚶 *Salida*: ${p0.horaSalida || "—"}`,
     ];
 
     all.forEach(p => {
       lines.push("");
       lines.push(`👤 *${p.nombrePaciente || "(sin nombre)"}* — N° ${p.solicitud || "—"}`);
+      lines.push("");
       lines.push(`🩸 Toma: ${p.horaToma || "—"}`);
+      lines.push("");
       const tomados = TUBOS_AUX.filter(tb => (p.tubos[tb.key] || 0) > 0);
-      lines.push(tomados.length
-        ? `🧪 Tubos: ${tomados.map(tb => `${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`).join(", ")}`
-        : "🧪 Sin tubos registrados");
+      if (tomados.length === 0) {
+        lines.push("🧪 Sin tubos registrados");
+      } else {
+        lines.push("🧪 Tubos:");
+        tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
+      }
       if (isFsfb(p)) {
-        lines.push(`📄 Entregó orden: ${p.entregoOrden ? "Sí" : "No"}`);
+        lines.push("");
+        lines.push(ordenLabel(p.entregoOrden));
       }
       if (!p.pagoConjunto && getValorFinal(p) > 0) {
+        lines.push("");
         lines.push(`💰 Valor: $${getValorFinal(p).toLocaleString("es-CO")} · ${paymentLabel(p.formaPago)}`);
       }
       if (p.novedades && p.novedades.trim()) {
+        lines.push("");
         lines.push(`📝 Novedades: ${p.novedades.trim()}`);
       }
     });
@@ -1907,7 +2010,7 @@
     const p = getOpenPatient();
     if (!p) return;
 
-    const coColor = isFsfb(p) ? "var(--fsfb)" : "var(--vip)";
+    const coColor = getCompanyInfo(p).color;
     patientCardTitle.innerHTML = `<span class="co-dot" style="background:${coColor}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}`;
 
     const valorFinal = getValorFinal(p);

@@ -153,7 +153,7 @@ function formatCedula(numDoc) {
 // recomendaciones de FSFB si las trae (esa columna en FSFB no es de
 // exámenes reales, así que se muestran aparte, no como chip de examen),
 // y por último el checklist de papelería.
-export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFsfb, escapeHtml) {
+export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFsfb, escapeHtml, getCompanyColor) {
   const activos = patients.filter(p => p.estado !== "cancelado");
   if (activos.length === 0) return '<p class="card-hint">Sin pacientes activos hoy.</p>';
 
@@ -161,7 +161,7 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
     const valor = getValorFinal(p);
     const esFsfb = isFsfb(p);
     const items = checklistPaciente(catalogo, p, valor, esFsfb);
-    const coColor = esFsfb ? "var(--fsfb)" : "var(--vip)";
+    const coColor = getCompanyColor ? getCompanyColor(p) : (esFsfb ? "var(--fsfb)" : "var(--vip)");
     const listo = !!p.papeleriaListo;
 
     const recomendacionesHtml = (esFsfb && p.examenes && p.examenes.length > 0)
