@@ -123,6 +123,11 @@
               <div class="summary-money-row summary-money-grand"><span>💰 Total general</span><span id="sumTotalGeneral">$0</span></div>
             </div>
 
+            <div id="freshdeskCounterBox" class="freshdesk-counter-box" hidden>
+              <span>🔗 Freshdesk</span>
+              <span id="freshdeskCounterText">0/0 actualizados</span>
+            </div>
+
             <div class="card-divider"></div>
             <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">🧾 Desglose de pagos</div>
             <div id="paymentBreakdownList" class="payment-breakdown-list"></div>
@@ -497,7 +502,7 @@
     if (!fdActivo()) return;
     if (!p.solicitud) return;
     try {
-      await fetch("/api/freshdesk-sync", {
+      const res = await fetch("/api/freshdesk-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -511,6 +516,12 @@
           },
         }),
       });
+      const json = await res.json().catch(() => null);
+      if (json && json.ok) {
+        p.freshdeskSincronizado = true;
+        savePatients(currentPatients);
+        renderDaySummary(currentPatients);
+      }
     } catch (e) {
       console.warn("[auxiliar.html] No se pudo sincronizar con Freshdesk:", e);
     }
@@ -633,6 +644,7 @@
         motivoCancelacion: "",
         estado: "pendiente",
         papeleriaListo: false,
+        freshdeskSincronizado: false,
         grupoId: null,
         pagoConjunto: false,
         valorConjuntoManual: null,
@@ -799,6 +811,16 @@
     document.getElementById("sumTotalPse").textContent = moneyLabel(totalPse);
     document.getElementById("sumTotalGeneral").textContent = moneyLabel(totalEfectivo + totalTarjeta + totalPse);
 
+    const freshdeskCounterBox = document.getElementById("freshdeskCounterBox");
+    if (fdActivo()) {
+      const activos = patients.filter(p => p.estado !== "cancelado");
+      const sincronizados = activos.filter(p => p.freshdeskSincronizado).length;
+      freshdeskCounterBox.hidden = false;
+      document.getElementById("freshdeskCounterText").textContent = `${sincronizados}/${activos.length} actualizados`;
+    } else {
+      freshdeskCounterBox.hidden = true;
+    }
+
     renderPaymentBreakdown(patients);
     pushAuxiliarStatus(patients, stats);
   }
@@ -857,12 +879,18 @@
       .map(key => `
         <div class="payment-breakdown-group">
           <div class="payment-breakdown-group-title">${methodLabels[key]}</div>
-          ${groups[key].map(p => `
+          ${groups[key].map(p => {
+            const info = getCompanyInfo(p);
+            return `
             <div class="payment-breakdown-row">
-              <span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
-              <span>$${getValorFinal(p).toLocaleString("es-CO")}</span>
+              <span class="payment-breakdown-name">
+                ${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}
+                <span class="payment-breakdown-company" style="color:${info.color};">${escapeHtmlAux(info.label)}</span>
+              </span>
+              <span class="payment-breakdown-amount">$${getValorFinal(p).toLocaleString("es-CO")}</span>
             </div>
-          `).join("")}
+          `;
+          }).join("")}
         </div>
       `);
     list.innerHTML = sections.length > 0
@@ -1700,9 +1728,29 @@
   examRenameModal.addEventListener("click", (e) => {
     if (e.target === examRenameModal) examRenameModal.hidden = true;
   });
+  // Busca un SEGUNDO código (4 a 7 dígitos seguidos de espacio) dentro
+  // del texto — si lo encuentra, ahí es donde empieza el otro examen, y
+  // separa justo en ese punto. Si no lo encuentra (el pegado no tiene un
+  // segundo código reconocible), deja los dos campos con el texto
+  // completo para que el auxiliar recorte a mano.
+  function sugerirSplitExamen(texto) {
+    const regex = /\d{4,7}(?:-[A-Za-z0-9]+)?\s/g;
+    let match, count = 0, segundoIdx = -1;
+    while ((match = regex.exec(texto)) !== null) {
+      count++;
+      if (count === 2) { segundoIdx = match.index; break; }
+    }
+    if (segundoIdx > 0) {
+      return [texto.slice(0, segundoIdx).trim(), texto.slice(segundoIdx).trim()];
+    }
+    return [texto, texto];
+  }
+
   examRenameSplitBtn.addEventListener("click", () => {
+    const [parte1, parte2] = sugerirSplitExamen(examRenameInput1.value);
+    examRenameInput1.value = parte1;
     examRenameInput2.hidden = false;
-    examRenameInput2.value = examRenameInput1.value;
+    examRenameInput2.value = parte2;
     examRenameSplitBtn.hidden = true;
   });
   examRenameSaveBtn.addEventListener("click", async () => {
@@ -1713,6 +1761,15 @@
     const nuevo2 = examRenameInput2.hidden ? null : examRenameInput2.value.trim();
     const nuevos = [nuevo1, nuevo2].filter(Boolean);
     if (nuevos.length === 0) { showToast("Escribe al menos un nombre", 1800); return; }
+
+    if (nuevos.length === 2) {
+      const cod1 = nuevo1.match(/^\d{4,7}/)?.[0];
+      const cod2 = nuevo2.match(/^\d{4,7}/)?.[0];
+      if (cod1 && cod1 === cod2) {
+        showToast("⚠️ Los dos quedaron con el mismo código al inicio — revisa que no se haya cortado mal antes de guardar", 4200);
+        return;
+      }
+    }
 
     p.examenes.splice(examRenameIdx, 1, ...nuevos);
     savePatients(currentPatients);
