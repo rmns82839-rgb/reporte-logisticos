@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 export function perplexityUrl(codigo, nombre) {
-  const query = `¿En qué tubo se toma el examen de laboratorio "${nombre}"${codigo ? ` (código CUPS ${codigo})` : ""} y para qué sirve?`;
+  const query = `Examen de laboratorio "${nombre}"${codigo ? ` (código CUPS ${codigo})` : ""}: ¿en qué tubo se toma (color y anticoagulante), requiere ayuno, condiciones especiales de la muestra (proteger de luz, frío), y se puede combinar con otros exámenes en el mismo tubo? ¿Para qué sirve?`;
   return `https://www.perplexity.ai/search?q=${encodeURIComponent(query)}`;
 }
 
