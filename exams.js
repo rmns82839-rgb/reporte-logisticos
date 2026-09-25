@@ -8,6 +8,11 @@ import {
   collection, doc, getDocs, setDoc, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
+export function perplexityUrl(codigo, nombre) {
+  const query = `¿En qué tubo se toma el examen de laboratorio "${nombre}"${codigo ? ` (código CUPS ${codigo})` : ""} y para qué sirve?`;
+  return `https://www.perplexity.ai/search?q=${encodeURIComponent(query)}`;
+}
+
 export const TUBOS_AUX = [
   { key: "Amarillo",      emoji: "🟡", color: "#e8b923" },
   { key: "Lila",          emoji: "🟣", color: "#9b6fd6" },
@@ -113,7 +118,10 @@ export function renderExamChipsHtml(catalogo, examenes, escapeHtml) {
     const color = tb ? tb.color : "#6b7280";
     const emoji = tb ? tb.emoji : "❓";
     const luz = r.entry && r.entry.cubrirLuz ? " 🌑" : "";
-    return `<div class="exam-chip" style="border-left-color:${color};"><span class="exam-chip-tube">${emoji}</span><span class="exam-chip-name">${escapeHtml(examStr)}${luz}</span></div>`;
+    const sinClasificar = !r.entry;
+    const cls = sinClasificar ? "exam-chip exam-chip-unclassified" : "exam-chip";
+    const attrs = sinClasificar ? ` data-codigo="${escapeHtml(codigo)}" data-nombre="${escapeHtml(nombre)}" title="Toca para clasificar"` : "";
+    return `<div class="${cls}" style="border-left-color:${color};"${attrs}><span class="exam-chip-tube">${emoji}</span><span class="exam-chip-name">${escapeHtml(examStr)}${luz}</span></div>`;
   }).join("");
 }
 
@@ -257,6 +265,7 @@ export async function guardarClasificacionExamen(db, docId, datos, clasificadoPo
       grupo: datos.grupo || "",
       capacidadGrupo: datos.grupo ? (datos.capacidadGrupo || 2) : 0,
       cubrirLuz: !!datos.cubrirLuz,
+      descripcion: (datos.descripcion || "").trim(),
       clasificadoPor: clasificadoPor || "",
       actualizadoEn: serverTimestamp(),
     }, { merge: true });
@@ -354,8 +363,8 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
     // próxima vez que aparezca).
     // Para conflictos: resolucion arranca en null ("mismo" | "diferente").
     const pending = [
-      ...nuevos.map(n => ({ ...n, tipo: "nuevo", tubo: "", tuboBehavior: "solo", cubrirLuz: false, omitido: false })),
-      ...conflictos.map(c => ({ ...c, tipo: "conflicto", tubo: "", tuboBehavior: "solo", cubrirLuz: false, omitido: false, resolucion: null })),
+      ...nuevos.map(n => ({ ...n, tipo: "nuevo", tubo: "", tuboBehavior: "solo", cubrirLuz: false, descripcion: "", omitido: false })),
+      ...conflictos.map(c => ({ ...c, tipo: "conflicto", tubo: "", tuboBehavior: "solo", cubrirLuz: false, descripcion: "", omitido: false, resolucion: null })),
     ];
 
     function tubosPickerHtml(ex, i) {
@@ -376,6 +385,11 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
             <input type="checkbox" class="cubrir-luz-check" data-idx="${i}" ${ex.cubrirLuz ? "checked" : ""}>
             🌑 Cubrir de la luz
           </label>
+          <label class="exam-clasificar-extra-field">
+            ¿Para qué sirve? (opcional)
+            <input type="text" class="text-input exam-descripcion-input" data-idx="${i}" value="${ex.descripcion || ""}" placeholder="Ej: mide el azúcar en sangre">
+          </label>
+          <a class="ghost-btn exam-perplexity-link" href="${perplexityUrl(ex.codigo, ex.nombre)}" target="_blank" rel="noopener">🔮 Preguntar en Perplexity</a>
         </div>
         <button type="button" class="ghost-btn exam-clasificar-skip" data-idx="${i}" style="margin-top:6px;">⏭️ Omitir este examen</button>
       `;
@@ -431,6 +445,11 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
       list.querySelectorAll(".cubrir-luz-check").forEach(chk => {
         chk.addEventListener("change", () => {
           pending[parseInt(chk.dataset.idx, 10)].cubrirLuz = chk.checked;
+        });
+      });
+      list.querySelectorAll(".exam-descripcion-input").forEach(inp => {
+        inp.addEventListener("input", () => {
+          pending[parseInt(inp.dataset.idx, 10)].descripcion = inp.value;
         });
       });
       list.querySelectorAll(".exam-clasificar-skip").forEach(btn => {
@@ -489,7 +508,7 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
         const campos = deriveTuboFields(ex.tubo, ex.tuboBehavior);
         const ok = await guardarClasificacionExamen(
           db, docId,
-          { codigo: codigoFinal, nombre: ex.nombre, tubo: ex.tubo, ...campos, cubrirLuz: ex.cubrirLuz },
+          { codigo: codigoFinal, nombre: ex.nombre, tubo: ex.tubo, ...campos, cubrirLuz: ex.cubrirLuz, descripcion: ex.descripcion },
           me ? me.name : ""
         );
         if (ok) guardados++; else fallidos++;
@@ -525,6 +544,8 @@ export function initExamGuide(deps) {
   const editName = document.getElementById("examGuideEditName");
   const editChips = document.getElementById("examGuideEditChips");
   const examGuideEditBehavior = document.getElementById("examGuideEditBehavior");
+  const examGuideEditDescripcion = document.getElementById("examGuideEditDescripcion");
+  const examGuideEditPerplexity = document.getElementById("examGuideEditPerplexity");
   const examGuideEditLuz = document.getElementById("examGuideEditLuz");
   const examGuideEditSaveBtn = document.getElementById("examGuideEditSaveBtn");
 
@@ -563,6 +584,7 @@ export function initExamGuide(deps) {
           <div class="exam-guide-info">
             <span class="exam-guide-name">${escapeHtml(ex.nombre)}</span>
             ${ex.codigo ? `<span class="exam-guide-code">#${escapeHtml(ex.codigo)}</span>` : ""}
+            ${ex.descripcion ? `<span class="exam-guide-desc">${escapeHtml(ex.descripcion)}</span>` : ""}
             ${quien ? `<span class="exam-guide-who">${escapeHtml(quien)}</span>` : ""}
           </div>
           <button type="button" class="exam-guide-tube-btn" data-id="${ex.id}">${tb ? `${tb.emoji} ${tb.key} · ${TUBO_BEHAVIOR_OPTIONS.find(o => o.value === inferTuboBehavior(ex))?.label || "va solo"}${ex.cubrirLuz ? " 🌑" : ""}` : "❓ Sin clasificar"}</button>
@@ -577,20 +599,35 @@ export function initExamGuide(deps) {
 
   // "Iván · 23/09 6:15 p. m."
   function formatQuienCuando(ex) {
-    if (!ex.clasificadoPor) return "";
     let cuando = "";
     if (ex.actualizadoEn && typeof ex.actualizadoEn.toDate === "function") {
       const d = ex.actualizadoEn.toDate();
       const fecha = d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" });
       const hora = d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" });
-      cuando = ` · ${fecha} ${hora}`;
+      cuando = `${fecha} ${hora}`;
     }
-    return `${ex.clasificadoPor}${cuando}`;
+    if (ex.clasificadoPor && cuando) return `${ex.clasificadoPor} · ${cuando}`;
+    return ex.clasificadoPor || cuando || "";
   }
 
   function openEditTube(id) {
     const ex = catalogo.find(e => e.id === id);
     if (!ex) return;
+    openEditForEntry(ex, false, null);
+  }
+
+  // Para clasificar directamente un examen que todavía no está en el
+  // catálogo (ej. tocando el chip ❓ en la tarjeta del paciente) — sin
+  // tener que ir primero a buscarlo en la Guía.
+  function openEditForExam(codigo, nombre, onClassified) {
+    const id = examDocId(codigo, nombre);
+    let ex = catalogo.find(e => e.id === id);
+    const esNuevo = !ex;
+    if (!ex) ex = { id, codigo: codigo || "", nombre, tubo: "", cantidadTubos: 1, grupo: "", capacidadGrupo: 0, cubrirLuz: false };
+    openEditForEntry(ex, esNuevo, onClassified);
+  }
+
+  function openEditForEntry(ex, esNuevo, onClassified) {
     let tuboElegido = ex.tubo || "";
     let behaviorElegido = inferTuboBehavior(ex);
 
@@ -615,6 +652,8 @@ export function initExamGuide(deps) {
     ).join("");
     examGuideEditBehavior.onchange = () => { behaviorElegido = examGuideEditBehavior.value; };
     examGuideEditLuz.checked = !!ex.cubrirLuz;
+    examGuideEditDescripcion.value = ex.descripcion || "";
+    examGuideEditPerplexity.href = perplexityUrl(ex.codigo, ex.nombre);
 
     examGuideEditSaveBtn.onclick = async () => {
       if (!tuboElegido) { showToast("Elige un tubo", 1800); return; }
@@ -623,7 +662,7 @@ export function initExamGuide(deps) {
       const campos = deriveTuboFields(tuboElegido, behaviorElegido);
       const ok = await guardarClasificacionExamen(
         db, ex.id,
-        { codigo: ex.codigo, nombre: ex.nombre, tubo: tuboElegido, ...campos, cubrirLuz: examGuideEditLuz.checked },
+        { codigo: ex.codigo, nombre: ex.nombre, tubo: tuboElegido, ...campos, cubrirLuz: examGuideEditLuz.checked, descripcion: examGuideEditDescripcion.value },
         deps.me ? deps.me.name : ""
       );
       examGuideEditSaveBtn.disabled = false;
@@ -634,10 +673,13 @@ export function initExamGuide(deps) {
         ex.grupo = campos.grupo;
         ex.capacidadGrupo = campos.capacidadGrupo;
         ex.cubrirLuz = examGuideEditLuz.checked;
+        ex.descripcion = examGuideEditDescripcion.value.trim();
+        if (esNuevo) catalogo.push(ex);
         invalidateCatalogoCache();
         render();
         editModal.hidden = true;
         showToast("Clasificación actualizada", 1800);
+        if (onClassified) onClassified();
       } else {
         showToast("No se pudo guardar — revisa tu conexión", 2400);
       }
@@ -660,5 +702,10 @@ export function initExamGuide(deps) {
   // para que la próxima vez que se abra la guía traiga los datos frescos.
   return {
     invalidate() { loaded = false; invalidateCatalogoCache(); },
+    async refreshBadgeOnly() {
+      const c = await getCatalogoCached(db);
+      badge.textContent = c.length;
+    },
+    openEditForExam,
   };
 }

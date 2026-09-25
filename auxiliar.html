@@ -50,101 +50,113 @@
 
   <main style="display:block;">
 
-    <!-- Importar planilla -->
+    <!-- Herramientas del día — todo lo que no es "trabajar con un paciente"
+         va agrupado aquí adentro, para no empujar la lista de pacientes
+         hacia abajo con 5 tarjetas colapsadas una encima de otra. -->
     <section class="card">
       <details class="hour-group">
-        <summary><span class="group-label">📥 Importar planilla del día</span></summary>
-        <p class="card-hint">Sube el Excel completo (con las hojas de todos) — se detecta sola tu hoja por tu nombre, sin que tengas que buscarla.</p>
-        <input id="importExcelInput" type="file" accept=".xlsx,.xls" hidden>
-        <button id="importExcelBtn" class="btn btn-primary" type="button" style="width:100%;">📂 Elegir archivo Excel</button>
-        <p id="importStatus" class="import-status" hidden></p>
-      </details>
-    </section>
+        <summary><span class="group-label">🧰 Herramientas del día</span></summary>
 
-    <!-- Guía de exámenes -->
-    <section class="card">
-      <details class="hour-group">
-        <summary><span class="group-label">🧪 Guía de exámenes</span><span id="examGuideBadge" class="group-badge">0</span></summary>
-        <p class="card-hint">Se construye sola con cada planilla que importas — busca por nombre o código, toca el tubo para corregirlo si hace falta.</p>
-        <input type="text" id="examGuideSearch" class="text-input" placeholder="Buscar por nombre o código...">
-        <div id="examGuideList" class="exam-guide-list"></div>
-      </details>
-    </section>
-    <section id="summarySection" class="card" hidden>
-      <details class="hour-group">
-        <summary><span class="group-label">📊 Resumen del día</span></summary>
-        <div class="summary-groups">
-          <div class="summary-group">
-            <div class="summary-group-title">🏥 FSFB</div>
-            <div class="summary-group-convenio">Convenio 05577</div>
-            <div class="summary-stats">
-              <div class="summary-stat"><span id="sumFsfbListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
-              <div class="summary-stat"><span id="sumFsfbProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
-              <div class="summary-stat"><span id="sumFsfbPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+        <!-- Importar planilla -->
+        <section class="card">
+          <details class="hour-group">
+            <summary><span class="group-label">📥 Importar planilla del día</span></summary>
+            <p class="card-hint">Sube el Excel completo (con las hojas de todos) — se detecta sola tu hoja por tu nombre, sin que tengas que buscarla.</p>
+            <input id="importExcelInput" type="file" accept=".xlsx,.xls" hidden>
+            <button id="importExcelBtn" class="btn btn-primary" type="button" style="width:100%;">📂 Elegir archivo Excel</button>
+            <p id="importStatus" class="import-status" hidden></p>
+          </details>
+        </section>
+
+        <!-- Guía de exámenes -->
+        <section class="card">
+          <details class="hour-group">
+            <summary><span class="group-label">🧪 Guía de exámenes</span><span id="examGuideBadge" class="group-badge">0</span></summary>
+            <p class="card-hint">Se construye sola con cada planilla que importas — busca por nombre o código, toca el tubo para corregirlo si hace falta.</p>
+            <input type="text" id="examGuideSearch" class="text-input" placeholder="Buscar por nombre o código...">
+            <div id="examGuideList" class="exam-guide-list"></div>
+          </details>
+        </section>
+        <section id="summarySection" class="card" hidden>
+          <details class="hour-group">
+            <summary><span class="group-label">📊 Resumen del día</span></summary>
+            <div class="summary-groups">
+              <div class="summary-group">
+                <div class="summary-group-title">🏥 FSFB</div>
+                <div class="summary-group-convenio">Convenio 05577</div>
+                <div class="summary-stats">
+                  <div class="summary-stat"><span id="sumFsfbListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
+                  <div class="summary-stat"><span id="sumFsfbProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
+                  <div class="summary-stat"><span id="sumFsfbPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+                </div>
+                <div class="summary-money">
+                  <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumFsfbEfectivo">$0</span></div>
+                  <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumFsfbTarjeta">$0</span></div>
+                  <div class="summary-money-row"><span>🏦 PSE</span><span id="sumFsfbPse">$0</span></div>
+                  <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumFsfbCancelado">0</span></div>
+                </div>
+              </div>
+              <div class="summary-group">
+                <div class="summary-group-title">🔴 VIP</div>
+                <div class="summary-group-convenio">Convenio 89631</div>
+                <div class="summary-stats">
+                  <div class="summary-stat"><span id="sumRestoListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
+                  <div class="summary-stat"><span id="sumRestoProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
+                  <div class="summary-stat"><span id="sumRestoPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+                </div>
+                <div class="summary-money">
+                  <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumRestoEfectivo">$0</span></div>
+                  <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumRestoTarjeta">$0</span></div>
+                  <div class="summary-money-row"><span>🏦 PSE</span><span id="sumRestoPse">$0</span></div>
+                  <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumRestoCancelado">0</span></div>
+                </div>
+              </div>
             </div>
-            <div class="summary-money">
-              <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumFsfbEfectivo">$0</span></div>
-              <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumFsfbTarjeta">$0</span></div>
-              <div class="summary-money-row"><span>🏦 PSE</span><span id="sumFsfbPse">$0</span></div>
-              <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumFsfbCancelado">0</span></div>
+
+            <div class="card-divider"></div>
+            <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">💰 Total recaudo general</div>
+            <div class="summary-money summary-money-total">
+              <div class="summary-money-row"><span>💵 Efectivo general</span><span id="sumTotalEfectivo">$0</span></div>
+              <div class="summary-money-row"><span>💳 Tarjeta general</span><span id="sumTotalTarjeta">$0</span></div>
+              <div class="summary-money-row"><span>🏦 PSE general</span><span id="sumTotalPse">$0</span></div>
+              <div class="summary-money-row summary-money-grand"><span>💰 Total general</span><span id="sumTotalGeneral">$0</span></div>
             </div>
-          </div>
-          <div class="summary-group">
-            <div class="summary-group-title">🔴 VIP</div>
-            <div class="summary-group-convenio">Convenio 89631</div>
-            <div class="summary-stats">
-              <div class="summary-stat"><span id="sumRestoListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
-              <div class="summary-stat"><span id="sumRestoProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
-              <div class="summary-stat"><span id="sumRestoPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+
+            <div class="card-divider"></div>
+            <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">🧾 Desglose de pagos</div>
+            <div id="paymentBreakdownList" class="payment-breakdown-list"></div>
+          </details>
+        </section>
+
+        <!-- Papelería del día -->
+        <section id="papeleriaSection" class="card" hidden>
+          <details class="hour-group">
+            <summary><span class="group-label">📋 Papelería del día</span></summary>
+            <p class="card-hint">Cuánto papeleo llevar antes de salir, y cuántos tubos en total hacen falta hoy.</p>
+            <div class="papeleria-scroll-wrap">
+              <div id="papeleriaResumen"></div>
+              <div class="card-divider"></div>
+              <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">👤 Por paciente</div>
+              <div id="papeleriaLista" class="papeleria-list"></div>
             </div>
-            <div class="summary-money">
-              <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumRestoEfectivo">$0</span></div>
-              <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumRestoTarjeta">$0</span></div>
-              <div class="summary-money-row"><span>🏦 PSE</span><span id="sumRestoPse">$0</span></div>
-              <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumRestoCancelado">0</span></div>
-            </div>
-          </div>
-        </div>
+          </details>
+        </section>
 
-        <div class="card-divider"></div>
-        <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">💰 Total recaudo general</div>
-        <div class="summary-money summary-money-total">
-          <div class="summary-money-row"><span>💵 Efectivo general</span><span id="sumTotalEfectivo">$0</span></div>
-          <div class="summary-money-row"><span>💳 Tarjeta general</span><span id="sumTotalTarjeta">$0</span></div>
-          <div class="summary-money-row"><span>🏦 PSE general</span><span id="sumTotalPse">$0</span></div>
-          <div class="summary-money-row summary-money-grand"><span>💰 Total general</span><span id="sumTotalGeneral">$0</span></div>
-        </div>
+        <!-- Entregar al logístico -->
+        <section id="handoffSection" class="card" hidden>
+          <details class="hour-group">
+            <summary><span class="group-label">📤 Entregar al logístico</span></summary>
+            <p id="handoffHint" class="card-hint">—</p>
+            <button id="handoffBtn" class="btn btn-primary" type="button" style="width:100%;">📤 Entregar pacientes completados</button>
 
-        <div class="card-divider"></div>
-        <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">🧾 Desglose de pagos</div>
-        <div id="paymentBreakdownList" class="payment-breakdown-list"></div>
-      </details>
-    </section>
+            <details id="handoffHistoryDetails" class="hour-group" hidden>
+              <summary><span class="group-label">📜 Ya entregados hoy</span><span id="handoffHistoryBadge" class="group-badge">0</span></summary>
+              <button id="handoffRevertAllBtn" type="button" class="ghost-btn" style="margin:0 0 8px;">↩️ Revertir todas las entregas de hoy</button>
+              <div id="handoffHistoryList" class="handoff-history-list"></div>
+            </details>
+          </details>
+        </section>
 
-    <!-- Papelería del día -->
-    <section id="papeleriaSection" class="card" hidden>
-      <details class="hour-group">
-        <summary><span class="group-label">📋 Papelería del día</span></summary>
-        <p class="card-hint">Cuánto papeleo llevar antes de salir, y cuántos tubos en total hacen falta hoy.</p>
-        <div id="papeleriaResumen"></div>
-        <div class="card-divider"></div>
-        <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">👤 Por paciente</div>
-        <div id="papeleriaLista" class="papeleria-list"></div>
-      </details>
-    </section>
-
-    <!-- Entregar al logístico -->
-    <section id="handoffSection" class="card" hidden>
-      <details class="hour-group">
-        <summary><span class="group-label">📤 Entregar al logístico</span></summary>
-        <p id="handoffHint" class="card-hint">—</p>
-        <button id="handoffBtn" class="btn btn-primary" type="button" style="width:100%;">📤 Entregar pacientes completados</button>
-
-        <details id="handoffHistoryDetails" class="hour-group" hidden>
-          <summary><span class="group-label">📜 Ya entregados hoy</span><span id="handoffHistoryBadge" class="group-badge">0</span></summary>
-          <button id="handoffRevertAllBtn" type="button" class="ghost-btn" style="margin:0 0 8px;">↩️ Revertir todas las entregas de hoy</button>
-          <div id="handoffHistoryList" class="handoff-history-list"></div>
-        </details>
       </details>
     </section>
 
@@ -178,6 +190,11 @@
         <input type="checkbox" id="examGuideEditLuz">
         🌑 Cubrir de la luz
       </label>
+      <label class="exam-clasificar-extra-field">
+        ¿Para qué sirve? (opcional)
+        <input type="text" id="examGuideEditDescripcion" class="text-input" placeholder="Ej: mide el azúcar en sangre">
+      </label>
+      <a id="examGuideEditPerplexity" class="ghost-btn exam-perplexity-link" href="#" target="_blank" rel="noopener">🔮 Preguntar en Perplexity</a>
     </div>
     <button id="examGuideEditSaveBtn" type="button" class="btn btn-primary" style="width:100%; margin-top:10px;">Guardar cambios</button>
   </div>
@@ -242,7 +259,7 @@
     </div>
 
     <div id="patientNormalFlow">
-    <details class="hour-group" open>
+    <details class="hour-group">
       <summary><span class="group-label">🩺 Exámenes</span><span id="patientCardExamsBadge" class="group-badge">0</span></summary>
       <div id="patientCardExamsList" class="exam-list"></div>
       <div id="patientCardTubeEstimate" class="tube-count-box"></div>
@@ -310,7 +327,7 @@
   import { getFirestore, collection, doc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
   import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml } from "./exams.js";
-  import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml } from "./papeleria.js";
+  import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -356,6 +373,8 @@
 
   const examGuide = initExamGuide({ db, me, escapeHtml: escapeHtmlAux, showToast });
   getCatalogoCached(db); // precarga en segundo plano, para que los chips de la tarjeta ya tengan color desde el primer paciente que se abra
+  initPapeleriaParallax();
+  examGuide.refreshBadgeOnly();
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
     try {
@@ -546,6 +565,7 @@
         entregadoLogisticoDocId: "",
         motivoCancelacion: "",
         estado: "pendiente",
+        papeleriaListo: false,
       });
     }
     return patients;
@@ -613,6 +633,30 @@
       const resumen = resumenDelDia(catalogo, patients, getValorFinal, isFsfb);
       papeleriaResumen.innerHTML = renderResumenDelDiaHtml(resumen);
       papeleriaLista.innerHTML = renderChecklistListaHtml(catalogo, patients, getValorFinal, isFsfb, escapeHtmlAux);
+      papeleriaLista.querySelectorAll(".exam-chip-unclassified").forEach(chip => {
+        chip.addEventListener("click", (e) => {
+          e.preventDefault(); // no cerrar el <details> del paciente al tocar el chip
+          examGuide.openEditForExam(chip.dataset.codigo, chip.dataset.nombre, () => renderPapeleria(currentPatients));
+        });
+      });
+      papeleriaLista.querySelectorAll(".papeleria-done-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation(); // no togglear el <details> del paciente al marcarlo
+          const p = currentPatients.find(x => x.id === btn.dataset.pid);
+          if (!p) return;
+          p.papeleriaListo = !p.papeleriaListo;
+          savePatients(currentPatients);
+          renderPapeleria(currentPatients);
+        });
+      });
+      papeleriaLista.querySelectorAll(".papeleria-collapse-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const details = btn.closest(".papeleria-patient-row");
+          if (details) details.open = false;
+          details.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
     });
   }
 
@@ -1389,7 +1433,7 @@
           { db, me, escapeHtml: escapeHtmlAux, showToast, examScanFilter: (p) => !isFsfb(p) },
           allPatients,
           (patients, nuevosCount) => {
-            if (nuevosCount > 0) examGuide.invalidate();
+            if (nuevosCount > 0) { examGuide.invalidate(); examGuide.refreshBadgeOnly(); }
             finalizeImport(patients);
           }
         );
@@ -1680,6 +1724,11 @@
         // mientras se cargaba el catálogo, no pisar lo que se ve ahora.
         if (getOpenPatient()?.id !== p.id) return;
         patientCardExamsList.innerHTML = renderExamChipsHtml(catalogo, p.examenes, escapeHtmlAux);
+        patientCardExamsList.querySelectorAll(".exam-chip-unclassified").forEach(chip => {
+          chip.addEventListener("click", () => {
+            examGuide.openEditForExam(chip.dataset.codigo, chip.dataset.nombre, () => renderPatientCard());
+          });
+        });
         const conteo = computeTubeCounts(catalogo, p.examenes);
         patientCardTubeEstimate.innerHTML = renderTubeCountHtml(conteo, escapeHtmlAux);
       });

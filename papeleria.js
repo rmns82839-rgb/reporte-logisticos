@@ -92,13 +92,53 @@ export function renderResumenDelDiaHtml(resumen) {
 
   const tubosEntries = Object.entries(resumen.tubosPorColor);
   const tubosHtml = tubosEntries.length > 0
-    ? `<p class="papeleria-tubos-total">🧪 Tubos del día: ${tubosEntries.map(([tubo, n]) => {
-        const tb = TUBOS_AUX.find(t => t.key === tubo);
-        return `${tb ? tb.emoji : ""} ${n} ${tubo}`;
-      }).join(" · ")}</p>`
+    ? `<div class="papeleria-tubos-total">
+        <span class="papeleria-tubos-label">🧪 Tubos del día</span>
+        <div class="papeleria-tubos-chips">
+          ${tubosEntries.map(([tubo, n]) => {
+            const tb = TUBOS_AUX.find(t => t.key === tubo);
+            return `<span class="papeleria-tubo-chip">${tb ? tb.emoji : ""} ${n} ${tubo}</span>`;
+          }).join("")}
+        </div>
+      </div>`
     : "";
 
-  return gridHtml + tubosHtml;
+  return `<div class="papeleria-parallax-wrap">
+    <div id="papeleriaParallaxBg" class="papeleria-parallax-bg"></div>
+    <div class="papeleria-parallax-content">${gridHtml}${tubosHtml}</div>
+  </div>`;
+}
+
+// Efecto parallax sutil del fondo del resumen — se llama UNA vez al
+// cargar la página. El fondo se mueve un poco más lento que el scroll,
+// dando sensación de profundidad. Vuelve a buscar el elemento en cada
+// scroll (se recrea cada vez que se repinta el resumen), así que no
+// importa si el contenido cambia.
+let parallaxInited = false;
+export function initPapeleriaParallax() {
+  if (parallaxInited) return;
+  parallaxInited = true;
+  let ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const el = document.getElementById("papeleriaParallaxBg");
+      if (el) {
+        const rect = el.parentElement.getBoundingClientRect();
+        el.style.transform = `translateY(${rect.top * 0.15}px)`;
+      }
+      ticking = false;
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  // El resumen ahora vive dentro de su propio contenedor con scroll
+  // interno (.papeleria-scroll-wrap) — ese scroll no dispara el evento
+  // en window, así que hay que escucharlo aparte (con capture, porque
+  // el scroll no burbujea).
+  document.addEventListener("scroll", (e) => {
+    if (e.target.classList && e.target.classList.contains("papeleria-scroll-wrap")) onScroll();
+  }, { passive: true, capture: true });
 }
 
 // "22323050" -> "22.323.050" (formato colombiano)
@@ -117,11 +157,12 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
   const activos = patients.filter(p => p.estado !== "cancelado");
   if (activos.length === 0) return '<p class="card-hint">Sin pacientes activos hoy.</p>';
 
-  return activos.map(p => {
+  return activos.map((p, idx) => {
     const valor = getValorFinal(p);
     const esFsfb = isFsfb(p);
     const items = checklistPaciente(catalogo, p, valor, esFsfb);
     const coColor = esFsfb ? "var(--fsfb)" : "var(--vip)";
+    const listo = !!p.papeleriaListo;
 
     const recomendacionesHtml = (esFsfb && p.examenes && p.examenes.length > 0)
       ? `<div class="papeleria-reco">
@@ -133,12 +174,15 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
     const conteo = computeTubeCounts(catalogo, p.examenes);
     const porColor = {};
     conteo.tubos.forEach(t => { porColor[t.tubo] = (porColor[t.tubo] || 0) + t.cantidad; });
-    const tubosResumen = Object.entries(porColor).map(([tubo, n]) => {
+    const tubosChipsPaciente = Object.entries(porColor).map(([tubo, n]) => {
       const tb = TUBOS_AUX.find(x => x.key === tubo);
-      return `${tb ? tb.emoji : ""} ${n} ${escapeHtml(tubo)}`;
-    }).join(" · ");
+      return `<span class="papeleria-tubo-chip">${tb ? tb.emoji : ""} ${n} ${escapeHtml(tubo)}</span>`;
+    }).join("");
     const tubosHtml = conteo.totalTubos > 0
-      ? `<p class="papeleria-tubos-paciente">🧪 ${conteo.totalTubos} tubo${conteo.totalTubos !== 1 ? "s" : ""}: ${tubosResumen}</p>`
+      ? `<div class="papeleria-tubos-paciente">
+          <span class="papeleria-tubos-paciente-label">🧪 ${conteo.totalTubos} tubo${conteo.totalTubos !== 1 ? "s" : ""}</span>
+          <div class="papeleria-tubos-chips">${tubosChipsPaciente}</div>
+        </div>`
       : "";
 
     const pagoHtml = valor > 0
@@ -155,8 +199,12 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
       : "";
 
     return `
-      <div class="papeleria-patient-row">
-        <div class="papeleria-patient-name">${escapeHtml(p.nombrePaciente || "(sin nombre)")}</div>
+      <details class="papeleria-patient-row${listo ? " done" : ""}" style="border-left-color:${coColor};">
+        <summary class="papeleria-patient-name">
+          <span class="papeleria-patient-num">${idx + 1}</span>
+          <span class="papeleria-patient-name-text">${escapeHtml(p.nombrePaciente || "(sin nombre)")}</span>
+          <button type="button" class="papeleria-done-btn${listo ? " active" : ""}" data-pid="${p.id}" title="Marcar papelería lista">${listo ? "✅" : "⬜"}</button>
+        </summary>
         <div class="papeleria-info-grid">
           <div class="papeleria-info-row"><span>Documento</span><strong>${escapeHtml(p.tipoDocumento)} ${escapeHtml(formatCedula(p.numDocumento))}</strong></div>
           <div class="papeleria-info-row"><span>Dirección</span><strong>${escapeHtml(p.direccion || "—")}</strong></div>
@@ -168,7 +216,8 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
         ${examenesHtml}
         ${recomendacionesHtml}
         <div class="papeleria-patient-items">${items.map(it => `<span class="papeleria-chip">${escapeHtml(it.label)}</span>`).join("")}</div>
-      </div>
+        <button type="button" class="ghost-btn papeleria-collapse-btn">▲ Colapsar</button>
+      </details>
     `;
   }).join("");
 }

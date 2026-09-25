@@ -290,6 +290,8 @@ main{
   flex-direction:column;
   gap:14px;
 }
+details.hour-group section.card{margin-top:14px;}
+details.hour-group section.card:first-child{margin-top:14px;}
 
 .card{
   background:linear-gradient(165deg, var(--surface-2), var(--surface) 60%);
@@ -489,8 +491,8 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   border-radius:var(--radius-m);
   background:var(--surface-2);
   margin-bottom:10px;
-  overflow:hidden;
 }
+.hour-group:not([open]), .tube-group:not([open]){overflow:hidden;}
 .hour-group:last-of-type, .tube-group:last-of-type{margin-bottom:0;}
 .hour-group > summary, .tube-group > summary{
   list-style:none;
@@ -972,12 +974,12 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .tube-pick-chip span{font-size:8px; font-weight:700; color:var(--text-faint); line-height:1;}
 .tube-pick-chip.active{border-color:var(--send); background:var(--send-soft);}
 
-.exam-guide-list{max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:10px;}
+.exam-guide-list{max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:10px;}
 .exam-guide-row{
   display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:6px;
   background:var(--surface-3);
   border:1px solid var(--border);
   border-radius:10px;
@@ -987,6 +989,8 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .exam-guide-name{display:block; font-size:12px; font-weight:700; color:var(--text); overflow-wrap:break-word;}
 .exam-guide-code{font-size:10px; font-weight:600; color:var(--text-faint);}
 .exam-guide-who{display:block; font-size:10px; font-weight:600; color:var(--text-faint); margin-top:2px;}
+.exam-guide-desc{display:block; font-size:10.5px; font-weight:600; color:var(--text-dim); margin-top:2px; font-style:italic;}
+.exam-perplexity-link{display:block; text-align:center; margin-top:6px; font-size:11.5px;}
 .exam-clasificar-item.omitted{opacity:.6; border-color:var(--text-faint);}
 
 .exam-clasificar-extra{display:flex; flex-direction:column; gap:8px; margin-top:8px;}
@@ -1012,8 +1016,9 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .exam-conflict-buttons .ghost-btn{flex:1; font-size:11.5px;}
 .exam-conflict-buttons .btn{flex:1; font-size:11.5px; padding:8px;}
 .exam-guide-tube-btn{
-  flex-shrink:0;
-  white-space:nowrap;
+  align-self:stretch;
+  white-space:normal;
+  text-align:left;
   font-size:11px;
   font-weight:700;
   color:var(--text-dim);
@@ -1090,6 +1095,8 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 }
 .exam-chip-tube{flex-shrink:0; font-size:13px;}
 .exam-chip-name{min-width:0; overflow-wrap:break-word;}
+.exam-chip-unclassified{cursor:pointer;}
+.exam-chip-unclassified:active{opacity:.7;}
 
 .tube-count-box:empty{display:none;}
 .tube-count-total{font-size:12.5px; font-weight:800; color:var(--text); margin:10px 0 4px;}
@@ -1106,6 +1113,30 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .tube-count-detail{display:block; font-size:10.5px; font-weight:600; color:var(--text-faint); margin-top:1px;}
 .tube-count-warning{font-size:11px; font-weight:600; color:#ffb020; margin-top:8px; line-height:1.4;}
 
+#papeleriaResumen{display:contents;}
+.papeleria-scroll-wrap{max-height:70vh; overflow-y:auto; overflow-x:hidden;}
+.papeleria-parallax-wrap{
+  position:sticky;
+  top:8px;
+  z-index:5;
+  overflow:hidden;
+  border-radius:14px;
+  padding:14px 10px 10px;
+  background:linear-gradient(165deg, var(--surface-2), var(--surface) 65%);
+  border:1px solid var(--border);
+  box-shadow:0 8px 20px rgba(0,0,0,0.35);
+}
+.papeleria-parallax-bg{
+  position:absolute;
+  inset:-25% -15%;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(37,99,235,.28), transparent 55%),
+    radial-gradient(circle at 80% 75%, rgba(168,85,247,.22), transparent 50%);
+  pointer-events:none;
+  will-change:transform;
+  z-index:0;
+}
+.papeleria-parallax-content{position:relative; z-index:1;}
 .papeleria-grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;}
 .papeleria-count-card{
   background:var(--surface-3);
@@ -1116,14 +1147,77 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 }
 .papeleria-count-num{font-size:18px; font-weight:900;}
 .papeleria-count-label{font-size:9px; font-weight:700; color:var(--text-dim); margin-top:2px;}
-.papeleria-tubos-total{font-size:11.5px; font-weight:700; color:var(--text-dim); margin-top:10px; line-height:1.5; text-align:center;}
+.papeleria-tubos-total{margin-top:10px; text-align:center;}
+.papeleria-tubos-label{display:block; font-size:11px; font-weight:800; color:var(--text-dim); margin-bottom:6px;}
+.papeleria-tubos-chips{display:flex; flex-wrap:wrap; gap:6px;}
+.papeleria-parallax-content .papeleria-tubos-chips{justify-content:center;}
+.papeleria-tubo-chip{
+  font-size:11px;
+  font-weight:700;
+  color:var(--text-dim);
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:5px 10px;
+  white-space:nowrap;
+  flex-shrink:0;
+}
 .papeleria-patient-row{
   background:var(--surface-3);
   border:1px solid var(--border);
+  border-left:4px solid var(--text-faint);
   border-radius:10px;
   padding:9px 10px;
 }
-.papeleria-patient-name{font-size:12px; font-weight:700; color:var(--text); margin-bottom:6px;}
+.papeleria-patient-row > summary{
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  -webkit-tap-highlight-color:transparent;
+}
+.papeleria-patient-row > summary::-webkit-details-marker{display:none;}
+.papeleria-patient-row > summary::after{
+  content:"";
+  width:7px;
+  height:7px;
+  border-right:2px solid var(--text-faint);
+  border-bottom:2px solid var(--text-faint);
+  transform:rotate(-45deg);
+  transition:transform .18s ease;
+  flex-shrink:0;
+  margin-left:auto;
+}
+.papeleria-patient-row[open] > summary::after{transform:rotate(45deg);}
+.papeleria-patient-row[open] > summary{margin-bottom:8px;}
+.papeleria-patient-name{font-size:12px; font-weight:700; color:var(--text);}
+.papeleria-patient-num{
+  flex-shrink:0;
+  width:20px; height:20px;
+  border-radius:50%;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--text-faint);
+  font-size:10.5px;
+  font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+}
+.papeleria-patient-name-text{flex:1; min-width:0;}
+.papeleria-done-btn{
+  flex-shrink:0;
+  width:28px; height:28px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  font-size:14px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.papeleria-done-btn.active{border-color:var(--send); background:var(--send-soft);}
+.papeleria-patient-row.done{opacity:.55;}
+.papeleria-patient-row.done .papeleria-patient-num{background:var(--send-soft); border-color:var(--send); color:var(--send);}
+.papeleria-collapse-btn{width:100%; margin-top:10px; font-size:11.5px;}
 .papeleria-info-grid{display:flex; flex-direction:column; gap:5px; margin-bottom:8px;}
 .papeleria-info-row{display:flex; justify-content:space-between; gap:10px; font-size:11px;}
 .papeleria-info-row span{color:var(--text-faint); font-weight:600; flex-shrink:0;}
@@ -1137,7 +1231,8 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   border-radius:8px;
   margin-bottom:8px;
 }
-.papeleria-tubos-paciente{font-size:11px; font-weight:700; color:var(--text-dim); margin:0 0 5px;}
+.papeleria-tubos-paciente{margin:0 0 8px;}
+.papeleria-tubos-paciente-label{display:block; font-size:11px; font-weight:700; color:var(--text-dim); margin-bottom:5px;}
 .papeleria-pago{font-size:11.5px; font-weight:800; color:var(--send); margin:0 0 8px;}
 .papeleria-pago-no{color:var(--text-faint); font-weight:600;}
 .papeleria-examenes{margin-bottom:8px;}
