@@ -200,6 +200,15 @@
   </div>
 </div>
 
+<div id="linkPatientModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="linkPatientClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>🔗 Vincular paciente</h3>
+    <p class="card-hint">Elige con cuál paciente comparte domicilio — arribo, arribo al paciente y salida quedarán sincronizados entre los dos.</p>
+    <div id="linkPatientList" class="handoff-select-list"></div>
+  </div>
+</div>
+
 <div id="examClasificarModal" class="modal-overlay" hidden>
   <div class="modal-card modal-card-wide">
     <h3>🧪 Exámenes nuevos — clasifícalos</h3>
@@ -251,6 +260,8 @@
       <button id="patientCancelBtn" type="button" class="cancel-link-btn">❌ Cancelar</button>
     </div>
     <p id="patientCardAddress" class="patient-card-address"></p>
+    <div id="patientLinkBanner" class="patient-link-banner" hidden></div>
+    <button id="patientLinkBtn" type="button" class="ghost-btn" style="margin-bottom:10px;">🔗 Vincular con otro paciente (mismo domicilio)</button>
 
     <div id="patientCancelledBanner" class="cancelled-banner" hidden>
       <div class="cancelled-banner-title">❌ Paciente cancelado</div>
@@ -282,6 +293,17 @@
 
     <details class="hour-group" open>
       <summary><span class="group-label">💳 Forma de pago</span><span id="patientValorBadge" class="group-badge">$0</span></summary>
+      <div id="pagoConjuntoBox" class="pago-conjunto-box" hidden>
+        <label class="exam-clasificar-solo" style="margin-bottom:10px;">
+          <input type="checkbox" id="pagoConjuntoToggle">
+          💰 Pago conjunto con el paciente vinculado
+        </label>
+        <div id="pagoConjuntoFields" hidden>
+          <p class="card-hint" id="pagoConjuntoSumaHint" style="margin:0 0 6px;"></p>
+          <input type="number" id="valorConjuntoInput" class="text-input" placeholder="Valor total (vacío = suma automática)" inputmode="numeric">
+          <div id="pagoConjuntoMetodo" class="company-tube-buttons" style="margin-top:10px;"></div>
+        </div>
+      </div>
       <div id="patientPaymentButtons" class="company-tube-buttons"></div>
       <button id="patientPaymentNoticeBtn" type="button" class="ghost-btn" hidden>📤 Avisar pago por WhatsApp</button>
 
@@ -506,10 +528,18 @@
     return String(val || "").trim();
   }
 
+  // A veces Excel usa un salto de línea en vez de "//" entre dos
+  // exámenes — pero ese mismo salto de línea también aparece DENTRO de
+  // un examen cuando el texto se envuelve visualmente en la celda
+  // (ej. "902210 \nHEMOGRAMA" es un solo examen, no dos). La diferencia:
+  // si justo después del salto viene un código nuevo (4 a 7 dígitos),
+  // es un separador real; si no, es solo el nombre partido por el ancho
+  // de la celda.
   function parseExamenes(val) {
-    return String(val || "")
+    const normalizado = String(val || "").replace(/\n(?=\d{4,7}(-[A-Za-z0-9]+)?\s)/g, " // ");
+    return normalizado
       .split("//")
-      .map(s => s.replace(/\t/g, " ").replace(/\s+/g, " ").trim())
+      .map(s => s.replace(/[\t\n]/g, " ").replace(/\s+/g, " ").trim())
       .filter(Boolean);
   }
 
@@ -566,6 +596,10 @@
         motivoCancelacion: "",
         estado: "pendiente",
         papeleriaListo: false,
+        grupoId: null,
+        pagoConjunto: false,
+        valorConjuntoManual: null,
+        formaPagoConjunta: "",
       });
     }
     return patients;
@@ -1120,7 +1154,7 @@
       <button type="button" class="patient-num-input" title="Toca para numerar en modo Reorganizar">${index + 1}</button>
       <div class="patient-body">
         <div class="patient-top">
-          <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
+          <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}${p.grupoId ? ' <span title="Vinculado con otros pacientes">🔗</span>' : ""}</span>
           <span class="patient-time">${escapeHtmlAux(p.horaProgramada || p.horaCita)}</span>
         </div>
         <div class="patient-meta">
@@ -1502,6 +1536,76 @@
   const patientCardMeta = document.getElementById("patientCardMeta");
   const patientCardKeyRow = document.getElementById("patientCardKeyRow");
   const patientCardAddress = document.getElementById("patientCardAddress");
+  const patientLinkBanner = document.getElementById("patientLinkBanner");
+  const patientLinkBtn = document.getElementById("patientLinkBtn");
+  const linkPatientModal = document.getElementById("linkPatientModal");
+  const linkPatientClose = document.getElementById("linkPatientClose");
+  const linkPatientList = document.getElementById("linkPatientList");
+  const pagoConjuntoBox = document.getElementById("pagoConjuntoBox");
+  const pagoConjuntoToggle = document.getElementById("pagoConjuntoToggle");
+  const pagoConjuntoFields = document.getElementById("pagoConjuntoFields");
+  const pagoConjuntoSumaHint = document.getElementById("pagoConjuntoSumaHint");
+  const valorConjuntoInput = document.getElementById("valorConjuntoInput");
+  const pagoConjuntoMetodo = document.getElementById("pagoConjuntoMetodo");
+
+  patientLinkBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    const grupoActual = new Set([p.id, ...getGroupMates(p).map(m => m.id)]);
+    const candidatos = currentPatients.filter(x => !grupoActual.has(x.id) && x.estado !== "cancelado" && !x.grupoId);
+    if (candidatos.length === 0) {
+      showToast("No hay otros pacientes disponibles para vincular", 2600);
+      return;
+    }
+    linkPatientList.innerHTML = candidatos.map(c => `
+      <label class="handoff-select-row" data-id="${c.id}">
+        <span class="handoff-select-info">
+          <span class="handoff-select-name">${escapeHtmlAux(c.nombrePaciente || "(sin nombre)")}</span>
+          <span class="handoff-select-meta">${escapeHtmlAux(c.tipoCliente)} · N° ${escapeHtmlAux(c.solicitud)}</span>
+        </span>
+      </label>
+    `).join("");
+    linkPatientList.querySelectorAll(".handoff-select-row").forEach(row => {
+      row.addEventListener("click", () => {
+        addPatientToGroup(p.id, row.dataset.id);
+        linkPatientModal.hidden = true;
+        renderPatientCard();
+        renderPatientsList(currentPatients);
+        showToast("Pacientes vinculados", 2000);
+      });
+    });
+    linkPatientModal.hidden = false;
+  });
+  linkPatientClose.addEventListener("click", () => { linkPatientModal.hidden = true; });
+  linkPatientModal.addEventListener("click", (e) => {
+    if (e.target === linkPatientModal) linkPatientModal.hidden = true;
+  });
+
+  pagoConjuntoToggle.addEventListener("change", () => {
+    const p = getOpenPatient();
+    const mates = p ? getGroupMates(p) : [];
+    if (!p || mates.length === 0) return;
+    p.pagoConjunto = pagoConjuntoToggle.checked;
+    mates.forEach(m => { m.pagoConjunto = p.pagoConjunto; });
+    savePatients(currentPatients);
+    renderPatientCard();
+  });
+  valorConjuntoInput.addEventListener("input", () => {
+    const p = getOpenPatient();
+    const mates = p ? getGroupMates(p) : [];
+    if (!p) return;
+    const val = valorConjuntoInput.value.trim() === "" ? null : Number(valorConjuntoInput.value);
+    p.valorConjuntoManual = val;
+    mates.forEach(m => { m.valorConjuntoManual = val; });
+    savePatients(currentPatients);
+    if (mates.length > 0) {
+      const all = getGroupAll(p);
+      const total = getValorConjunto(all);
+      const sumaAuto = all.reduce((s, x) => s + getValorFinal(x), 0);
+      pagoConjuntoSumaHint.textContent = `Suma automática: $${sumaAuto.toLocaleString("es-CO")} — total actual: $${total.toLocaleString("es-CO")}`;
+    }
+  });
+
   const patientCardExamsList = document.getElementById("patientCardExamsList");
   const patientCardTubeEstimate = document.getElementById("patientCardTubeEstimate");
   const patientCardExamsBadge = document.getElementById("patientCardExamsBadge");
@@ -1536,12 +1640,14 @@
   patientResendCopyBtn.addEventListener("click", () => {
     const p = getOpenPatient();
     if (!p) return;
-    copyToClipboard(buildFinalReportText(p), "Reporte copiado", patientResendCopyBtn);
+    const text = p.grupoId ? buildGroupReportText(getGroupAll(p)) : buildFinalReportText(p);
+    copyToClipboard(text, "Reporte copiado", patientResendCopyBtn);
   });
   patientResendWaBtn.addEventListener("click", () => {
     const p = getOpenPatient();
     if (!p) return;
-    sendFinalReportWhatsApp(p);
+    if (p.grupoId) sendWhatsAppText(buildGroupReportText(getGroupAll(p)));
+    else sendFinalReportWhatsApp(p);
   });
   const patientFinalizeWarning = document.getElementById("patientFinalizeWarning");
   const patientCancelBtn = document.getElementById("patientCancelBtn");
@@ -1568,6 +1674,69 @@
     if (p.horaSalida) p.estado = "listo";
     else if (p.arriboSitio || p.arriboPaciente || p.horaToma) p.estado = "en_proceso";
     else p.estado = "pendiente";
+  }
+
+  // ---------------- Vincular pacientes del mismo domicilio (grupo) ----------------
+  // Arribo al sitio, arribo al paciente y salida son del MISMO momento
+  // real (llegaste una vez a esa dirección) — se comparten entre TODOS
+  // los del grupo (2, 3, 4, los que sean). Toma de muestra, tubos y
+  // novedades son de cada persona, nunca se comparten.
+  //
+  // grupoId: mismo valor compartido por todos los del grupo — se usa el
+  // id del primer paciente que arma el grupo, no hace falta generar uno
+  // aparte.
+  const SHARED_TIME_FIELDS = ["arriboSitio", "arriboPaciente", "horaSalida"];
+
+  function getGroupMates(p) {
+    if (!p || !p.grupoId) return [];
+    return currentPatients.filter(x => x.id !== p.id && x.grupoId === p.grupoId);
+  }
+  function getGroupAll(p) {
+    if (!p || !p.grupoId) return [p];
+    return currentPatients.filter(x => x.grupoId === p.grupoId);
+  }
+
+  function addPatientToGroup(targetId, newId) {
+    const target = currentPatients.find(x => x.id === targetId);
+    const nuevo = currentPatients.find(x => x.id === newId);
+    if (!target || !nuevo) return;
+    if (!target.grupoId) target.grupoId = target.id;
+    nuevo.grupoId = target.grupoId;
+    // Si el grupo ya tenía tiempos compartidos marcados, se los pasamos
+    // al que se une, para que arranque sincronizado desde ya.
+    SHARED_TIME_FIELDS.forEach(f => {
+      if (target[f] && !nuevo[f]) nuevo[f] = target[f];
+    });
+    savePatients(currentPatients);
+  }
+
+  function removePatientFromGroup(p) {
+    if (!p.grupoId) return;
+    const gid = p.grupoId;
+    p.grupoId = null;
+    p.pagoConjunto = false;
+    const resto = currentPatients.filter(x => x.grupoId === gid);
+    if (resto.length === 1) {
+      // un "grupo" de una sola persona ya no tiene sentido
+      resto[0].grupoId = null;
+      resto[0].pagoConjunto = false;
+    }
+    savePatients(currentPatients);
+  }
+
+  // Marca un tiempo en el paciente y, si el campo es compartido y hay
+  // grupo, lo marca también en TODOS los del grupo — mismo instante,
+  // ya que llegaste una sola vez a esa dirección.
+  function propagateSharedField(p, key, value) {
+    p[key] = value;
+    if (!SHARED_TIME_FIELDS.includes(key)) return;
+    getGroupMates(p).forEach(m => { m[key] = value; });
+  }
+
+  function getValorConjunto(all) {
+    const p0 = all[0];
+    if (p0.valorConjuntoManual !== null) return p0.valorConjuntoManual;
+    return all.reduce((sum, x) => sum + getValorFinal(x), 0);
   }
 
   function isFsfb(p) {
@@ -1606,6 +1775,21 @@
   function checkSalidaRequirements(p) {
     const warnings = getSalidaWarnings(p);
     return warnings.length > 0 ? warnings.join(" ") : null;
+  }
+
+  // Igual que getSalidaWarnings, pero para todo el grupo vinculado —
+  // revisa a cada uno, y si el pago es conjunto no exige forma de pago
+  // por separado (se exige una sola, compartida para el grupo).
+  function getSalidaWarningsGroup(all) {
+    const warnings = [];
+    all.forEach((p, i) => {
+      const w = getSalidaWarnings(p).filter(x => !(p.pagoConjunto && x === "Selecciona la forma de pago."));
+      if (w.length) warnings.push(`${p.nombrePaciente || `Paciente ${i + 1}`}: ${w.join(" ")}`);
+    });
+    if (all[0].pagoConjunto && getValorConjunto(all) > 0 && !all[0].formaPagoConjunta) {
+      warnings.push("Falta la forma de pago conjunta.");
+    }
+    return warnings;
   }
 
   function paymentLabel(key) {
@@ -1661,6 +1845,57 @@
     sendWhatsAppText(buildFinalReportText(p));
   }
 
+  // Reporte combinado — un solo mensaje con los dos pacientes. Tiempos
+  // compartidos van una sola vez arriba; toma, tubos y novedades van
+  // por separado debajo de cada uno.
+  // Reporte combinado — un solo mensaje con TODOS los del grupo. Tiempos
+  // compartidos van una sola vez arriba; toma, tubos y novedades van por
+  // separado debajo de cada uno.
+  function buildGroupReportText(all) {
+    const p0 = all[0];
+    const solicitudes = all.map(x => `*${x.solicitud || "—"}*`).join(" + ");
+    const lines = [
+      `${myReportEmoji()} ${solicitudes} (mismo domicilio)`,
+      "",
+      `🕐 *Arribo*: ${p0.arriboSitio || "—"}`,
+      `🚪 *Paciente*: ${p0.arriboPaciente || "—"}`,
+      `🚶 *Salida*: ${p0.horaSalida || "—"}`,
+    ];
+
+    all.forEach(p => {
+      lines.push("");
+      lines.push(`👤 *${p.nombrePaciente || "(sin nombre)"}* — N° ${p.solicitud || "—"}`);
+      lines.push(`🩸 Toma: ${p.horaToma || "—"}`);
+      const tomados = TUBOS_AUX.filter(tb => (p.tubos[tb.key] || 0) > 0);
+      lines.push(tomados.length
+        ? `🧪 Tubos: ${tomados.map(tb => `${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`).join(", ")}`
+        : "🧪 Sin tubos registrados");
+      if (isFsfb(p)) {
+        lines.push(`📄 Entregó orden: ${p.entregoOrden ? "Sí" : "No"}`);
+      }
+      if (!p.pagoConjunto && getValorFinal(p) > 0) {
+        lines.push(`💰 Valor: $${getValorFinal(p).toLocaleString("es-CO")} · ${paymentLabel(p.formaPago)}`);
+      }
+      if (p.novedades && p.novedades.trim()) {
+        lines.push(`📝 Novedades: ${p.novedades.trim()}`);
+      }
+    });
+
+    if (p0.pagoConjunto) {
+      const total = getValorConjunto(all);
+      if (total > 0) {
+        lines.push("");
+        lines.push(`💰 *Pago conjunto*: $${total.toLocaleString("es-CO")} · ${paymentLabel(p0.formaPagoConjunta)}`);
+      }
+    }
+
+    return lines.join("\n");
+  }
+
+  function sendGroupFinalReportWhatsApp(all) {
+    sendWhatsAppText(buildGroupReportText(all));
+  }
+
   function persistOpenPatient() {
     const p = getOpenPatient();
     if (!p) return;
@@ -1687,6 +1922,39 @@
     patientCardAddress.textContent = p.direccion ? `📍 ${p.direccion}` : "";
     patientValorBadge.textContent = `$${valorFinal.toLocaleString("es-CO")}`;
 
+    const mates = getGroupMates(p);
+    if (mates.length > 0) {
+      patientLinkBtn.hidden = true;
+      patientLinkBanner.hidden = false;
+      const nombres = mates.map(m => escapeHtmlAux(m.nombrePaciente || "(sin nombre)")).join(", ");
+      patientLinkBanner.innerHTML = `
+        <span>🔗 Vinculado con <strong>${nombres}</strong> — arribo y salida se comparten</span>
+        <div class="patient-link-banner-mates">
+          ${mates.map(m => `<button type="button" class="ghost-btn patient-link-mate-btn" data-id="${m.id}">Ver a ${escapeHtmlAux((m.nombrePaciente || "").split(" ")[0] || "paciente")} →</button>`).join("")}
+        </div>
+        <div class="patient-link-banner-actions">
+          <button type="button" id="patientLinkAddMoreBtn" class="ghost-btn">➕ Agregar otro al grupo</button>
+          <button type="button" id="patientLinkLeaveBtn" class="ghost-btn">🔓 Salir del grupo</button>
+        </div>
+      `;
+      patientLinkBanner.querySelectorAll(".patient-link-mate-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const target = currentPatients.find(x => x.id === btn.dataset.id);
+          if (target) openPatientCard(target);
+        });
+      });
+      document.getElementById("patientLinkAddMoreBtn").addEventListener("click", () => patientLinkBtn.click());
+      document.getElementById("patientLinkLeaveBtn").addEventListener("click", () => {
+        removePatientFromGroup(p);
+        renderPatientCard();
+        renderPatientsList(currentPatients);
+        showToast("Saliste del grupo", 2000);
+      });
+    } else {
+      patientLinkBtn.hidden = false;
+      patientLinkBanner.hidden = true;
+    }
+
     const hasAdjustment = (p.valorAjuste && p.valorAjuste !== 0) || p.valorFinalManual !== null;
     if (hasAdjustment) {
       const parts = [`Valor planilla: $${(p.valorCobro || 0).toLocaleString("es-CO")}`];
@@ -1710,6 +1978,8 @@
     patientNormalFlow.hidden = isCancelled;
     if (isCancelled) {
       patientCancelledReason.textContent = p.motivoCancelacion || "—";
+      patientLinkBtn.hidden = true;
+      patientLinkBanner.hidden = true;
       return;
     }
 
@@ -1736,6 +2006,7 @@
 
     patientTimeGrid.innerHTML = TIME_FIELDS.map(f => {
       const isSalida = f.key === "horaSalida";
+      const compartido = mates.length > 0 && SHARED_TIME_FIELDS.includes(f.key);
       const valueHtml = p[f.key]
         ? `<input type="time" class="patient-time-input" data-key="${f.key}" value="${toHtmlTime(p[f.key])}"><button type="button" class="patient-time-clear" data-key="${f.key}" title="Revertir">✕</button>`
         : (isSalida
@@ -1744,7 +2015,7 @@
       return `
       <div class="patient-time-row-wrap">
         <div class="patient-time-row">
-          <span class="patient-time-label">${f.label}</span>
+          <span class="patient-time-label">${f.label}${compartido ? ' <span class="patient-time-shared" title="Se comparte con el paciente vinculado">🔗</span>' : ""}</span>
           <div class="patient-time-value">${valueHtml}</div>
         </div>
       </div>
@@ -1754,9 +2025,12 @@
     patientTimeGrid.querySelectorAll(".patient-time-mark").forEach(btn => {
       btn.addEventListener("click", () => {
         const key = btn.dataset.key;
+        const valor = nowTimeLabelAux();
 
-        p[key] = nowTimeLabelAux();
-        persistOpenPatient();
+        propagateSharedField(p, key, valor);
+        updatePatientEstado(p);
+        getGroupMates(p).forEach(m => updatePatientEstado(m));
+        savePatients(currentPatients);
         renderPatientCard();
         renderPatientsList(currentPatients);
         syncFreshdeskIfOn(p);
@@ -1772,16 +2046,22 @@
     patientTimeGrid.querySelectorAll(".patient-time-input").forEach(inp => {
       inp.addEventListener("change", () => {
         if (!inp.value) return;
-        p[inp.dataset.key] = fromHtmlTime(inp.value);
-        persistOpenPatient();
+        const key = inp.dataset.key;
+        propagateSharedField(p, key, fromHtmlTime(inp.value));
+        updatePatientEstado(p);
+        getGroupMates(p).forEach(m => updatePatientEstado(m));
+        savePatients(currentPatients);
         renderPatientsList(currentPatients);
         syncFreshdeskIfOn(p);
       });
     });
     patientTimeGrid.querySelectorAll(".patient-time-clear").forEach(btn => {
       btn.addEventListener("click", () => {
-        p[btn.dataset.key] = "";
+        const key = btn.dataset.key;
+        propagateSharedField(p, key, "");
         persistOpenPatient();
+        const matesNow = getGroupMates(p);
+        if (matesNow.length) { matesNow.forEach(m => updatePatientEstado(m)); savePatients(currentPatients); }
         if (p.entregadoLogistico && p.estado !== "listo" && p.estado !== "cancelado") {
           p.entregadoLogistico = false;
           p.entregadoLogisticoHora = "";
@@ -1840,6 +2120,35 @@
           renderPatientCard();
         });
       });
+    }
+
+    if (mates.length > 0) {
+      pagoConjuntoBox.hidden = false;
+      pagoConjuntoToggle.checked = !!p.pagoConjunto;
+      pagoConjuntoFields.hidden = !p.pagoConjunto;
+      if (p.pagoConjunto) {
+        const all = getGroupAll(p);
+        const sumaAuto = all.reduce((s, x) => s + getValorFinal(x), 0);
+        const total = getValorConjunto(all);
+        pagoConjuntoSumaHint.textContent = `Suma automática: $${sumaAuto.toLocaleString("es-CO")} — total actual: $${total.toLocaleString("es-CO")}`;
+        valorConjuntoInput.value = p.valorConjuntoManual !== null ? p.valorConjuntoManual : "";
+        pagoConjuntoMetodo.innerHTML = PAYMENT_METHODS.map(m => `
+          <button type="button" class="company-tube-btn payment-chip${p.formaPagoConjunta === m.key ? " active" : ""}" data-key="${m.key}">
+            <span class="co-btn-label">${m.label}</span>
+          </button>
+        `).join("");
+        pagoConjuntoMetodo.querySelectorAll(".payment-chip").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const nuevo = (btn.dataset.key === p.formaPagoConjunta) ? "" : btn.dataset.key;
+            p.formaPagoConjunta = nuevo;
+            mates.forEach(m => { m.formaPagoConjunta = nuevo; });
+            savePatients(currentPatients);
+            renderPatientCard();
+          });
+        });
+      }
+    } else {
+      pagoConjuntoBox.hidden = true;
     }
 
     patientPaymentButtons.innerHTML = PAYMENT_METHODS.map(m => `
@@ -1938,11 +2247,22 @@
     if (!p) { closePatientCard(); return; }
 
     if (!p.horaSalida) {
-      const warning = checkSalidaRequirements(p);
-      if (warning) { showToast(warning, 3200); return; }
-      p.horaSalida = nowTimeLabelAux();
-      persistOpenPatient();
-      sendFinalReportWhatsApp(p);
+      if (p.grupoId) {
+        const all = getGroupAll(p);
+        const warnings = getSalidaWarningsGroup(all);
+        if (warnings.length) { showToast(warnings.join(" "), 3600); return; }
+        const horaFinal = nowTimeLabelAux();
+        propagateSharedField(p, "horaSalida", horaFinal);
+        all.forEach(x => updatePatientEstado(x));
+        savePatients(currentPatients);
+        sendGroupFinalReportWhatsApp(all);
+      } else {
+        const warning = checkSalidaRequirements(p);
+        if (warning) { showToast(warning, 3200); return; }
+        p.horaSalida = nowTimeLabelAux();
+        persistOpenPatient();
+        sendFinalReportWhatsApp(p);
+      }
       renderPatientsList(currentPatients);
     }
     closePatientCard();

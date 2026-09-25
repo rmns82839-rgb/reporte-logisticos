@@ -2204,6 +2204,31 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-card-solicitud{font-size:15px; font-weight:800;}
 .patient-card-valor{font-size:15px; font-weight:800;}
 .patient-card-address{margin:2px 0 10px; font-size:12px; font-weight:600; color:var(--text-dim); text-align:left; line-height:1.4;}
+.patient-link-banner{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  background:rgba(37,99,235,0.12);
+  border:1px solid rgba(37,99,235,0.35);
+  border-radius:10px;
+  padding:10px 12px;
+  margin-bottom:10px;
+  font-size:11.5px;
+  font-weight:600;
+  color:var(--text-dim);
+}
+.patient-link-banner-actions{display:flex; gap:8px;}
+.patient-link-banner-actions .ghost-btn{flex:1; font-size:11px; padding:7px;}
+.patient-link-banner-mates{display:flex; flex-wrap:wrap; gap:6px;}
+.patient-link-banner-mates .ghost-btn{font-size:11px; padding:6px 10px; margin:0;}
+.patient-time-shared{font-size:11px;}
+.pago-conjunto-box{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px;
+  margin-bottom:10px;
+}
 @media (prefers-reduced-motion: no-preference){
   .modal-card{animation:modal-in .25s cubic-bezier(.22,.9,.32,1) both;}
   @keyframes modal-in{
