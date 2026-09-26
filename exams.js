@@ -26,7 +26,7 @@ export const TUBOS_AUX = [
   { key: "Materia fecal", emoji: "💩", color: "#8b5e3c", esTubo: true },
   { key: "Laminas",       emoji: "🩸", color: "#e07a9e", esTubo: true },
   { key: "Hisopo nasal",  emoji: "👃", color: "#4fb286", esTubo: true },
-  { key: "Sonda Vesical", emoji: "🚽", color: "#78716c", esTubo: false },
+  { key: "Sonda Vesical", emoji: "🚰", color: "#78716c", esTubo: false },
 ];
 
 // ---------------- Emparejamiento (portado tal cual de RutaLab Pro) ----------------
@@ -453,6 +453,8 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
     ];
 
     function tubosPickerHtml(ex, i) {
+      const tuboInfo = TUBOS_AUX.find(t => t.key === ex.tubo);
+      const esNoTubo = tuboInfo && tuboInfo.esTubo === false;
       return `
         <div class="exam-clasificar-chips">
           ${TUBOS_AUX.map(tb => `
@@ -462,11 +464,11 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
           `).join("")}
         </div>
         <div class="exam-clasificar-extra">
-          <label class="exam-clasificar-extra-field">
+          <label class="exam-clasificar-extra-field exam-behavior-field" data-idx-behavior="${i}" style="${esNoTubo ? "display:none;" : ""}">
             ¿Cómo se toma este examen?
             ${tuboBehaviorSelectHtml("exam-tubo-behavior", i, ex.tuboBehavior)}
           </label>
-          <label class="exam-clasificar-extra-field exam-clasificar-solo">
+          <label class="exam-clasificar-extra-field exam-clasificar-solo exam-luz-field" data-idx-luz="${i}" style="${esNoTubo ? "display:none;" : ""}">
             <input type="checkbox" class="cubrir-luz-check" data-idx="${i}" ${ex.cubrirLuz ? "checked" : ""}>
             🌑 Cubrir de la luz
           </label>
@@ -519,6 +521,15 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
           const item = list.querySelector(`.exam-clasificar-item[data-idx="${idx}"]`);
           item.querySelectorAll(".tube-pick-chip").forEach(c => c.classList.toggle("active", c.dataset.tube === chip.dataset.tube));
           item.classList.add("done");
+
+          const tuboInfo = TUBOS_AUX.find(t => t.key === chip.dataset.tube);
+          const esNoTubo = tuboInfo && tuboInfo.esTubo === false;
+          const behaviorField = list.querySelector(`.exam-behavior-field[data-idx-behavior="${idx}"]`);
+          const luzField = list.querySelector(`.exam-luz-field[data-idx-luz="${idx}"]`);
+          if (behaviorField) behaviorField.style.display = esNoTubo ? "none" : "";
+          if (luzField) luzField.style.display = esNoTubo ? "none" : "";
+          if (esNoTubo) { pending[idx].tuboBehavior = "solo"; pending[idx].cubrirLuz = false; }
+
           actualizarBotonContinuar();
         });
       });
@@ -718,6 +729,17 @@ export function initExamGuide(deps) {
 
     editName.textContent = ex.nombre + (ex.codigo ? ` (#${ex.codigo})` : "");
 
+    const examGuideEditBehaviorField = document.getElementById("examGuideEditBehaviorField");
+    const examGuideEditLuzField = document.getElementById("examGuideEditLuzField");
+
+    function actualizarVisibilidadNoTubo() {
+      const tuboInfo = TUBOS_AUX.find(t => t.key === tuboElegido);
+      const esNoTubo = tuboInfo && tuboInfo.esTubo === false;
+      if (examGuideEditBehaviorField) examGuideEditBehaviorField.style.display = esNoTubo ? "none" : "";
+      if (examGuideEditLuzField) examGuideEditLuzField.style.display = esNoTubo ? "none" : "";
+      if (esNoTubo) { behaviorElegido = "solo"; examGuideEditLuz.checked = false; }
+    }
+
     function pintarChipsTubo() {
       editChips.innerHTML = TUBOS_AUX.map(tb => `
         <button type="button" class="tube-pick-chip${tuboElegido === tb.key ? " active" : ""}" data-tube="${tb.key}" title="${tb.key}">
@@ -728,10 +750,12 @@ export function initExamGuide(deps) {
         chip.addEventListener("click", () => {
           tuboElegido = chip.dataset.tube;
           pintarChipsTubo();
+          actualizarVisibilidadNoTubo();
         });
       });
     }
     pintarChipsTubo();
+    actualizarVisibilidadNoTubo();
     examGuideEditBehavior.innerHTML = TUBO_BEHAVIOR_OPTIONS.map(opt =>
       `<option value="${opt.value}"${behaviorElegido === opt.value ? " selected" : ""}>${opt.label}</option>`
     ).join("");

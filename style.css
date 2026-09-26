@@ -1989,6 +1989,19 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   border-radius:20px; overflow:hidden;
 }
 .tube-co-tile.active .tube-co-controls{border-color:var(--co-color);}
+.patient-pericraneal-box{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 14px;
+  margin-bottom:14px;
+}
+.patient-pericraneal-label{font-size:12.5px; font-weight:700; color:var(--text-dim);}
+.patient-pericraneal-controls{display:flex; align-items:center; gap:12px;}
+.patient-pericraneal-value{font-size:17px; font-weight:900; color:var(--text); min-width:16px; text-align:center;}
 .tube-co-step{
   width:22px; height:22px; border:none; background:transparent;
   color:var(--text-dim); cursor:pointer; font-size:14px; font-weight:600;

@@ -131,6 +131,12 @@
               <button id="freshdeskRetryBtn" type="button" class="ghost-btn" hidden>🔄 Reintentar</button>
             </div>
 
+            <div class="freshdesk-counter-box">
+              <span>🩹 Pericraneales usados hoy</span>
+              <span id="pericranealCounterText">0</span>
+              <button id="pericranealReponerBtn" type="button" class="ghost-btn" hidden>📦 Reponer</button>
+            </div>
+
             <div class="card-divider"></div>
             <div class="summary-group-title" style="text-align:center; margin-bottom:8px;">🧾 Desglose de pagos</div>
             <div id="paymentBreakdownList" class="payment-breakdown-list"></div>
@@ -191,11 +197,11 @@
     <p id="examGuideEditName" class="card-hint">—</p>
     <div id="examGuideEditChips" class="exam-clasificar-chips"></div>
     <div class="exam-clasificar-extra">
-      <label class="exam-clasificar-extra-field">
+      <label class="exam-clasificar-extra-field" id="examGuideEditBehaviorField">
         ¿Cómo se toma este examen?
         <select id="examGuideEditBehavior" class="text-input"></select>
       </label>
-      <label class="exam-clasificar-extra-field exam-clasificar-solo">
+      <label class="exam-clasificar-extra-field exam-clasificar-solo" id="examGuideEditLuzField">
         <input type="checkbox" id="examGuideEditLuz">
         🌑 Cubrir de la luz
       </label>
@@ -306,6 +312,15 @@
       <summary><span class="group-label">🧪 Tubos tomados</span><span id="patientTubesBadge" class="group-badge">0</span></summary>
       <div id="patientTubesGrid" class="tube-company-grid"></div>
     </details>
+
+    <div class="patient-pericraneal-box">
+      <span class="patient-pericraneal-label">🩹 Pericraneales usados</span>
+      <div class="patient-pericraneal-controls">
+        <button type="button" id="patientPericranealMinus" class="tube-co-step minus">−</button>
+        <span id="patientPericranealValue" class="patient-pericraneal-value">0</span>
+        <button type="button" id="patientPericranealPlus" class="tube-co-step plus">+</button>
+      </div>
+    </div>
 
     <details class="hour-group" id="patientOrdenDetails" open hidden>
       <summary><span class="group-label">📄 ¿Entregó orden?</span></summary>
@@ -434,6 +449,14 @@
   }
   window.addEventListener("online", () => { updateOfflineBanner(); retryFreshdeskPendientes(); });
   document.getElementById("freshdeskRetryBtn").addEventListener("click", retryFreshdeskPendientes);
+  document.getElementById("pericranealReponerBtn").addEventListener("click", () => {
+    const total = currentPatients
+      .filter(p => p.estado !== "cancelado")
+      .reduce((sum, p) => sum + (p.pericraneales || 0), 0);
+    if (total === 0) return;
+    const texto = `Buen día, por favor reponer ${total} pericraneal${total !== 1 ? "es" : ""}. Gracias. El stock son 5.`;
+    sendWhatsAppText(texto);
+  });
   window.addEventListener("offline", updateOfflineBanner);
   updateOfflineBanner();
 
@@ -667,6 +690,7 @@
         papeleriaListo: false,
         freshdeskSincronizado: false,
         freshdeskPendiente: false,
+        pericraneales: 0,
         grupoId: null,
         pagoConjunto: false,
         valorConjuntoManual: null,
@@ -851,6 +875,12 @@
     } else {
       freshdeskCounterBox.hidden = true;
     }
+
+    const totalPericraneales = patients
+      .filter(p => p.estado !== "cancelado")
+      .reduce((sum, p) => sum + (p.pericraneales || 0), 0);
+    document.getElementById("pericranealCounterText").textContent = totalPericraneales;
+    document.getElementById("pericranealReponerBtn").hidden = totalPericraneales === 0;
 
     renderPaymentBreakdown(patients);
     pushAuxiliarStatus(patients, stats);
@@ -1050,7 +1080,8 @@
         if (!cancelled) {
           Object.keys(p.tubos || {}).forEach(key => {
             const qty = p.tubos[key] || 0;
-            if (qty > 0) tubes[key] = qty;
+            const tb = TUBOS_AUX.find(t => t.key === key);
+            if (qty > 0 && tb && tb.esTubo !== false) tubes[key] = qty;
           });
         }
         const ref = doc(collection(db, "auxiliarHandoffs"));
@@ -1820,6 +1851,23 @@
   const patientCardExamsBadge = document.getElementById("patientCardExamsBadge");
   const patientTimeGrid = document.getElementById("patientTimeGrid");
   const patientTubesGrid = document.getElementById("patientTubesGrid");
+  const patientPericranealValue = document.getElementById("patientPericranealValue");
+  const patientPericranealMinus = document.getElementById("patientPericranealMinus");
+  const patientPericranealPlus = document.getElementById("patientPericranealPlus");
+  patientPericranealMinus.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    p.pericraneales = Math.max(0, (p.pericraneales || 0) - 1);
+    savePatients(currentPatients);
+    patientPericranealValue.textContent = p.pericraneales;
+  });
+  patientPericranealPlus.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    p.pericraneales = (p.pericraneales || 0) + 1;
+    savePatients(currentPatients);
+    patientPericranealValue.textContent = p.pericraneales;
+  });
   const patientTubesBadge = document.getElementById("patientTubesBadge");
   const patientValorBadge = document.getElementById("patientValorBadge");
   const valorOriginalNote = document.getElementById("valorOriginalNote");
@@ -2079,12 +2127,16 @@
       "🧪 *Tubos*:",
       "",
     ];
-    const tomados = TUBOS_AUX.filter(tb => (p.tubos[tb.key] || 0) > 0);
+    const tomados = TUBOS_AUX.filter(tb => tb.esTubo !== false && (p.tubos[tb.key] || 0) > 0);
     if (tomados.length === 0) {
       lines.push("Sin tubos registrados");
       lines.push("");
     } else {
       tomados.forEach(tb => { lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`); lines.push(""); });
+    }
+    if (/sonda/i.test((p.examenes || []).join(" "))) {
+      lines.push("🚰 *Se usó sonda vesical*");
+      lines.push("");
     }
     if (isFsfb(p)) {
       lines.push(ordenLabel(p.entregoOrden));
@@ -2133,12 +2185,17 @@
       lines.push("");
       lines.push(`🩸 Toma: ${p.horaToma || "—"}`);
       lines.push("");
-      const tomados = TUBOS_AUX.filter(tb => (p.tubos[tb.key] || 0) > 0);
+      const tomados = TUBOS_AUX.filter(tb => tb.esTubo !== false && (p.tubos[tb.key] || 0) > 0);
       if (tomados.length === 0) {
         lines.push("🧪 Sin tubos registrados");
       } else {
         lines.push("🧪 Tubos:");
         tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
+      }
+      const procedimientos = TUBOS_AUX.filter(tb => tb.esTubo === false && (p.tubos[tb.key] || 0) > 0);
+      procedimientos.forEach(tb => lines.push(`${tb.emoji} *${tb.key}*: ${p.tubos[tb.key]}`));
+      if (/sonda/i.test((p.examenes || []).join(" "))) {
+        lines.push("🚰 *Se usó sonda vesical*");
       }
       if (isFsfb(p)) {
         lines.push("");
@@ -2352,8 +2409,9 @@
     });
 
     if (!p.tubos) p.tubos = {};
+    patientPericranealValue.textContent = p.pericraneales || 0;
     let totalTubos = 0;
-    patientTubesGrid.innerHTML = TUBOS_AUX.map(tb => {
+    patientTubesGrid.innerHTML = TUBOS_AUX.filter(tb => tb.esTubo !== false).map(tb => {
       const qty = p.tubos[tb.key] || 0;
       totalTubos += qty;
       return `
