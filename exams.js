@@ -14,18 +14,19 @@ export function perplexityUrl(codigo, nombre) {
 }
 
 export const TUBOS_AUX = [
-  { key: "Amarillo",      emoji: "🟡", color: "#e8b923" },
-  { key: "Lila",          emoji: "🟣", color: "#9b6fd6" },
-  { key: "Azul",          emoji: "🔵", color: "#3b82f6" },
-  { key: "Rojo",          emoji: "🔴", color: "#e5484d" },
-  { key: "Azul rey",      emoji: "👑", color: "#1e3a8a" },
-  { key: "Transparente",  emoji: "⚪", color: "#9ca3af" },
-  { key: "Orina",         emoji: "💧", color: "#d4a24c" },
-  { key: "Orina 24h",     emoji: "🕐", color: "#b8863f" },
-  { key: "Saliva",        emoji: "💦", color: "#67c9d6" },
-  { key: "Materia fecal", emoji: "💩", color: "#8b5e3c" },
-  { key: "Laminas",       emoji: "🩸", color: "#e07a9e" },
-  { key: "Hisopo nasal",  emoji: "👃", color: "#4fb286" },
+  { key: "Amarillo",      emoji: "🟡", color: "#e8b923", esTubo: true },
+  { key: "Lila",          emoji: "🟣", color: "#9b6fd6", esTubo: true },
+  { key: "Azul",          emoji: "🔵", color: "#3b82f6", esTubo: true },
+  { key: "Rojo",          emoji: "🔴", color: "#e5484d", esTubo: true },
+  { key: "Azul rey",      emoji: "👑", color: "#1e3a8a", esTubo: true },
+  { key: "Transparente",  emoji: "⚪", color: "#9ca3af", esTubo: true },
+  { key: "Orina",         emoji: "💧", color: "#d4a24c", esTubo: true },
+  { key: "Orina 24h",     emoji: "🕐", color: "#b8863f", esTubo: true },
+  { key: "Saliva",        emoji: "💦", color: "#67c9d6", esTubo: true },
+  { key: "Materia fecal", emoji: "💩", color: "#8b5e3c", esTubo: true },
+  { key: "Laminas",       emoji: "🩸", color: "#e07a9e", esTubo: true },
+  { key: "Hisopo nasal",  emoji: "👃", color: "#4fb286", esTubo: true },
+  { key: "Sonda Vesical", emoji: "🚽", color: "#78716c", esTubo: false },
 ];
 
 // ---------------- Emparejamiento (portado tal cual de RutaLab Pro) ----------------
@@ -259,14 +260,27 @@ export function computeTubeCounts(catalogo, examenes) {
     resultado.tubos.push({ tubo: v.tubo, cantidad: 1, cubrirLuz: v.cubrirLuz, examenes: [v.nombre], vaSolo: true });
   });
 
+  // Lo que no es tubo de verdad (ej. Sonda Vesical) se separa aparte —
+  // no cuenta en el total de tubos, aunque sí quedó clasificado.
+  resultado.procedimientos = [];
+  resultado.tubos = resultado.tubos.filter(t => {
+    const tb = TUBOS_AUX.find(x => x.key === t.tubo);
+    if (tb && tb.esTubo === false) {
+      resultado.procedimientos.push(t);
+      return false;
+    }
+    return true;
+  });
+
   resultado.totalTubos = resultado.tubos.reduce((sum, t) => sum + t.cantidad, 0);
+  resultado.totalCubrirLuz = resultado.tubos.filter(t => t.cubrirLuz).reduce((sum, t) => sum + t.cantidad, 0);
   return resultado;
 }
 
 // Render de referencia para el resultado de computeTubeCounts — se usa
 // tal cual en la tarjeta de paciente, y papelería la puede reutilizar.
 export function renderTubeCountHtml(resultado, escapeHtml) {
-  if (resultado.totalTubos === 0 && resultado.sinClasificar.length === 0) return "";
+  if (resultado.totalTubos === 0 && resultado.sinClasificar.length === 0 && (!resultado.procedimientos || resultado.procedimientos.length === 0)) return "";
 
   // Resumen compacto por color: "🟡 2 Amarillo · 🟣 1 Lila · 💧 1 Orina"
   const porColor = {};
@@ -289,14 +303,28 @@ export function renderTubeCountHtml(resultado, escapeHtml) {
     </div>`;
   }).join("");
 
+  const procedimientosHtml = (resultado.procedimientos && resultado.procedimientos.length > 0)
+    ? `<p class="tube-count-procedimientos-label">📋 Otros procedimientos (no son tubos)</p>
+       <div class="tube-count-list">${resultado.procedimientos.map(t => {
+         const tb = TUBOS_AUX.find(x => x.key === t.tubo);
+         return `<div class="tube-count-row" style="border-left-color:${tb ? tb.color : "#6b7280"};">
+           <span class="tube-count-main">${tb ? tb.emoji : "❓"} ${escapeHtml(t.tubo)}</span>
+           <span class="tube-count-detail">${t.examenes.map(e => escapeHtml(e)).join(", ")}</span>
+         </div>`;
+       }).join("")}</div>`
+    : "";
+
   const sinClasificarHtml = resultado.sinClasificar.length > 0
     ? `<p class="tube-count-warning">⚠️ ${resultado.sinClasificar.length} examen${resultado.sinClasificar.length !== 1 ? "es" : ""} sin clasificar todavía, no cuenta${resultado.sinClasificar.length !== 1 ? "n" : ""} en este estimado: ${resultado.sinClasificar.map(e => escapeHtml(e)).join(", ")}</p>`
     : "";
 
+  const luzTxt = resultado.totalCubrirLuz > 0 ? ` · 🌑 ${resultado.totalCubrirLuz} cubierto${resultado.totalCubrirLuz !== 1 ? "s" : ""} de la luz` : "";
+
   return `
-    <p class="tube-count-total">🧪 Se estiman ${resultado.totalTubos} tubo${resultado.totalTubos !== 1 ? "s" : ""}</p>
+    <p class="tube-count-total">🧪 Se estiman ${resultado.totalTubos} tubo${resultado.totalTubos !== 1 ? "s" : ""}${luzTxt}</p>
     ${resumenCompacto ? `<p class="tube-count-summary">${resumenCompacto}</p>` : ""}
     <div class="tube-count-list">${lineas}</div>
+    ${procedimientosHtml}
     ${sinClasificarHtml}
   `;
 }

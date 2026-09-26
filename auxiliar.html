@@ -84,31 +84,33 @@
               <div class="summary-group">
                 <div class="summary-group-title">🏥 FSFB</div>
                 <div class="summary-group-convenio" style="color:var(--fsfb);">Convenio 05577</div>
-                <div class="summary-stats">
-                  <div class="summary-stat"><span id="sumFsfbListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
-                  <div class="summary-stat"><span id="sumFsfbProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
-                  <div class="summary-stat"><span id="sumFsfbPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+                <div class="summary-stats-v">
+                  <div class="summary-stat-row stat-pendiente"><span class="summary-stat-row-label">⏳ Pendientes</span><span id="sumFsfbPendiente" class="summary-stat-row-num">0</span></div>
+                  <div class="summary-stat-row stat-proceso"><span class="summary-stat-row-label">🚴 En ruta</span><span id="sumFsfbProceso" class="summary-stat-row-num">0</span></div>
+                  <div class="summary-stat-row stat-listo"><span class="summary-stat-row-label">✅ Completados</span><span id="sumFsfbListo" class="summary-stat-row-num">0</span></div>
+                  <div class="summary-stat-row stat-cancelado"><span class="summary-stat-row-label">❌ Cancelados</span><span id="sumFsfbCancelado" class="summary-stat-row-num">0</span></div>
                 </div>
+                <div class="summary-progress-bar"><div id="sumFsfbProgressFill" class="summary-progress-fill"></div></div>
                 <div class="summary-money">
                   <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumFsfbEfectivo">$0</span></div>
                   <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumFsfbTarjeta">$0</span></div>
                   <div class="summary-money-row"><span>🏦 PSE</span><span id="sumFsfbPse">$0</span></div>
-                  <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumFsfbCancelado">0</span></div>
                 </div>
               </div>
               <div class="summary-group">
                 <div class="summary-group-title">🔴 VIP</div>
                 <div class="summary-group-convenio" style="color:var(--vip);">Convenio 89631</div>
-                <div class="summary-stats">
-                  <div class="summary-stat"><span id="sumRestoListo" class="summary-stat-num">0</span><span class="summary-stat-label">Completados</span></div>
-                  <div class="summary-stat"><span id="sumRestoProceso" class="summary-stat-num">0</span><span class="summary-stat-label">En ruta</span></div>
-                  <div class="summary-stat"><span id="sumRestoPendiente" class="summary-stat-num">0</span><span class="summary-stat-label">Pendientes</span></div>
+                <div class="summary-stats-v">
+                  <div class="summary-stat-row stat-pendiente"><span class="summary-stat-row-label">⏳ Pendientes</span><span id="sumRestoPendiente" class="summary-stat-row-num">0</span></div>
+                  <div class="summary-stat-row stat-proceso"><span class="summary-stat-row-label">🚴 En ruta</span><span id="sumRestoProceso" class="summary-stat-row-num">0</span></div>
+                  <div class="summary-stat-row stat-listo"><span class="summary-stat-row-label">✅ Completados</span><span id="sumRestoListo" class="summary-stat-row-num">0</span></div>
+                  <div class="summary-stat-row stat-cancelado"><span class="summary-stat-row-label">❌ Cancelados</span><span id="sumRestoCancelado" class="summary-stat-row-num">0</span></div>
                 </div>
+                <div class="summary-progress-bar"><div id="sumRestoProgressFill" class="summary-progress-fill"></div></div>
                 <div class="summary-money">
                   <div class="summary-money-row"><span>💵 Efectivo</span><span id="sumRestoEfectivo">$0</span></div>
                   <div class="summary-money-row"><span>💳 Tarjeta</span><span id="sumRestoTarjeta">$0</span></div>
                   <div class="summary-money-row"><span>🏦 PSE</span><span id="sumRestoPse">$0</span></div>
-                  <div class="summary-money-row"><span>❌ Cancelados</span><span id="sumRestoCancelado">0</span></div>
                 </div>
                 <div id="sumRestoPorCompania" class="summary-company-breakdown"></div>
               </div>
@@ -126,6 +128,7 @@
             <div id="freshdeskCounterBox" class="freshdesk-counter-box" hidden>
               <span>🔗 Freshdesk</span>
               <span id="freshdeskCounterText">0/0 actualizados</span>
+              <button id="freshdeskRetryBtn" type="button" class="ghost-btn" hidden>🔄 Reintentar</button>
             </div>
 
             <div class="card-divider"></div>
@@ -429,7 +432,8 @@
   function updateOfflineBanner() {
     offlineBanner.hidden = navigator.onLine;
   }
-  window.addEventListener("online", updateOfflineBanner);
+  window.addEventListener("online", () => { updateOfflineBanner(); retryFreshdeskPendientes(); });
+  document.getElementById("freshdeskRetryBtn").addEventListener("click", retryFreshdeskPendientes);
   window.addEventListener("offline", updateOfflineBanner);
   updateOfflineBanner();
 
@@ -519,11 +523,28 @@
       const json = await res.json().catch(() => null);
       if (json && json.ok) {
         p.freshdeskSincronizado = true;
-        savePatients(currentPatients);
-        renderDaySummary(currentPatients);
+        p.freshdeskPendiente = false;
+      } else {
+        p.freshdeskPendiente = true;
       }
     } catch (e) {
       console.warn("[auxiliar.html] No se pudo sincronizar con Freshdesk:", e);
+      p.freshdeskPendiente = true;
+    }
+    savePatients(currentPatients);
+    renderDaySummary(currentPatients);
+  }
+
+  // Reintenta todos los pacientes que quedaron pendientes por falta de
+  // señal (o cualquier otro fallo) — se llama sola cuando vuelve la
+  // conexión, y también hay un botón para forzarla a mano.
+  async function retryFreshdeskPendientes() {
+    if (!fdActivo()) return;
+    const pendientes = currentPatients.filter(p => p.freshdeskPendiente);
+    if (pendientes.length === 0) return;
+    showToast(`🔗 Reintentando ${pendientes.length} pendiente${pendientes.length !== 1 ? "s" : ""} con Freshdesk...`, 2400);
+    for (const p of pendientes) {
+      await syncFreshdeskIfOn(p);
     }
   }
 
@@ -645,6 +666,7 @@
         estado: "pendiente",
         papeleriaListo: false,
         freshdeskSincronizado: false,
+        freshdeskPendiente: false,
         grupoId: null,
         pagoConjunto: false,
         valorConjuntoManual: null,
@@ -781,6 +803,8 @@
     sumFsfbTarjeta.textContent = moneyLabel(stats.fsfb.tarjeta);
     sumFsfbPse.textContent = moneyLabel(stats.fsfb.pse);
     document.getElementById("sumFsfbCancelado").textContent = stats.fsfb.cancelado;
+    const totalFsfbActivos = stats.fsfb.listo + stats.fsfb.proceso + stats.fsfb.pendiente;
+    document.getElementById("sumFsfbProgressFill").style.width = totalFsfbActivos > 0 ? `${Math.round((stats.fsfb.listo / totalFsfbActivos) * 100)}%` : "0%";
 
     sumRestoListo.textContent = stats.resto.listo;
     sumRestoProceso.textContent = stats.resto.proceso;
@@ -789,6 +813,8 @@
     sumRestoTarjeta.textContent = moneyLabel(stats.resto.tarjeta);
     sumRestoPse.textContent = moneyLabel(stats.resto.pse);
     document.getElementById("sumRestoCancelado").textContent = stats.resto.cancelado;
+    const totalRestoActivos = stats.resto.listo + stats.resto.proceso + stats.resto.pendiente;
+    document.getElementById("sumRestoProgressFill").style.width = totalRestoActivos > 0 ? `${Math.round((stats.resto.listo / totalRestoActivos) * 100)}%` : "0%";
 
     const porCompania = {};
     patients.forEach(p => {
@@ -812,11 +838,16 @@
     document.getElementById("sumTotalGeneral").textContent = moneyLabel(totalEfectivo + totalTarjeta + totalPse);
 
     const freshdeskCounterBox = document.getElementById("freshdeskCounterBox");
+    const freshdeskRetryBtn = document.getElementById("freshdeskRetryBtn");
     if (fdActivo()) {
       const activos = patients.filter(p => p.estado !== "cancelado");
       const sincronizados = activos.filter(p => p.freshdeskSincronizado).length;
+      const pendientes = activos.filter(p => p.freshdeskPendiente).length;
       freshdeskCounterBox.hidden = false;
-      document.getElementById("freshdeskCounterText").textContent = `${sincronizados}/${activos.length} actualizados`;
+      document.getElementById("freshdeskCounterText").textContent = pendientes > 0
+        ? `${sincronizados}/${activos.length} actualizados — ⚠️ ${pendientes} pendiente${pendientes !== 1 ? "s" : ""}`
+        : `${sincronizados}/${activos.length} actualizados`;
+      freshdeskRetryBtn.hidden = pendientes === 0;
     } else {
       freshdeskCounterBox.hidden = true;
     }
@@ -2504,12 +2535,14 @@
         all.forEach(x => updatePatientEstado(x));
         savePatients(currentPatients);
         sendGroupFinalReportWhatsApp(all);
+        all.forEach(x => syncFreshdeskIfOn(x));
       } else {
         const warning = checkSalidaRequirements(p);
         if (warning) { showToast(warning, 3200); return; }
         p.horaSalida = nowTimeLabelAux();
         persistOpenPatient();
         sendFinalReportWhatsApp(p);
+        syncFreshdeskIfOn(p);
       }
       renderPatientsList(currentPatients);
     }
@@ -2584,6 +2617,7 @@
     p.motivoCancelacion = motivo;
     savePatients(currentPatients);
     sendCancelWhatsApp(p);
+    syncFreshdeskIfOn(p);
 
     closeCancelReasonModal();
     renderPatientCard();

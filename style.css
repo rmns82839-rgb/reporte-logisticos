@@ -852,8 +852,10 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .summary-money-grand span:last-child{color:var(--send); font-weight:800;}
 .freshdesk-counter-box{
   display:flex;
+  flex-wrap:wrap;
   justify-content:space-between;
   align-items:center;
+  gap:8px;
   background:var(--surface-2);
   border:1px solid var(--border);
   border-radius:10px;
@@ -864,6 +866,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   color:var(--text-dim);
 }
 #freshdeskCounterText{color:var(--send); font-weight:800;}
+#freshdeskRetryBtn{width:100%; font-size:11px; padding:7px; margin:0;}
 
 .payment-breakdown-list{max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;}
 .payment-breakdown-group-title{font-size:11.5px; font-weight:800; color:var(--text); margin-bottom:4px;}
@@ -883,19 +886,28 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .payment-breakdown-name{display:flex; flex-direction:column; min-width:0; overflow-wrap:break-word;}
 .payment-breakdown-company{font-size:9.5px; font-weight:800; margin-top:1px;}
 .payment-breakdown-amount{font-weight:800; color:var(--send); white-space:nowrap;}
-.summary-stats{display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin-bottom:10px; min-width:0;}
-.summary-stat{
-  min-width:0;
+.summary-stats-v{display:flex; flex-direction:column; gap:5px; margin-bottom:8px;}
+.summary-stat-row{
   display:flex;
-  flex-direction:column;
+  justify-content:space-between;
   align-items:center;
-  gap:2px;
+  gap:6px;
   background:var(--surface-3);
+  border-left:4px solid var(--text-faint);
   border-radius:8px;
-  padding:6px 2px;
+  padding:6px 9px;
 }
-.summary-stat-num{font-size:15px; font-weight:800; color:var(--text);}
-.summary-stat-label{font-size:8.5px; font-weight:800; color:var(--text-dim); text-align:center; line-height:1.2;}
+.summary-stat-row-label{font-size:10.5px; font-weight:700; color:var(--text-dim);}
+.summary-stat-row-num{font-size:15px; font-weight:900; color:var(--text);}
+.summary-stat-row.stat-pendiente{border-left-color:var(--text-faint);}
+.summary-stat-row.stat-proceso{border-left-color:#3b82f6;}
+.summary-stat-row.stat-proceso .summary-stat-row-num{color:#3b82f6;}
+.summary-stat-row.stat-listo{border-left-color:var(--send);}
+.summary-stat-row.stat-listo .summary-stat-row-num{color:var(--send);}
+.summary-stat-row.stat-cancelado{border-left-color:#e5484d;}
+.summary-stat-row.stat-cancelado .summary-stat-row-num{color:#e5484d;}
+.summary-progress-bar{height:7px; border-radius:4px; background:var(--surface-3); overflow:hidden; margin-bottom:10px;}
+.summary-progress-fill{height:100%; width:0%; background:var(--send); border-radius:4px; transition:width .3s ease;}
 .summary-money{display:flex; flex-direction:column; gap:4px;}
 .summary-money-row{
   display:grid;
@@ -1167,6 +1179,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .tube-count-main{display:block; font-size:11.5px; font-weight:700; color:var(--text-dim);}
 .tube-count-detail{display:block; font-size:10.5px; font-weight:600; color:var(--text-faint); margin-top:1px;}
 .tube-count-warning{font-size:11px; font-weight:600; color:#ffb020; margin-top:8px; line-height:1.4;}
+.tube-count-procedimientos-label{font-size:10.5px; font-weight:800; color:var(--text-faint); margin:10px 0 4px;}
 
 #papeleriaResumen{display:contents;}
 .papeleria-scroll-wrap{max-height:70vh; overflow-y:auto; overflow-x:hidden;}
@@ -1259,6 +1272,16 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   display:flex; align-items:center; justify-content:center;
 }
 .papeleria-patient-name-text{flex:1; min-width:0;}
+.papeleria-patient-pago-badge{
+  flex-shrink:0;
+  font-size:9.5px;
+  font-weight:800;
+  padding:3px 7px;
+  border-radius:10px;
+  white-space:nowrap;
+}
+.papeleria-patient-pago-badge.pago-si{background:var(--send-soft); color:var(--send);}
+.papeleria-patient-pago-badge.pago-no{background:var(--surface-2); color:var(--text-faint);}
 .papeleria-done-btn{
   flex-shrink:0;
   width:28px; height:28px;

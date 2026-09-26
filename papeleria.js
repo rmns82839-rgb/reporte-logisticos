@@ -53,6 +53,8 @@ export function checklistPaciente(catalogo, p, valor, esFsfb) {
 export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
   let recibosFsfb = 0, recibosVip = 0, venos = 0, sondas = 0, vihs = 0;
   const tubosPorColor = {};
+  let totalTubosDia = 0;
+  let totalCubrirLuzDia = 0;
 
   patients.forEach(p => {
     if (p.estado === "cancelado") return;
@@ -69,9 +71,11 @@ export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
     conteo.tubos.forEach(t => {
       tubosPorColor[t.tubo] = (tubosPorColor[t.tubo] || 0) + t.cantidad;
     });
+    totalTubosDia += conteo.totalTubos;
+    totalCubrirLuzDia += conteo.totalCubrirLuz;
   });
 
-  return { recibosFsfb, recibosVip, venos, sondas, vihs, tubosPorColor };
+  return { recibosFsfb, recibosVip, venos, sondas, vihs, tubosPorColor, totalTubosDia, totalCubrirLuzDia };
 }
 
 export function renderResumenDelDiaHtml(resumen) {
@@ -91,9 +95,10 @@ export function renderResumenDelDiaHtml(resumen) {
   `).join("")}</div>`;
 
   const tubosEntries = Object.entries(resumen.tubosPorColor);
+  const luzTxt = resumen.totalCubrirLuzDia > 0 ? ` · 🌑 ${resumen.totalCubrirLuzDia} cubierto${resumen.totalCubrirLuzDia !== 1 ? "s" : ""} de la luz` : "";
   const tubosHtml = tubosEntries.length > 0
     ? `<div class="papeleria-tubos-total">
-        <span class="papeleria-tubos-label">🧪 Tubos del día</span>
+        <span class="papeleria-tubos-label">🧪 Tubos del día — total ${resumen.totalTubosDia}${luzTxt}</span>
         <div class="papeleria-tubos-chips">
           ${tubosEntries.map(([tubo, n]) => {
             const tb = TUBOS_AUX.find(t => t.key === tubo);
@@ -203,6 +208,7 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
         <summary class="papeleria-patient-name">
           <span class="papeleria-patient-num">${idx + 1}</span>
           <span class="papeleria-patient-name-text">${escapeHtml(p.nombrePaciente || "(sin nombre)")}</span>
+          <span class="papeleria-patient-pago-badge${valor > 0 ? " pago-si" : " pago-no"}">${valor > 0 ? "💳 Paga" : "Sin pago"}</span>
           <button type="button" class="papeleria-done-btn${listo ? " active" : ""}" data-pid="${p.id}" title="Marcar papelería lista">${listo ? "✅" : "⬜"}</button>
         </summary>
         <div class="papeleria-info-grid">
