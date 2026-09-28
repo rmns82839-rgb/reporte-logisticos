@@ -2517,7 +2517,11 @@
       ? p.examenes.map(e => `<div class="exam-row">${escapeHtmlAux(e)}</div>`).join("")
       : '<p class="card-hint">Sin exámenes registrados.</p>';
     patientCardTubeEstimate.innerHTML = "";
-    if (p.examenes.length) {
+    // Para FSFB, la columna "exámenes" del Excel trae recomendaciones del
+    // médico, no exámenes reales — no hay nada que clasificar contra el
+    // catálogo. Se muestra tal cual (ya se hizo arriba como lista plana) y
+    // no se intenta armar chips ni contar tubos con ese texto.
+    if (p.examenes.length && !isFsfb(p)) {
       getCatalogoCached(db).then(catalogo => {
         // Si el auxiliar ya cerró esta tarjeta o abrió otro paciente
         // mientras se cargaba el catálogo, no pisar lo que se ve ahora.
