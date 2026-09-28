@@ -93,15 +93,26 @@ export function renderResumenDelDiaHtml(resumen) {
     ["Sondas", resumen.sondas, "#f59e0b"],
   ];
   if (resumen.habeasFsfb > 0) items.push(["📄 Habeas Data FSFB", resumen.habeasFsfb, "var(--fsfb)"]);
-  if (resumen.planillasFsfb > 0) items.push(["📋 Planillas entrega FSFB", resumen.planillasFsfb, "var(--fsfb)"]);
   if (resumen.vihs > 0) items.push(["🚨 VIH", resumen.vihs, "#e5484d"]);
 
-  const gridHtml = `<div class="papeleria-grid">${items.map(([label, n, color]) => `
+  const countCardsHtml = items.map(([label, n, color]) => `
     <div class="papeleria-count-card" style="border-color:${color}66;">
       <div class="papeleria-count-num" style="color:${color};">${n}</div>
       <div class="papeleria-count-label">${label}</div>
     </div>
-  `).join("")}</div>`;
+  `).join("");
+
+  // Planilla de entrega: solo aplica si hay pacientes FSFB hoy — no tiene
+  // una cantidad propia que valga la pena contar (es una por paciente,
+  // igual a Habeas Data), así que se muestra como aviso de "sí aplica
+  // hoy", sin número, en vez de una tarjeta de conteo.
+  const planillaChipHtml = resumen.planillasFsfb > 0
+    ? `<div class="papeleria-count-card papeleria-flag-card" style="border-color:var(--fsfb)66;">
+        <div class="papeleria-count-label" style="color:var(--fsfb);">📋 Planilla de entrega</div>
+      </div>`
+    : "";
+
+  const gridHtml = `<div class="papeleria-grid">${countCardsHtml}${planillaChipHtml}</div>`;
 
   const tubosEntries = Object.entries(resumen.tubosPorColor);
   const luzTxt = resumen.totalCubrirLuzDia > 0 ? ` · 🌑 ${resumen.totalCubrirLuzDia} cubierto${resumen.totalCubrirLuzDia !== 1 ? "s" : ""} de la luz` : "";

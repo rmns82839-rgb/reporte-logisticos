@@ -5,7 +5,7 @@
 // para no repetir el bug de doble-inicialización que ya tuvimos antes.
 
 import {
-  collection, doc, getDocs, setDoc, serverTimestamp,
+  collection, doc, getDocs, setDoc, deleteDoc, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 export function perplexityUrl(codigo, nombre) {
@@ -746,13 +746,18 @@ export function initExamGuide(deps) {
     const codigoInput = document.getElementById("examGuideEditCodigoInput");
 
     if (titleEl) titleEl.textContent = isManual ? "🧪 Agregar examen a la guía" : "🧪 Editar clasificación";
-    if (manualFields) manualFields.hidden = !isManual;
+    // El nombre (y el código) se pueden editar siempre, no solo al agregar
+    // un examen a mano — así se corrige un nombre mal escrito o pegado
+    // directamente desde la Guía, sin tener que borrar y crear de nuevo.
+    if (manualFields) manualFields.hidden = false;
     if (isManual) {
       editName.textContent = "Escribe el nombre del examen tal como sale en la planilla.";
       nombreInput.value = "";
       codigoInput.value = "";
     } else {
-      editName.textContent = ex.nombre + (ex.codigo ? ` (#${ex.codigo})` : "");
+      editName.textContent = "Puedes corregir el nombre o el código si hace falta.";
+      nombreInput.value = ex.nombre || "";
+      codigoInput.value = ex.codigo || "";
     }
 
     const examGuideEditBehaviorField = document.getElementById("examGuideEditBehaviorField");
@@ -791,29 +796,41 @@ export function initExamGuide(deps) {
     examGuideEditPerplexity.href = perplexityUrl(ex.codigo, ex.nombre);
 
     examGuideEditSaveBtn.onclick = async () => {
-      if (isManual) {
-        const nombreTecleado = nombreInput.value.trim();
-        if (!nombreTecleado) { showToast("Escribe el nombre del examen", 1800); return; }
-        ex.nombre = nombreTecleado;
-        ex.codigo = codigoInput.value.trim();
-        ex.id = examDocId(ex.codigo, ex.nombre);
-        if (catalogo.some(e => e.id === ex.id)) { showToast("Ese examen ya está en la guía — búscalo arriba", 2400); return; }
+      if (!tuboElegido) { showToast("Elige un tubo", 1800); return; }
+      const nombreTecleado = nombreInput.value.trim();
+      if (!nombreTecleado) { showToast("Escribe el nombre del examen", 1800); return; }
+      const codigoTecleado = codigoInput.value.trim();
+      const idAnterior = ex.id;
+      const idNuevo = examDocId(codigoTecleado, nombreTecleado);
+      // Si el código no cambia, examDocId da el mismo id de siempre (la
+      // mayoría de exámenes tienen código CUPS, así que renombrar el
+      // nombre no mueve nada) — solo hay que migrar de documento cuando
+      // el id calculado realmente cambia (típico en exámenes sin código,
+      // donde el id sale del nombre).
+      const idCambia = !isManual && idNuevo !== idAnterior;
+      if (isManual || idCambia) {
+        if (catalogo.some(e => e !== ex && e.id === idNuevo)) {
+          showToast("Ese examen ya está en la guía — búscalo arriba", 2400);
+          return;
+        }
         // Coincidencia exacta ya se descartó arriba — esto detecta
         // variaciones de tilde/mayúsculas o nombres muy parecidos, para
         // no terminar con el mismo examen duplicado dos veces en la guía.
         if (!similarConfirmed) {
-          const parecido = catalogo.find(e => examNamesMatch(e.nombre, ex.nombre));
+          const parecido = catalogo.find(e => e !== ex && examNamesMatch(e.nombre, nombreTecleado));
           if (parecido) {
             const tbParecido = TUBOS_AUX.find(t => t.key === parecido.tubo);
             const seguro = window.confirm(
-              `Ya existe un examen parecido en la guía: "${parecido.nombre}"${tbParecido ? ` (tubo: ${tbParecido.key})` : ""}.\n\n¿Seguro que "${ex.nombre}" es un examen distinto y quieres agregarlo aparte?`
+              `Ya existe un examen parecido en la guía: "${parecido.nombre}"${tbParecido ? ` (tubo: ${tbParecido.key})` : ""}.\n\n¿Seguro que "${nombreTecleado}" es un examen distinto y quieres agregarlo aparte?`
             );
             if (!seguro) return;
             similarConfirmed = true;
           }
         }
       }
-      if (!tuboElegido) { showToast("Elige un tubo", 1800); return; }
+      ex.nombre = nombreTecleado;
+      ex.codigo = codigoTecleado;
+      ex.id = idNuevo;
       examGuideEditSaveBtn.disabled = true;
       examGuideEditSaveBtn.textContent = "Guardando...";
       const campos = deriveTuboFields(tuboElegido, behaviorElegido);
@@ -822,6 +839,12 @@ export function initExamGuide(deps) {
         { codigo: ex.codigo, nombre: ex.nombre, tubo: tuboElegido, ...campos, cubrirLuz: examGuideEditLuz.checked, descripcion: examGuideEditDescripcion.value },
         deps.me ? deps.me.name : ""
       );
+      if (ok && idCambia) {
+        // El documento con el id viejo queda huérfano — bórralo para no
+        // dejar el mismo examen duplicado en el catálogo con dos ids.
+        try { await deleteDoc(doc(db, "examenesCatalogo", idAnterior)); }
+        catch (e) { console.warn("[exams.js] No se pudo borrar el id anterior tras renombrar:", e); }
+      }
       examGuideEditSaveBtn.disabled = false;
       examGuideEditSaveBtn.textContent = "Guardar cambios";
       if (ok) {

@@ -1207,16 +1207,26 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   z-index:0;
 }
 .papeleria-parallax-content{position:relative; z-index:1;}
-.papeleria-grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;}
+/* auto-fit + minmax en vez de un número fijo de columnas: las tarjetas
+   siempre quedan del mismo tamaño entre sí (simétricas) sin importar
+   cuántas aparezcan (varían porque algunas son condicionales — Habeas
+   Data, Planilla, VIH solo si aplica), y se ajustan solas al ancho
+   disponible en vez de dejar huecos o desbordar en pantallas chicas. */
+.papeleria-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(74px, 1fr)); gap:6px;}
 .papeleria-count-card{
   background:var(--surface-3);
   border:1.5px solid var(--border);
   border-radius:10px;
   padding:8px 4px;
   text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
 }
 .papeleria-count-num{font-size:18px; font-weight:900;}
 .papeleria-count-label{font-size:9px; font-weight:700; color:var(--text-dim); margin-top:2px;}
+.papeleria-flag-card .papeleria-count-label{font-size:11px; margin-top:0;}
 .papeleria-tubos-total{margin-top:10px; text-align:center;}
 .papeleria-tubos-label{display:block; font-size:11px; font-weight:800; color:var(--text-dim); margin-bottom:6px;}
 .papeleria-tubos-chips{display:flex; flex-wrap:wrap; gap:6px;}
