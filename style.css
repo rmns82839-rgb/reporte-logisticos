@@ -2001,18 +2001,40 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   border-radius:20px; overflow:hidden;
 }
 .tube-co-tile.active .tube-co-controls{border-color:var(--co-color);}
+/* Antes era una sola fila (checkbox + un stepper) con justify-content:
+   space-between — al sumar un segundo stepper (punciones) ya no alcanzaba
+   el ancho en celular y todo se apretaba y desalineaba. Ahora es una
+   columna: el checkbox arriba (ancho completo) y, debajo, los dos
+   steppers en un grid de 2 columnas SIEMPRE del mismo tamaño entre sí,
+   cada uno con su etiqueta arriba y los botones centrados debajo. */
 .patient-pericraneal-box{
   display:flex;
-  align-items:center;
-  justify-content:space-between;
+  flex-direction:column;
+  gap:10px;
   background:var(--surface-2);
   border:1px solid var(--border);
   border-radius:10px;
   padding:10px 14px;
   margin-bottom:14px;
 }
-.patient-pericraneal-label{font-size:12.5px; font-weight:700; color:var(--text-dim);}
-.patient-pericraneal-controls{display:flex; align-items:center; gap:12px;}
+.patient-pericraneal-controls{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.patient-pericraneal-stepper-row{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:8px 6px;
+  text-align:center;
+}
+.patient-pericraneal-stepper-btns{display:flex; align-items:center; justify-content:center; gap:10px;}
+.patient-pericraneal-label{font-size:11.5px; font-weight:700; color:var(--text-dim);}
 .patient-pericraneal-value{font-size:17px; font-weight:900; color:var(--text); min-width:16px; text-align:center;}
 .tube-co-step{
   width:22px; height:22px; border:none; background:transparent;
