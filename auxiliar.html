@@ -48,6 +48,14 @@
 
   <div id="offlineBanner" class="offline-banner" hidden>🔌 Sin conexión — los pacientes se siguen guardando en el celular; entregar, Freshdesk y el catálogo de exámenes se reanudan solos cuando vuelva la señal.</div>
 
+  <div id="restoreBackupBanner" class="offline-banner" hidden>
+    <span id="restoreBackupText">☁️ Se encontró un respaldo en la nube de hoy.</span>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="restoreBackupBtn" type="button" class="ghost-btn" style="margin:0;">☁️ Restaurar</button>
+      <button id="restoreBackupDismissBtn" type="button" class="ghost-btn" style="margin:0;">Ignorar</button>
+    </div>
+  </div>
+
   <main style="display:block;">
 
     <!-- Herramientas del día — todo lo que no es "trabajar con un paciente"
@@ -72,8 +80,9 @@
         <section class="card">
           <details class="hour-group">
             <summary><span class="group-label">🧪 Guía de exámenes</span><span id="examGuideBadge" class="group-badge">0</span></summary>
-            <p class="card-hint">Se construye sola con cada planilla que importas — busca por nombre o código, toca el tubo para corregirlo si hace falta.</p>
+            <p class="card-hint">Se construye sola con cada planilla que importas — busca por nombre o código, toca el tubo para corregirlo si hace falta. Si un examen no aparece, agrégalo a mano.</p>
             <input type="text" id="examGuideSearch" class="text-input" placeholder="Buscar por nombre o código...">
+            <button type="button" id="examGuideAddBtn" class="ghost-btn" style="margin:8px 0;">➕ Agregar examen a la guía</button>
             <div id="examGuideList" class="exam-guide-list"></div>
           </details>
         </section>
@@ -132,8 +141,7 @@
             </div>
 
             <div class="freshdesk-counter-box">
-              <span>🩹 Pericraneales usados hoy</span>
-              <span id="pericranealCounterText">0</span>
+              <span>🩹 Pericraneales — usados hoy <span id="pericranealCounterText">0</span> · <span id="pericranealStockText">Stock: 5/5</span></span>
               <button id="pericranealReponerBtn" type="button" class="ghost-btn" hidden>📦 Reponer</button>
             </div>
 
@@ -190,11 +198,21 @@
 
 </div>
 
-<div id="examGuideEditModal" class="modal-overlay" hidden>
+<div id="examGuideEditModal" class="modal-overlay modal-overlay-nested" hidden>
   <div class="modal-card">
     <button id="examGuideEditClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
-    <h3>🧪 Editar clasificación</h3>
+    <h3 id="examGuideEditTitle">🧪 Editar clasificación</h3>
     <p id="examGuideEditName" class="card-hint">—</p>
+    <div id="examGuideEditManualFields" hidden>
+      <label class="exam-clasificar-extra-field">
+        Nombre del examen
+        <input type="text" id="examGuideEditNombreInput" class="text-input" placeholder="Ej: Proteínas en orina de 24 horas">
+      </label>
+      <label class="exam-clasificar-extra-field">
+        Código CUPS (opcional)
+        <input type="text" id="examGuideEditCodigoInput" class="text-input" placeholder="Ej: 903889">
+      </label>
+    </div>
     <div id="examGuideEditChips" class="exam-clasificar-chips"></div>
     <div class="exam-clasificar-extra">
       <label class="exam-clasificar-extra-field" id="examGuideEditBehaviorField">
@@ -215,7 +233,7 @@
   </div>
 </div>
 
-<div id="linkPatientModal" class="modal-overlay" hidden>
+<div id="linkPatientModal" class="modal-overlay modal-overlay-nested" hidden>
   <div class="modal-card modal-card-wide">
     <button id="linkPatientClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
     <h3>🔗 Vincular paciente</h3>
@@ -224,7 +242,7 @@
   </div>
 </div>
 
-<div id="examRenameModal" class="modal-overlay" hidden>
+<div id="examRenameModal" class="modal-overlay modal-overlay-nested" hidden>
   <div class="modal-card">
     <button id="examRenameClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
     <h3>✏️ Editar examen</h3>
@@ -314,12 +332,23 @@
     </details>
 
     <div class="patient-pericraneal-box">
-      <span class="patient-pericraneal-label">🩹 Pericraneales usados</span>
-      <div class="patient-pericraneal-controls">
+      <label class="exam-clasificar-solo" style="margin:0;">
+        <input type="checkbox" id="patientPericranealToggle">
+        🩹 ¿Se usó aguja pericraneal?
+      </label>
+      <div id="patientPericranealStepperWrap" class="patient-pericraneal-controls" hidden>
+        <span class="patient-pericraneal-label">Punciones</span>
         <button type="button" id="patientPericranealMinus" class="tube-co-step minus">−</button>
-        <span id="patientPericranealValue" class="patient-pericraneal-value">0</span>
+        <span id="patientPericranealValue" class="patient-pericraneal-value">1</span>
         <button type="button" id="patientPericranealPlus" class="tube-co-step plus">+</button>
       </div>
+    </div>
+
+    <div id="patientSondaBox" class="patient-pericraneal-box" hidden>
+      <label class="exam-clasificar-solo" style="margin:0;">
+        <input type="checkbox" id="patientSondaRetiradaToggle">
+        🚰 Se retiró / descontó la sonda vesical (no salió en el reporte)
+      </label>
     </div>
 
     <details class="hour-group" id="patientOrdenDetails" open hidden>
@@ -366,8 +395,8 @@
   </div>
 </div>
 
-<div id="cancelReasonModal" class="modal-overlay" hidden>
-  <div class="modal-card">
+<div id="cancelReasonModal" class="modal-overlay modal-overlay-nested" hidden>
+  <div class="modal-card modal-card-wide">
     <button id="cancelReasonClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
     <h3>❌ Cancelar paciente</h3>
     <p class="card-hint">Elige el motivo — se le manda el aviso por WhatsApp apenas confirmes.</p>
@@ -433,6 +462,7 @@
   getCatalogoCached(db); // precarga en segundo plano, para que los chips de la tarjeta ya tengan color desde el primer paciente que se abra
   initPapeleriaParallax();
   examGuide.refreshBadgeOnly();
+  document.getElementById("examGuideAddBtn").addEventListener("click", () => examGuide.openAddManual());
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
     try {
@@ -449,14 +479,47 @@
   }
   window.addEventListener("online", () => { updateOfflineBanner(); retryFreshdeskPendientes(); });
   document.getElementById("freshdeskRetryBtn").addEventListener("click", retryFreshdeskPendientes);
+
+  // ---------------- Stock de agujas pericraneales ----------------
+  // Persistente entre días (como en RutaLab Pro) — no se reinicia al
+  // importar una planilla nueva, solo baja cuando se marca un uso y sube
+  // cuando confirmas que te repusieron. Guardado por auxiliar (celular).
+  const PERICRANEAL_STOCK_FULL = 5;
+  function pericranealStockKey() { return `reporte_logisticos_auxiliar_pericraneal_stock_${me.phone}`; }
+  function getPericranealStock() {
+    try {
+      const raw = localStorage.getItem(pericranealStockKey());
+      return raw !== null ? parseInt(raw, 10) : PERICRANEAL_STOCK_FULL;
+    } catch (e) { return PERICRANEAL_STOCK_FULL; }
+  }
+  function setPericranealStock(n) {
+    try { localStorage.setItem(pericranealStockKey(), String(Math.max(0, n))); } catch (e) {}
+  }
+  // delta positivo = se devuelven al stock (se deshizo un uso); negativo =
+  // se gastan (se marcó un uso nuevo).
+  function adjustPericranealStock(delta) {
+    if (!delta) return;
+    setPericranealStock(getPericranealStock() + delta);
+    renderPericranealStock();
+  }
+  function renderPericranealStock() {
+    const stock = getPericranealStock();
+    const stockText = document.getElementById("pericranealStockText");
+    if (stockText) stockText.textContent = `Stock: ${stock}/${PERICRANEAL_STOCK_FULL}`;
+    document.getElementById("pericranealReponerBtn").hidden = stock >= PERICRANEAL_STOCK_FULL;
+  }
   document.getElementById("pericranealReponerBtn").addEventListener("click", () => {
-    const total = currentPatients
-      .filter(p => p.estado !== "cancelado")
-      .reduce((sum, p) => sum + (p.pericraneales || 0), 0);
-    if (total === 0) return;
-    const texto = `Buen día, por favor reponer ${total} pericraneal${total !== 1 ? "es" : ""}. Gracias. El stock son 5.`;
+    const stock = getPericranealStock();
+    const faltan = PERICRANEAL_STOCK_FULL - stock;
+    if (faltan <= 0) return;
+    const texto = `Buen día, por favor reponer ${faltan} pericraneal${faltan !== 1 ? "es" : ""}. Gracias. El stock son ${PERICRANEAL_STOCK_FULL}.`;
     sendWhatsAppText(texto);
+    setPericranealStock(PERICRANEAL_STOCK_FULL);
+    renderPericranealStock();
+    showToast("Stock repuesto a " + PERICRANEAL_STOCK_FULL, 2000);
   });
+  if (me) renderPericranealStock();
+
   window.addEventListener("offline", updateOfflineBanner);
   updateOfflineBanner();
 
@@ -493,7 +556,28 @@
   // Apagado por defecto — hay que activarlo a propósito con el botón 🔗
   // del topbar, para poder probarlo primero. Se guarda por celular, no
   // por auxiliar, en localStorage.
+  //
+  // Llave compartida para /api/freshdesk-sync — tiene que ser IDÉNTICA a
+  // la variable de entorno SYNC_SHARED_KEY en Vercel. Sin esto, cualquiera
+  // que encuentre la URL del endpoint podría actualizar tickets reales.
+  // No es un secreto perfecto (queda visible en este archivo), pero
+  // bloquea el abuso oportunista. Si cambias este valor, cámbialo también
+  // en Vercel — y viceversa.
+  const FRESHDESK_SYNC_KEY = "BbgfL_lY6V5mGXN9vDpZI6SvrnwAJpyLgor68pepr3g";
   const FD_ON_KEY = "reporte_logisticos_auxiliar_freshdesk_on";
+
+  // Insignia chiquita junto al nombre del paciente en la lista, para ver
+  // de un vistazo si ese paciente ya se sincronizó con Freshdesk sin
+  // tener que ir hasta el Resumen del día. Solo aparece con la
+  // sincronización encendida y si el paciente tiene solicitud.
+  function fdBadgeHtml(p) {
+    if (!fdActivo() || !p.solicitud) return "";
+    // Antes de marcar cualquier tiempo no hay nada que sincronizar
+    // todavía — no tiene sentido mostrar una advertencia desde el inicio.
+    if (!p.arriboSitio && p.estado !== "cancelado") return "";
+    if (p.freshdeskSincronizado) return ' <span class="patient-fd-badge fd-ok" title="Sincronizado con Freshdesk">✅</span>';
+    return ' <span class="patient-fd-badge fd-pendiente" title="Falta sincronizar con Freshdesk">🔗⚠️</span>';
+  }
   const freshdeskToggleBtn = document.getElementById("freshdeskToggleBtn");
 
   function fdActivo() {
@@ -529,19 +613,29 @@
     if (!fdActivo()) return;
     if (!p.solicitud) return;
     try {
+      const body = {
+        solicitudes: [p.solicitud],
+        tiempos: {
+          fecha: localDateKey(),
+          arriboSitio: to24hLabel(p.arriboSitio),
+          arriboPac: to24hLabel(p.arriboPaciente),
+          toma: to24hLabel(p.horaToma),
+          salida: to24hLabel(p.horaSalida),
+        },
+      };
+      // Solo en cancelados: motivo (si mapea a una opción fija conocida
+      // de Freshdesk) y observación con el texto completo tal cual se
+      // eligió/escribió en la app.
+      if (p.estado === "cancelado" && p.motivoCancelacion) {
+        body.novedades = {
+          motivo: CANCEL_TO_FRESHDESK_NOVEDAD[p.motivoCancelacionKey] || undefined,
+          observacion: p.motivoCancelacion,
+        };
+      }
       const res = await fetch("/api/freshdesk-sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          solicitudes: [p.solicitud],
-          tiempos: {
-            fecha: localDateKey(),
-            arriboSitio: to24hLabel(p.arriboSitio),
-            arriboPac: to24hLabel(p.arriboPaciente),
-            toma: to24hLabel(p.horaToma),
-            salida: to24hLabel(p.horaSalida),
-          },
-        }),
+        headers: { "Content-Type": "application/json", "x-sync-key": FRESHDESK_SYNC_KEY },
+        body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
       if (json && json.ok) {
@@ -563,7 +657,14 @@
   // conexión, y también hay un botón para forzarla a mano.
   async function retryFreshdeskPendientes() {
     if (!fdActivo()) return;
-    const pendientes = currentPatients.filter(p => p.freshdeskPendiente);
+    // No solo los marcados "pendiente" — también cualquier paciente activo
+    // con solicitud que quedó sin sincronizar y sin marcarse pendiente (ej.
+    // un compañero de grupo al que nunca se le llamó syncFreshdeskIfOn).
+    // Si no, el botón "Reintentar" nunca lo toca y el contador se queda
+    // pegado en "6/7" para siempre.
+    const pendientes = currentPatients.filter(p =>
+      p.estado !== "cancelado" && p.solicitud && !p.freshdeskSincronizado
+    );
     if (pendientes.length === 0) return;
     showToast(`🔗 Reintentando ${pendientes.length} pendiente${pendientes.length !== 1 ? "s" : ""} con Freshdesk...`, 2400);
     for (const p of pendientes) {
@@ -864,14 +965,18 @@
     const freshdeskCounterBox = document.getElementById("freshdeskCounterBox");
     const freshdeskRetryBtn = document.getElementById("freshdeskRetryBtn");
     if (fdActivo()) {
-      const activos = patients.filter(p => p.estado !== "cancelado");
+      const activos = patients.filter(p => p.estado !== "cancelado" && p.solicitud);
       const sincronizados = activos.filter(p => p.freshdeskSincronizado).length;
-      const pendientes = activos.filter(p => p.freshdeskPendiente).length;
+      // "Faltantes" cuenta a CUALQUIERA sin sincronizar todavía, esté o no
+      // marcado explícitamente "pendiente" — así el botón Reintentar no
+      // desaparece cuando queda alguno atascado sin ese flag (ver
+      // retryFreshdeskPendientes).
+      const faltantes = activos.length - sincronizados;
       freshdeskCounterBox.hidden = false;
-      document.getElementById("freshdeskCounterText").textContent = pendientes > 0
-        ? `${sincronizados}/${activos.length} actualizados — ⚠️ ${pendientes} pendiente${pendientes !== 1 ? "s" : ""}`
+      document.getElementById("freshdeskCounterText").textContent = faltantes > 0
+        ? `${sincronizados}/${activos.length} actualizados — ⚠️ ${faltantes} pendiente${faltantes !== 1 ? "s" : ""}`
         : `${sincronizados}/${activos.length} actualizados`;
-      freshdeskRetryBtn.hidden = pendientes === 0;
+      freshdeskRetryBtn.hidden = faltantes === 0;
     } else {
       freshdeskCounterBox.hidden = true;
     }
@@ -880,10 +985,14 @@
       .filter(p => p.estado !== "cancelado")
       .reduce((sum, p) => sum + (p.pericraneales || 0), 0);
     document.getElementById("pericranealCounterText").textContent = totalPericraneales;
-    document.getElementById("pericranealReponerBtn").hidden = totalPericraneales === 0;
+    // El stock (y si se muestra "Reponer") lo controla renderPericranealStock(),
+    // que es independiente del conteo del día — el stock físico no se
+    // reinicia al importar una planilla nueva.
+    renderPericranealStock();
 
     renderPaymentBreakdown(patients);
     pushAuxiliarStatus(patients, stats);
+    pushFullBackup(patients);
   }
 
   // Publica el estado del auxiliar en vivo, para que el coordinador lo
@@ -921,6 +1030,59 @@
         console.warn("[auxiliar.html] No se pudo publicar el estado en vivo:", e);
       }
     }, 900);
+  }
+
+  // Respaldo COMPLETO (todos los campos, no la versión liviana de arriba)
+  // en Firebase, por si el celular se pierde, se resetea o se borra el
+  // caché a mitad del turno — así se puede recuperar el día desde otro
+  // celular. Nunca bloquea ni retrasa nada local si falla.
+  let pushBackupTimer = null;
+  function pushFullBackup(patients) {
+    if (!me) return;
+    clearTimeout(pushBackupTimer);
+    pushBackupTimer = setTimeout(async () => {
+      try {
+        await setDoc(doc(db, "auxiliarBackups", `${me.phone}_${localDateKey()}`), {
+          auxiliarPhone: me.phone,
+          auxiliarName: me.name,
+          date: localDateKey(),
+          updatedAt: serverTimestamp(),
+          count: patients.length,
+          patients,
+        });
+      } catch (e) {
+        console.warn("[auxiliar.html] No se pudo subir el respaldo completo:", e);
+      }
+    }, 2000);
+  }
+
+  // Si al abrir la app hoy no hay nada guardado localmente (celular nuevo,
+  // se borró el caché, se reinstaló, etc.) pero SÍ hay un respaldo de hoy
+  // en la nube, se ofrece restaurarlo — nunca se sobreescribe algo que ya
+  // esté guardado localmente, solo se ofrece cuando no hay nada que perder.
+  async function checkCloudBackup() {
+    if (!me) return;
+    const yaHayLocal = loadPatients();
+    if (yaHayLocal && yaHayLocal.length > 0) return;
+    try {
+      const snap = await getDoc(doc(db, "auxiliarBackups", `${me.phone}_${localDateKey()}`));
+      if (!snap.exists()) return;
+      const data = snap.data();
+      if (!data.patients || data.patients.length === 0) return;
+      document.getElementById("restoreBackupText").textContent =
+        `☁️ Se encontró un respaldo en la nube de hoy con ${data.patients.length} paciente${data.patients.length !== 1 ? "s" : ""}. ¿Restaurarlo?`;
+      const banner = document.getElementById("restoreBackupBanner");
+      banner.hidden = false;
+      document.getElementById("restoreBackupBtn").onclick = () => {
+        savePatients(data.patients);
+        renderPatientsList(data.patients);
+        banner.hidden = true;
+        showToast("Respaldo restaurado", 2200);
+      };
+      document.getElementById("restoreBackupDismissBtn").onclick = () => { banner.hidden = true; };
+    } catch (e) {
+      console.warn("[auxiliar.html] No se pudo revisar el respaldo en la nube:", e);
+    }
   }
 
   // Lista, uno por uno, quién pagó con qué — separado por método, con
@@ -1303,7 +1465,7 @@
       <button type="button" class="patient-num-input" title="Toca para numerar en modo Reorganizar">${index + 1}</button>
       <div class="patient-body">
         <div class="patient-top">
-          <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}${p.grupoId ? ' <span title="Vinculado con otros pacientes">🔗</span>' : ""}</span>
+          <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}${p.grupoId ? ' <span title="Vinculado con otros pacientes">🔗</span>' : ""}${fdBadgeHtml(p)}</span>
           <span class="patient-time">${escapeHtmlAux(p.horaProgramada || p.horaCita)}</span>
         </div>
         <div class="patient-meta">
@@ -1673,14 +1835,42 @@
     { key: "pse",      label: "🏦 PSE" },
   ];
 
+  // Mismos motivos, con el mismo texto EXACTO, que la lista desplegable
+  // "Novedades" del ticket en Freshdesk (Iván los copió de ahí) — así el
+  // motivo que se manda a Freshdesk siempre coincide con una opción real
+  // y nunca tumba la actualización del ticket. Solo "otro" es texto
+  // libre, sin equivalente fijo en Freshdesk.
   const CANCEL_REASONS = [
-    { key: "no_recoge",       label: "No recoge la muestra, por favor reprogramar." },
-    { key: "hospitalizado",   label: "Paciente hospitalizado" },
-    { key: "no_contesta",     label: "No contesta el citófono ni el celular" },
-    { key: "no_domicilio",    label: "No se encuentra en el domicilio" },
-    { key: "fallecio",        label: "Paciente falleció" },
-    { key: "otro",            label: "Otro" },
+    { key: "no_pago",                 label: "No pago" },
+    { key: "ruptura_muestra",         label: "Ruptura de la muestra" },
+    { key: "accidente_biologico",     label: "Accidente biológico" },
+    { key: "multipuncion",            label: "Multipunción" },
+    { key: "no_cobertura",            label: "No hay cobertura" },
+    { key: "no_permite_procedimiento", label: "No permite procedimiento" },
+    { key: "muestra_insuficiente",    label: "Muestra insuficiente" },
+    { key: "no_conforme_agenda",      label: "No conforme con agenda" },
+    { key: "no_recauda_bono",         label: "No se recauda bono" },
+    { key: "anulado",                 label: "Anulado" },
+    { key: "no_domicilio",            label: "No se encuentra en el domicilio" },
+    { key: "muestra_no_recolectada",  label: "Muestra no recolectada" },
+    { key: "muestra_defectuosa",      label: "Muestra defectuosa" },
+    { key: "toma_otra_entidad",       label: "Toma con otra entidad" },
+    { key: "hospitalizado",           label: "Paciente hospitalizado" },
+    { key: "fallecio",                label: "Paciente falleció" },
+    { key: "no_realizara_examenes",   label: "No se realizara exámenes" },
+    { key: "desconoce_agendamiento",  label: "Paciente desconoce agendamiento servicio" },
+    { key: "cancelacion_agendamiento", label: "Cancelación agendamiento" },
+    { key: "dificil_acceso_uretral",  label: "Dificil acceso uretral" },
+    { key: "no_respuesta_paciente",   label: "No respuesta por parte del paciente" },
+    { key: "otro",                    label: "Otro" },
   ];
+
+  // Como el texto ya es idéntico al de Freshdesk, el mapeo es directo
+  // (label = label) para todos menos "otro", que se deja fuera de
+  // cf_novedades y solo se manda como observación de texto libre.
+  const CANCEL_TO_FRESHDESK_NOVEDAD = Object.fromEntries(
+    CANCEL_REASONS.filter(r => r.key !== "otro").map(r => [r.key, r.label])
+  );
 
   function nowTimeLabelAux() {
     const d = new Date();
@@ -1854,19 +2044,47 @@
   const patientPericranealValue = document.getElementById("patientPericranealValue");
   const patientPericranealMinus = document.getElementById("patientPericranealMinus");
   const patientPericranealPlus = document.getElementById("patientPericranealPlus");
+  const patientPericranealToggle = document.getElementById("patientPericranealToggle");
+  const patientPericranealStepperWrap = document.getElementById("patientPericranealStepperWrap");
+  patientPericranealToggle.addEventListener("change", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    const prev = p.pericraneales || 0;
+    if (patientPericranealToggle.checked) {
+      p.pericraneales = prev > 0 ? prev : 1;
+    } else {
+      p.pericraneales = 0;
+    }
+    adjustPericranealStock(prev - p.pericraneales);
+    savePatients(currentPatients);
+    patientPericranealStepperWrap.hidden = !patientPericranealToggle.checked;
+    patientPericranealValue.textContent = p.pericraneales || 1;
+  });
   patientPericranealMinus.addEventListener("click", () => {
     const p = getOpenPatient();
     if (!p) return;
-    p.pericraneales = Math.max(0, (p.pericraneales || 0) - 1);
+    const prev = p.pericraneales || 1;
+    p.pericraneales = Math.max(1, prev - 1);
+    adjustPericranealStock(prev - p.pericraneales);
     savePatients(currentPatients);
     patientPericranealValue.textContent = p.pericraneales;
   });
   patientPericranealPlus.addEventListener("click", () => {
     const p = getOpenPatient();
     if (!p) return;
-    p.pericraneales = (p.pericraneales || 0) + 1;
+    const prev = p.pericraneales || 1;
+    p.pericraneales = Math.min(4, prev + 1);
+    adjustPericranealStock(prev - p.pericraneales);
     savePatients(currentPatients);
     patientPericranealValue.textContent = p.pericraneales;
+  });
+  const patientSondaBox = document.getElementById("patientSondaBox");
+  const patientSondaRetiradaToggle = document.getElementById("patientSondaRetiradaToggle");
+  patientSondaRetiradaToggle.addEventListener("change", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    p.sondaRetirada = patientSondaRetiradaToggle.checked;
+    persistOpenPatient();
   });
   const patientTubesBadge = document.getElementById("patientTubesBadge");
   const patientValorBadge = document.getElementById("patientValorBadge");
@@ -2101,7 +2319,7 @@
     const all = p.grupoId ? getGroupAll(p) : [p];
     const solicitudes = all.map(x => `*${x.solicitud || "—"}*`).join(" + ");
     const etiqueta = all.length > 1 ? " (mismo domicilio)" : "";
-    const text = `${myReportEmoji()} ${solicitudes}${etiqueta}\n\n📍 Arribo: ${p.arriboSitio}`;
+    const text = `${myReportEmoji()} ${solicitudes}${etiqueta}\n📍 Arribo: ${p.arriboSitio}`;
     sendWhatsAppText(text);
   }
 
@@ -2115,44 +2333,34 @@
   function buildFinalReportText(p) {
     const lines = [
       `${myReportEmoji()} *${p.solicitud || "—"}*`,
-      "",
       `🕐 *Arribo*: ${p.arriboSitio || "—"}`,
-      "",
       `🚪 *Paciente*: ${p.arriboPaciente || "—"}`,
-      "",
       `🩸 *Toma*: ${p.horaToma || "—"}`,
-      "",
       `🚶 *Salida*: ${p.horaSalida || "—"}`,
-      "",
       "🧪 *Tubos*:",
-      "",
     ];
     const tomados = TUBOS_AUX.filter(tb => tb.esTubo !== false && (p.tubos[tb.key] || 0) > 0);
     if (tomados.length === 0) {
       lines.push("Sin tubos registrados");
-      lines.push("");
     } else {
-      tomados.forEach(tb => { lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`); lines.push(""); });
+      tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
     }
-    if (/sonda/i.test((p.examenes || []).join(" "))) {
+    if ((p.pericraneales || 0) > 0) {
+      lines.push(`🩹 *Pericraneal*: ${p.pericraneales} punción${p.pericraneales !== 1 ? "es" : ""}`);
+    }
+    if (/sonda/i.test((p.examenes || []).join(" ")) && !p.sondaRetirada) {
       lines.push("🚰 *Se usó sonda vesical*");
-      lines.push("");
     }
     if (isFsfb(p)) {
       lines.push(ordenLabel(p.entregoOrden));
-      lines.push("");
       if (getValorFinal(p) > 0) {
         lines.push(`💰 *Valor a cobrar*: $${getValorFinal(p).toLocaleString("es-CO")}`);
-        lines.push("");
         lines.push(`💳 *Forma de pago*: ${paymentLabel(p.formaPago)}`);
-        lines.push("");
       }
     }
     if (p.novedades && p.novedades.trim()) {
       lines.push(`📝 *Novedades*: ${p.novedades.trim()}`);
     }
-    // Quitar líneas en blanco sobrantes al final
-    while (lines.length && lines[lines.length - 1] === "") lines.pop();
     return lines.join("\n");
   }
 
@@ -2171,20 +2379,14 @@
     const solicitudes = all.map(x => `*${x.solicitud || "—"}*`).join(" + ");
     const lines = [
       `${myReportEmoji()} ${solicitudes} (mismo domicilio)`,
-      "",
       `🕐 *Arribo*: ${p0.arriboSitio || "—"}`,
-      "",
       `🚪 *Paciente*: ${p0.arriboPaciente || "—"}`,
-      "",
       `🚶 *Salida*: ${p0.horaSalida || "—"}`,
     ];
 
     all.forEach(p => {
-      lines.push("");
       lines.push(`👤 *${p.nombrePaciente || "(sin nombre)"}* — N° ${p.solicitud || "—"}`);
-      lines.push("");
       lines.push(`🩸 Toma: ${p.horaToma || "—"}`);
-      lines.push("");
       const tomados = TUBOS_AUX.filter(tb => tb.esTubo !== false && (p.tubos[tb.key] || 0) > 0);
       if (tomados.length === 0) {
         lines.push("🧪 Sin tubos registrados");
@@ -2192,21 +2394,19 @@
         lines.push("🧪 Tubos:");
         tomados.forEach(tb => lines.push(`${tb.emoji} ${p.tubos[tb.key]} ${tb.key}`));
       }
-      const procedimientos = TUBOS_AUX.filter(tb => tb.esTubo === false && (p.tubos[tb.key] || 0) > 0);
-      procedimientos.forEach(tb => lines.push(`${tb.emoji} *${tb.key}*: ${p.tubos[tb.key]}`));
-      if (/sonda/i.test((p.examenes || []).join(" "))) {
+      if ((p.pericraneales || 0) > 0) {
+        lines.push(`🩹 Pericraneal: ${p.pericraneales} punción${p.pericraneales !== 1 ? "es" : ""}`);
+      }
+      if (/sonda/i.test((p.examenes || []).join(" ")) && !p.sondaRetirada) {
         lines.push("🚰 *Se usó sonda vesical*");
       }
       if (isFsfb(p)) {
-        lines.push("");
         lines.push(ordenLabel(p.entregoOrden));
       }
       if (!p.pagoConjunto && getValorFinal(p) > 0) {
-        lines.push("");
         lines.push(`💰 Valor: $${getValorFinal(p).toLocaleString("es-CO")} · ${paymentLabel(p.formaPago)}`);
       }
       if (p.novedades && p.novedades.trim()) {
-        lines.push("");
         lines.push(`📝 Novedades: ${p.novedades.trim()}`);
       }
     });
@@ -2214,7 +2414,6 @@
     if (p0.pagoConjunto) {
       const total = getValorConjunto(all);
       if (total > 0) {
-        lines.push("");
         lines.push(`💰 *Pago conjunto*: $${total.toLocaleString("es-CO")} · ${paymentLabel(p0.formaPagoConjunta)}`);
       }
     }
@@ -2369,7 +2568,12 @@
         savePatients(currentPatients);
         renderPatientCard();
         renderPatientsList(currentPatients);
+        // Un tiempo compartido (arribo/toma) se propaga a los pacientes
+        // vinculados del mismo domicilio — hay que sincronizar Freshdesk
+        // para TODOS, no solo para el que disparó el cambio, si no el
+        // ticket del compañero se queda desactualizado.
         syncFreshdeskIfOn(p);
+        getGroupMates(p).forEach(m => syncFreshdeskIfOn(m));
 
         if (key === "arriboSitio") {
           sendArriboWhatsApp(p);
@@ -2389,6 +2593,7 @@
         savePatients(currentPatients);
         renderPatientsList(currentPatients);
         syncFreshdeskIfOn(p);
+        getGroupMates(p).forEach(m => syncFreshdeskIfOn(m));
       });
     });
     patientTimeGrid.querySelectorAll(".patient-time-clear").forEach(btn => {
@@ -2409,7 +2614,13 @@
     });
 
     if (!p.tubos) p.tubos = {};
-    patientPericranealValue.textContent = p.pericraneales || 0;
+    const usaPericraneal = (p.pericraneales || 0) > 0;
+    patientPericranealToggle.checked = usaPericraneal;
+    patientPericranealStepperWrap.hidden = !usaPericraneal;
+    patientPericranealValue.textContent = usaPericraneal ? p.pericraneales : 1;
+    const tieneSondaEnExamenes = /sonda/i.test((p.examenes || []).join(" "));
+    patientSondaBox.hidden = !tieneSondaEnExamenes;
+    patientSondaRetiradaToggle.checked = !!p.sondaRetirada;
     let totalTubos = 0;
     patientTubesGrid.innerHTML = TUBOS_AUX.filter(tb => tb.esTubo !== false).map(tb => {
       const qty = p.tubos[tb.key] || 0;
@@ -2616,7 +2827,6 @@
   function sendCancelWhatsApp(p) {
     const text = [
       `${myReportEmoji()} *${p.solicitud || "—"}*`,
-      "",
       "❌ *Cancelado*",
       `Motivo: ${p.motivoCancelacion || "—"}`,
     ].join("\n");
@@ -2673,6 +2883,7 @@
 
     p.estado = "cancelado";
     p.motivoCancelacion = motivo;
+    p.motivoCancelacionKey = selectedCancelReason;
     savePatients(currentPatients);
     sendCancelWhatsApp(p);
     syncFreshdeskIfOn(p);
@@ -2688,6 +2899,7 @@
     if (!p) return;
     p.estado = "";
     p.motivoCancelacion = "";
+    p.motivoCancelacionKey = "";
     updatePatientEstado(p);
     if (p.entregadoLogistico) {
       p.entregadoLogistico = false;
@@ -2703,6 +2915,7 @@
   if (me) {
     const existing = loadPatients();
     if (existing && existing.length > 0) renderPatientsList(existing);
+    else checkCloudBackup();
   }
 </script>
 </body>

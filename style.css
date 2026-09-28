@@ -812,7 +812,8 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 #patientsList.reorder-active .patient-drag-handle{opacity:1; pointer-events:auto;}
 #patientsList.reorder-active .patient-num-input{
   background:var(--surface-3);
-  border-color:var(--border);
+  border-color:var(--send);
+  color:var(--text);
   pointer-events:auto;
 }
 .patient-num-input::-webkit-outer-spin-button,
@@ -952,6 +953,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-body{flex:1; min-width:0;}
 .patient-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
 .patient-name{font-weight:800; font-size:13px; color:var(--text);}
+.patient-fd-badge{font-size:11px; margin-left:2px;}
 .patient-time{font-size:11.5px; color:var(--text-faint); font-weight:700; white-space:nowrap; flex-shrink:0;}
 .patient-meta{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-top:2px;}
 .patient-address{font-size:11.5px; color:var(--text-faint); font-weight:600; margin-top:3px; line-height:1.4;}
@@ -2176,7 +2178,6 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 
 .toast{
   position:fixed;
-  z-index:300;
   left:50%;
   bottom:100px;
   transform:translateX(-50%) translateY(10px);
@@ -2193,7 +2194,10 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   opacity:0;
   pointer-events:none;
   transition:opacity .18s ease, transform .18s ease;
-  z-index:20;
+  /* Tiene que verse por encima de CUALQUIER modal (incluida la tarjeta
+     de paciente abierta y los modales anidados sobre ella), si no queda
+     tapado y hay que cerrar la tarjeta para leerlo. */
+  z-index:400;
   box-shadow:0 10px 26px -10px rgba(0,0,0,0.6);
 }
 .toast.show{

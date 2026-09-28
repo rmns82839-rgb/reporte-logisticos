@@ -5,7 +5,19 @@
 //
 // Variables de entorno necesarias en Vercel (Settings → Environment
 // Variables): FRESHDESK_API_KEY, FRESHDESK_DOMAIN (opcional, por
-// defecto "emermedicaassist").
+// defecto "emermedicaassist"), SYNC_SHARED_KEY (llave compartida —
+// cualquier texto largo que inventes; tiene que ser IDÉNTICA a la
+// constante FRESHDESK_SYNC_KEY en auxiliar.html, o el frontend no podrá
+// llamar a este endpoint).
+//
+// Por qué existe esto: sin esta llave, cualquiera en internet que
+// encuentre esta URL puede mandarle cualquier número de ticket y
+// actualizar un ticket real de Freshdesk con la API key del servidor
+// (nunca expuesta, pero usable por quien sea que llame aquí). No es
+// autenticación real de usuarios — solo bloquea el abuso oportunista
+// (bots, curiosos, gente que ve la URL en las herramientas de red del
+// navegador). Alguien decidido a leer el código fuente de auxiliar.html
+// igual puede encontrar la llave ahí.
 
 // "5:33" o "05:33" -> "5:33" (sin segundos, sin cero inicial)
 function hm(t) {
@@ -39,6 +51,12 @@ export default async function handler(req, res) {
     return;
   }
 
+  const SHARED_KEY = process.env.SYNC_SHARED_KEY;
+  if (SHARED_KEY && req.headers["x-sync-key"] !== SHARED_KEY) {
+    res.status(401).json({ error: "No autorizado" });
+    return;
+  }
+
   const API_KEY = process.env.FRESHDESK_API_KEY;
   const DOMAIN = process.env.FRESHDESK_DOMAIN || "emermedicaassist";
   if (!API_KEY) {
@@ -46,7 +64,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { solicitudes, tiempos } = req.body || {};
+  const { solicitudes, tiempos, novedades } = req.body || {};
   if (!solicitudes || !solicitudes.length) {
     res.status(400).json({ error: "Sin solicitudes" });
     return;
@@ -63,6 +81,11 @@ export default async function handler(req, res) {
     if (h !== null) { cf.cf_hora_toma_de_muestras = h; cf.cf_minuto_toma_de_muestras = m; }
   }
   if (tiempos?.salida) cf.cf_hora_salida_lab = hm(tiempos.salida);
+  // Solo en cancelados: motivo (lista desplegable fija en Freshdesk — si el
+  // texto no coincide EXACTO con una opción, Freshdesk puede rechazar toda
+  // la petición) y observación (campo de texto libre, sin ese riesgo).
+  if (novedades?.motivo) cf.cf_novedades = novedades.motivo;
+  if (novedades?.observacion) cf.cf_observacin_de_novedades = novedades.observacion;
 
   if (Object.keys(cf).length === 0) {
     res.status(200).json({ ok: false, error: "Sin datos que actualizar" });
@@ -77,14 +100,32 @@ export default async function handler(req, res) {
     if (!id) continue;
     const url = `https://${DOMAIN}.freshdesk.com/api/v2/tickets/${id}`;
     try {
-      const r = await fetch(url, {
+      let r = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "Authorization": auth },
         body: JSON.stringify({ custom_fields: cf }),
       });
+      let usedCf = cf;
+      // Si falló y llevaba campos de novedades, reintenta sin ellos — así
+      // un valor de "cf_novedades" que Freshdesk no reconozca no tumba
+      // también la actualización de los tiempos, que sí son confiables.
+      if (!r.ok && (cf.cf_novedades || cf.cf_observacin_de_novedades)) {
+        const { cf_novedades, cf_observacin_de_novedades, ...cfSinNovedades } = cf;
+        if (Object.keys(cfSinNovedades).length > 0) {
+          r = await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "Authorization": auth },
+            body: JSON.stringify({ custom_fields: cfSinNovedades }),
+          });
+          usedCf = cfSinNovedades;
+        }
+      }
       const ok = r.ok;
       const txt = ok ? "" : await r.text();
-      resultados.push({ solicitud: id, ok, status: r.status, error: ok ? null : txt.slice(0, 250) });
+      resultados.push({
+        solicitud: id, ok, status: r.status, error: ok ? null : txt.slice(0, 250),
+        campos: Object.keys(usedCf), novedadesOmitidas: usedCf !== cf,
+      });
     } catch (e) {
       resultados.push({ solicitud: id, ok: false, error: String(e).slice(0, 250) });
     }

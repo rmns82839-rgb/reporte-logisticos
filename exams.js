@@ -720,14 +720,40 @@ export function initExamGuide(deps) {
     let ex = catalogo.find(e => e.id === id);
     const esNuevo = !ex;
     if (!ex) ex = { id, codigo: codigo || "", nombre, tubo: "", cantidadTubos: 1, grupo: "", capacidadGrupo: 0, cubrirLuz: false };
-    openEditForEntry(ex, esNuevo, onClassified);
+    openEditForEntry(ex, esNuevo, onClassified, false);
   }
 
-  function openEditForEntry(ex, esNuevo, onClassified) {
+  // Para agregar un examen a mano cuando todavía no ha salido en ninguna
+  // planilla importada (ej. "Proteínas en orina de 24 horas" que Iván
+  // toma en tubo amarillo pero que la Guía nunca detectó sola).
+  async function openAddManual() {
+    await loadIfNeeded();
+    const ex = { id: "", codigo: "", nombre: "", tubo: "", cantidadTubos: 1, grupo: "", capacidadGrupo: 0, cubrirLuz: false };
+    openEditForEntry(ex, true, null, true);
+  }
+
+  function openEditForEntry(ex, esNuevo, onClassified, isManual) {
     let tuboElegido = ex.tubo || "";
     let behaviorElegido = inferTuboBehavior(ex);
+    // Se resetea cada vez que se abre el modal — si ya confirmó una vez
+    // que quiere el examen "parecido" de todas formas, no se lo vuelve a
+    // preguntar al tocar Guardar otra vez por otro campo.
+    let similarConfirmed = false;
 
-    editName.textContent = ex.nombre + (ex.codigo ? ` (#${ex.codigo})` : "");
+    const titleEl = document.getElementById("examGuideEditTitle");
+    const manualFields = document.getElementById("examGuideEditManualFields");
+    const nombreInput = document.getElementById("examGuideEditNombreInput");
+    const codigoInput = document.getElementById("examGuideEditCodigoInput");
+
+    if (titleEl) titleEl.textContent = isManual ? "🧪 Agregar examen a la guía" : "🧪 Editar clasificación";
+    if (manualFields) manualFields.hidden = !isManual;
+    if (isManual) {
+      editName.textContent = "Escribe el nombre del examen tal como sale en la planilla.";
+      nombreInput.value = "";
+      codigoInput.value = "";
+    } else {
+      editName.textContent = ex.nombre + (ex.codigo ? ` (#${ex.codigo})` : "");
+    }
 
     const examGuideEditBehaviorField = document.getElementById("examGuideEditBehaviorField");
     const examGuideEditLuzField = document.getElementById("examGuideEditLuzField");
@@ -765,6 +791,28 @@ export function initExamGuide(deps) {
     examGuideEditPerplexity.href = perplexityUrl(ex.codigo, ex.nombre);
 
     examGuideEditSaveBtn.onclick = async () => {
+      if (isManual) {
+        const nombreTecleado = nombreInput.value.trim();
+        if (!nombreTecleado) { showToast("Escribe el nombre del examen", 1800); return; }
+        ex.nombre = nombreTecleado;
+        ex.codigo = codigoInput.value.trim();
+        ex.id = examDocId(ex.codigo, ex.nombre);
+        if (catalogo.some(e => e.id === ex.id)) { showToast("Ese examen ya está en la guía — búscalo arriba", 2400); return; }
+        // Coincidencia exacta ya se descartó arriba — esto detecta
+        // variaciones de tilde/mayúsculas o nombres muy parecidos, para
+        // no terminar con el mismo examen duplicado dos veces en la guía.
+        if (!similarConfirmed) {
+          const parecido = catalogo.find(e => examNamesMatch(e.nombre, ex.nombre));
+          if (parecido) {
+            const tbParecido = TUBOS_AUX.find(t => t.key === parecido.tubo);
+            const seguro = window.confirm(
+              `Ya existe un examen parecido en la guía: "${parecido.nombre}"${tbParecido ? ` (tubo: ${tbParecido.key})` : ""}.\n\n¿Seguro que "${ex.nombre}" es un examen distinto y quieres agregarlo aparte?`
+            );
+            if (!seguro) return;
+            similarConfirmed = true;
+          }
+        }
+      }
       if (!tuboElegido) { showToast("Elige un tubo", 1800); return; }
       examGuideEditSaveBtn.disabled = true;
       examGuideEditSaveBtn.textContent = "Guardando...";
@@ -787,7 +835,7 @@ export function initExamGuide(deps) {
         invalidateCatalogoCache();
         render();
         editModal.hidden = true;
-        showToast("Clasificación actualizada", 1800);
+        showToast(isManual ? "Examen agregado a la guía" : "Clasificación actualizada", 1800);
         if (onClassified) onClassified();
       } else {
         showToast("No se pudo guardar — revisa tu conexión", 2400);
@@ -816,5 +864,6 @@ export function initExamGuide(deps) {
       badge.textContent = c.length;
     },
     openEditForExam,
+    openAddManual,
   };
 }

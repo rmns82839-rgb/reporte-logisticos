@@ -1330,7 +1330,6 @@ function buildMessage(data, opts) {
   lines.push("📋 *Reporte de recepción de muestras*");
   lines.push(`📅 ${todayLabel()} — 🕐 ${nowTimeLabel()}`);
   lines.push(`👤 Auxiliar: ${auxName}`);
-  lines.push("");
   lines.push("⏰ *Horas:*");
 
   const hourLine = h => Array.from({ length: h.count > 1 ? h.count : 1 }, () =>
@@ -1374,20 +1373,16 @@ function buildMessage(data, opts) {
       pickupNums.forEach(num => {
         lines.push(`🔁 *Recogida ${num}:*`);
         groups[num].forEach(l => lines.push(l));
-        lines.push("");
       });
       if (pendingLines.length) {
         const nextNum = (pickupNums[pickupNums.length - 1] || 0) + 1;
         lines.push(`🕓 *Sin enviar aún (será la recogida ${nextNum}):*`);
         pendingLines.forEach(l => lines.push(l));
-      } else {
-        lines.pop();
       }
     }
   }
 
   if (relevantCancelled.length > 0) {
-    lines.push("");
     lines.push("❌ *Cancelados:*");
     relevantCancelled.forEach(h => {
       const times = h.count > 1 ? h.count : 1;
@@ -1397,7 +1392,6 @@ function buildMessage(data, opts) {
     });
   }
 
-  lines.push("");
   lines.push("🧪 *Tubos recibidos:*");
   const tubesWithTotal = TUBOS.map(tb => {
     const c = tubesSource[tb.key];
@@ -1448,19 +1442,16 @@ function buildMessage(data, opts) {
       return `${c.emoji} ${c.label} — Total: ${tubeTotals[c.key]}\n${detail}`;
     });
 
-  lines.push("");
   lines.push("📊 *Totales por compañía:*");
   lines.push("👥 Pacientes:");
   lines.push(patientLine || "• sin datos");
-  lines.push("");
   lines.push("🧪 Tubos:");
-  lines.push(tubeBlocks.length ? tubeBlocks.join("\n\n") : "• sin datos");
+  lines.push(tubeBlocks.length ? tubeBlocks.join("\n") : "• sin datos");
 
   const papeleriaItems = forSend
     ? data.papeleria.filter(p => p.tipo && p.tipo.trim() && !p.pickup)
     : data.papeleria.filter(p => p.tipo && p.tipo.trim());
   if (papeleriaItems.length > 0) {
-    lines.push("");
     lines.push("📄 *Papelería recibida de doctores:*");
     papeleriaItems.forEach(p => {
       const doc = p.doctor && p.doctor.trim() ? ` — de ${p.doctor.trim()}` : "";

@@ -32,15 +32,20 @@ function necesitaVenopuncion(catalogo, examenes) {
 //   esFsfb = isFsfb(p) ya calculado por quien llama esto
 export function checklistPaciente(catalogo, p, valor, esFsfb) {
   const texto = (p.examenes || []).join(" ").toLowerCase();
-  const tieneVih = esFsfb && /vih/.test(texto);
-  const tieneSonda = /sonda/.test(texto);
+  // El VIH aplica para VIP y para FSFB por igual — antes solo se
+  // pedía a FSFB.
+  const tieneVih = /vih/.test(texto);
+  const tieneSonda = /sonda/.test(texto) && !p.sondaRetirada;
   const veno = necesitaVenopuncion(catalogo, p.examenes);
 
   const items = [];
   if (veno) items.push({ key: "veno", label: "🩸 Consentimiento venopunción" });
   if (tieneVih) items.push({ key: "vih", label: "🚨 Consentimiento VIH" });
   if (tieneSonda) items.push({ key: "sonda", label: "🚽 Consentimiento paso de sonda" });
-  if (esFsfb) items.push({ key: "habeas", label: "📄 Habeas Data" });
+  if (esFsfb) {
+    items.push({ key: "habeas", label: "📄 Habeas Data" });
+    items.push({ key: "planilla", label: "📋 Planilla de entrega" });
+  }
   if (valor > 0) items.push({ key: "recibo", label: "🧾 Recibo de caja / factura" });
   items.push({ key: "rotulacion", label: "🏷️ Rotulación de tubos" });
   return items;
@@ -51,7 +56,7 @@ export function checklistPaciente(catalogo, p, valor, esFsfb) {
 // pacientes (sumando — cada paciente necesita los suyos propios, no se
 // comparten entre pacientes distintos).
 export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
-  let recibosFsfb = 0, recibosVip = 0, venos = 0, sondas = 0, vihs = 0;
+  let recibosFsfb = 0, recibosVip = 0, venos = 0, sondas = 0, vihs = 0, habeasFsfb = 0, planillasFsfb = 0;
   const tubosPorColor = {};
   let totalTubosDia = 0;
   let totalCubrirLuzDia = 0;
@@ -61,10 +66,12 @@ export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
     const valor = getValorFinal(p);
     const esF = isFsfb(p);
     if (valor > 0) { if (esF) recibosFsfb++; else recibosVip++; }
+    if (esF) { habeasFsfb++; planillasFsfb++; }
 
     const texto = (p.examenes || []).join(" ").toLowerCase();
-    if (/sonda/.test(texto)) sondas++;
-    if (esF && /vih/.test(texto)) vihs++;
+    if (/sonda/.test(texto) && !p.sondaRetirada) sondas++;
+    // El VIH aplica para VIP y para FSFB por igual.
+    if (/vih/.test(texto)) vihs++;
     if (necesitaVenopuncion(catalogo, p.examenes)) venos++;
 
     const conteo = computeTubeCounts(catalogo, p.examenes);
@@ -75,7 +82,7 @@ export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
     totalCubrirLuzDia += conteo.totalCubrirLuz;
   });
 
-  return { recibosFsfb, recibosVip, venos, sondas, vihs, tubosPorColor, totalTubosDia, totalCubrirLuzDia };
+  return { recibosFsfb, recibosVip, venos, sondas, vihs, habeasFsfb, planillasFsfb, tubosPorColor, totalTubosDia, totalCubrirLuzDia };
 }
 
 export function renderResumenDelDiaHtml(resumen) {
@@ -85,6 +92,8 @@ export function renderResumenDelDiaHtml(resumen) {
     ["Venopunción", resumen.venos, "#10b981"],
     ["Sondas", resumen.sondas, "#f59e0b"],
   ];
+  if (resumen.habeasFsfb > 0) items.push(["📄 Habeas Data FSFB", resumen.habeasFsfb, "var(--fsfb)"]);
+  if (resumen.planillasFsfb > 0) items.push(["📋 Planillas entrega FSFB", resumen.planillasFsfb, "var(--fsfb)"]);
   if (resumen.vihs > 0) items.push(["🚨 VIH", resumen.vihs, "#e5484d"]);
 
   const gridHtml = `<div class="papeleria-grid">${items.map(([label, n, color]) => `
