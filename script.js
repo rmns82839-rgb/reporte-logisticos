@@ -23,6 +23,7 @@ const TUBOS = [
   { key: "Lila",         emoji: "🟣" },
   { key: "Azul",         emoji: "🔵" },
   { key: "Rojo",         emoji: "🔴" },
+  { key: "Verde",        emoji: "🟢" },
   { key: "Transparente", emoji: "⚪" },
   { key: "Orina",        emoji: "💧" },
   { key: "Orina 24h",    emoji: "🕐" },

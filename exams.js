@@ -18,6 +18,7 @@ export const TUBOS_AUX = [
   { key: "Lila",          emoji: "🟣", color: "#9b6fd6", esTubo: true },
   { key: "Azul",          emoji: "🔵", color: "#3b82f6", esTubo: true },
   { key: "Rojo",          emoji: "🔴", color: "#e5484d", esTubo: true },
+  { key: "Verde",         emoji: "🟢", color: "#16a34a", esTubo: true },
   { key: "Azul rey",      emoji: "👑", color: "#1e3a8a", esTubo: true },
   { key: "Transparente",  emoji: "⚪", color: "#9ca3af", esTubo: true },
   { key: "Orina",         emoji: "💧", color: "#d4a24c", esTubo: true },
