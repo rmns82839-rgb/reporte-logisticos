@@ -56,7 +56,10 @@ export function checklistPaciente(catalogo, p, valor, esFsfb) {
 // pacientes (sumando — cada paciente necesita los suyos propios, no se
 // comparten entre pacientes distintos).
 export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
-  let recibosFsfb = 0, recibosVip = 0, venos = 0, sondas = 0, vihs = 0, habeasFsfb = 0, planillasFsfb = 0;
+  let recibosFsfb = 0, recibosVip = 0, venos = 0, sondas = 0, habeasFsfb = 0, planillasFsfb = 0;
+  // El VIH aplica para VIP y para FSFB por igual, pero se cuentan aparte
+  // para poder distinguir de cuál convenio es cada consentimiento.
+  let vihsFsfb = 0, vihsVip = 0;
   const tubosPorColor = {};
   let totalTubosDia = 0;
   let totalCubrirLuzDia = 0;
@@ -70,8 +73,7 @@ export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
 
     const texto = (p.examenes || []).join(" ").toLowerCase();
     if (/sonda/.test(texto) && !p.sondaRetirada) sondas++;
-    // El VIH aplica para VIP y para FSFB por igual.
-    if (/vih/.test(texto)) vihs++;
+    if (/vih/.test(texto)) { if (esF) vihsFsfb++; else vihsVip++; }
     if (necesitaVenopuncion(catalogo, p.examenes)) venos++;
 
     const conteo = computeTubeCounts(catalogo, p.examenes);
@@ -82,15 +84,17 @@ export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
     totalCubrirLuzDia += conteo.totalCubrirLuz;
   });
 
-  return { recibosFsfb, recibosVip, venos, sondas, vihs, habeasFsfb, planillasFsfb, tubosPorColor, totalTubosDia, totalCubrirLuzDia };
+  return { recibosFsfb, recibosVip, venos, sondas, vihsFsfb, vihsVip, habeasFsfb, planillasFsfb, tubosPorColor, totalTubosDia, totalCubrirLuzDia };
 }
 
 // Antes este resumen iba siempre visible y con position:sticky — al hacer
 // scroll dentro de la lista de pacientes se quedaba pegado arriba y tapaba
 // la información de los pacientes debajo. Ahora va en un <details> cerrado
-// por defecto (no ocupa espacio hasta que se toca), sin sticky, y las
-// tarjetas de conteo se muestran como pastillas compactas en una sola fila
-// horizontal con scroll en vez de una cuadrícula que ocupaba varias filas.
+// por defecto (no ocupa espacio hasta que se toca), sin sticky, pero
+// conserva el fondo parallax de siempre. Los chips de recibos/
+// consentimientos usan el mismo tamaño y el mismo armado (flex-wrap, sin
+// scroll horizontal) que los chips de "Tubos del día" para que se vean
+// iguales entre sí.
 export function renderResumenDelDiaHtml(resumen) {
   const items = [
     ["Recibos FSFB", resumen.recibosFsfb, "var(--fsfb)"],
@@ -99,20 +103,21 @@ export function renderResumenDelDiaHtml(resumen) {
     ["Sondas", resumen.sondas, "#f59e0b"],
   ];
   if (resumen.habeasFsfb > 0) items.push(["📄 Habeas Data FSFB", resumen.habeasFsfb, "var(--fsfb)"]);
-  if (resumen.vihs > 0) items.push(["🚨 VIH", resumen.vihs, "#e5484d"]);
+  // VIH separado por convenio — antes salía un solo número mezclando VIP y
+  // FSFB, ahora cada chip dice de cuál convenio es.
+  if (resumen.vihsFsfb > 0) items.push(["🚨 VIH FSFB", resumen.vihsFsfb, "var(--fsfb)"]);
+  if (resumen.vihsVip > 0) items.push(["🚨 VIH VIP", resumen.vihsVip, "var(--vip)"]);
 
   const pillsHtml = items.map(([label, n, color]) => `
-    <span class="papeleria-pill" style="border-color:${color}66;">
-      <strong style="color:${color};">${n}</strong> ${label}
-    </span>
+    <span class="papeleria-tubo-chip"><strong style="color:${color};">${n}</strong> ${label}</span>
   `).join("");
 
   // Planilla de entrega: solo aplica si hay pacientes FSFB hoy — no tiene
   // una cantidad propia que valga la pena contar (es una por paciente,
   // igual a Habeas Data), así que se muestra como aviso de "sí aplica
   // hoy", sin número, en vez de un conteo.
-  const planillaPillHtml = resumen.planillasFsfb > 0
-    ? `<span class="papeleria-pill papeleria-pill-flag" style="border-color:var(--fsfb)66;">📋 Planilla de entrega</span>`
+  const planillaChipHtml = resumen.planillasFsfb > 0
+    ? `<span class="papeleria-tubo-chip" style="color:var(--fsfb); font-weight:800;">📋 Planilla de entrega</span>`
     : "";
 
   const tubosEntries = Object.entries(resumen.tubosPorColor);
@@ -134,7 +139,7 @@ export function renderResumenDelDiaHtml(resumen) {
     <div class="papeleria-parallax-wrap">
       <div id="papeleriaParallaxBg" class="papeleria-parallax-bg"></div>
       <div class="papeleria-parallax-content">
-        <div class="papeleria-pills-row">${pillsHtml}${planillaPillHtml}</div>
+        <div class="papeleria-tubos-chips">${pillsHtml}${planillaChipHtml}</div>
         ${tubosHtml}
       </div>
     </div>

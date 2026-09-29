@@ -1232,38 +1232,10 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   z-index:0;
 }
 .papeleria-parallax-content{position:relative; z-index:1;}
-/* auto-fit + minmax en vez de un número fijo de columnas: las tarjetas
-   siempre quedan del mismo tamaño entre sí (simétricas) sin importar
-   cuántas aparezcan (varían porque algunas son condicionales — Habeas
-   Data, Planilla, VIH solo si aplica), y se ajustan solas al ancho
-   disponible en vez de dejar huecos o desbordar en pantallas chicas. */
-/* Pastillas en una sola fila horizontal con scroll, en vez de la
-   cuadrícula de tarjetas grandes de antes — mucho más compacto en alto,
-   que era justo el problema (tapaba la info del paciente debajo). */
-.papeleria-pills-row{
-  display:flex;
-  flex-wrap:nowrap;
-  overflow-x:auto;
-  -webkit-overflow-scrolling:touch;
-  gap:6px;
-  padding-bottom:2px;
-}
-.papeleria-pill{
-  flex:0 0 auto;
-  display:inline-flex;
-  align-items:baseline;
-  gap:4px;
-  background:var(--surface-3);
-  border:1.5px solid var(--border);
-  border-radius:999px;
-  padding:6px 11px;
-  font-size:10.5px;
-  font-weight:700;
-  color:var(--text-dim);
-  white-space:nowrap;
-}
-.papeleria-pill strong{font-size:13.5px; font-weight:900;}
-.papeleria-pill-flag{color:var(--fsfb); font-size:11px;}
+/* Los chips de recibos/consentimientos ahora reutilizan exactamente
+   .papeleria-tubo-chip (mismo tamaño que los chips de "Tubos del día") y
+   .papeleria-tubos-chips (flex-wrap normal, SIN scroll horizontal) — ver
+   más abajo, no hace falta una clase aparte. */
 .papeleria-tubos-total{margin-top:10px; text-align:center;}
 .papeleria-tubos-label{display:block; font-size:11px; font-weight:800; color:var(--text-dim); margin-bottom:6px;}
 .papeleria-tubos-chips{display:flex; flex-wrap:wrap; gap:6px;}
