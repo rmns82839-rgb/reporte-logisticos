@@ -224,15 +224,23 @@ html,body{
   position:relative;
 }
 .icon-btn.has-unread::after{
-  content:"";
+  content:attr(data-unread-count);
   position:absolute;
-  top:1px;
-  right:1px;
-  width:11px;
-  height:11px;
-  border-radius:50%;
+  top:-3px;
+  right:-3px;
+  min-width:17px;
+  height:17px;
+  padding:0 3px;
+  border-radius:9px;
   background:#F1453B;
+  color:#fff;
   border:2px solid var(--surface);
+  font-size:10px;
+  font-weight:800;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   animation:voicePulse 1.3s ease-in-out infinite;
 }
 #freshdeskToggleBtn.active{background:var(--send-soft); border-color:var(--send); color:var(--send);}
@@ -2326,6 +2334,22 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   text-align:left;
 }
 .chat-directory-row:active{background:var(--surface-2);}
+.chat-directory-row.unread{border-color:var(--send);}
+.chat-directory-badge{
+  margin-left:auto;
+  flex-shrink:0;
+  min-width:20px;
+  height:20px;
+  padding:0 6px;
+  border-radius:10px;
+  background:#F1453B;
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
 .chat-directory-info{display:flex; flex-direction:column; min-width:0;}
 .chat-directory-name{font-size:13px; font-weight:700; color:var(--text);}
 .chat-directory-sub{font-size:11px; font-weight:600; color:var(--text-faint);}

@@ -224,8 +224,13 @@ export function initChatSystem(deps) {
   // sin leer — además de la nube flotante, que solo dura unos segundos en
   // pantalla y se puede pasar por alto.
   const unreadChats = new Set();
+  const unreadCounts = new Map(); // chatId -> cuántos mensajes sin leer, para el numerito rojo en la lista
   function actualizarBadgeChat() {
-    if (chatBtn) chatBtn.classList.toggle("has-unread", unreadChats.size > 0);
+    if (!chatBtn) return;
+    let total = 0;
+    unreadCounts.forEach((n) => { total += n; });
+    chatBtn.classList.toggle("has-unread", total > 0);
+    chatBtn.dataset.unreadCount = total > 9 ? "9+" : String(total);
   }
 
   function avatarHtml(photoURL, name) {
@@ -283,6 +288,11 @@ export function initChatSystem(deps) {
   }
 
   // ---- Directorio ----
+  function badgeHtml(chatId) {
+    const n = unreadCounts.get(chatId) || 0;
+    return n > 0 ? `<span class="chat-directory-badge">${n > 9 ? "9+" : n}</span>` : "";
+  }
+
   async function renderDirectory() {
     if (!chatDirectoryList) return;
     chatDirectoryList.innerHTML = '<p class="card-hint" style="margin:8px 0 0;">Cargando...</p>';
@@ -293,28 +303,39 @@ export function initChatSystem(deps) {
         const snap = await getDoc(doc(db, "profiles", p.phone));
         if (snap.exists()) photoURL = snap.data().photoURL || null;
       } catch (e) { /* si falla, se muestra con iniciales, no es grave */ }
-      return { ...p, photoURL };
+      return { ...p, photoURL, chatId: dmChatId(me.phone, p.phone) };
     }));
 
-    const grupoRow = `
-      <button type="button" class="chat-directory-row" data-chat="group">
-        <span class="chat-avatar-fallback chat-avatar-group">👥</span>
-        <span class="chat-directory-info">
-          <span class="chat-directory-name">Grupo general</span>
-          <span class="chat-directory-sub">Todos los auxiliares y logísticos</span>
-        </span>
-      </button>`;
+    // Quien te escribió sube arriba de la lista, con el numerito rojo de
+    // cuántos mensajes sin leer tiene — el grupo entra en el mismo orden.
+    const entradas = [
+      { tipo: "group", chatId: GROUP_CHAT_ID },
+      ...filas.map((p) => ({ tipo: "dm", chatId: p.chatId, p })),
+    ].sort((a, b) => (unreadCounts.get(b.chatId) || 0) - (unreadCounts.get(a.chatId) || 0));
 
-    const personRows = filas.map((p) => `
-      <button type="button" class="chat-directory-row" data-chat="dm" data-phone="${p.phone}" data-name="${escapeHtml(p.name)}" data-photo="${escapeHtml(p.photoURL || "")}">
-        ${avatarHtml(p.photoURL, p.name)}
-        <span class="chat-directory-info">
-          <span class="chat-directory-name">${escapeHtml(p.name)}</span>
-          <span class="chat-directory-sub">${p.role === "auxiliar" ? "🧪 Auxiliar de laboratorio" : "🏍️ Logístico"}</span>
-        </span>
-      </button>`).join("");
-
-    chatDirectoryList.innerHTML = grupoRow + personRows;
+    chatDirectoryList.innerHTML = entradas.map((e) => {
+      if (e.tipo === "group") {
+        return `
+          <button type="button" class="chat-directory-row ${unreadCounts.get(e.chatId) ? "unread" : ""}" data-chat="group">
+            <span class="chat-avatar-fallback chat-avatar-group">👥</span>
+            <span class="chat-directory-info">
+              <span class="chat-directory-name">Grupo general</span>
+              <span class="chat-directory-sub">Todos los auxiliares y logísticos</span>
+            </span>
+            ${badgeHtml(e.chatId)}
+          </button>`;
+      }
+      const p = e.p;
+      return `
+        <button type="button" class="chat-directory-row ${unreadCounts.get(e.chatId) ? "unread" : ""}" data-chat="dm" data-phone="${p.phone}" data-name="${escapeHtml(p.name)}" data-photo="${escapeHtml(p.photoURL || "")}">
+          ${avatarHtml(p.photoURL, p.name)}
+          <span class="chat-directory-info">
+            <span class="chat-directory-name">${escapeHtml(p.name)}</span>
+            <span class="chat-directory-sub">${p.role === "auxiliar" ? "🧪 Auxiliar de laboratorio" : "🏍️ Logístico"}</span>
+          </span>
+          ${badgeHtml(e.chatId)}
+        </button>`;
+    }).join("");
 
     chatDirectoryList.querySelectorAll(".chat-directory-row").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -494,6 +515,9 @@ export function initChatSystem(deps) {
   async function openThread(chatId, name, isGroup, photoURL) {
     currentChatId = chatId;
     currentChatName = name;
+    unreadChats.delete(chatId);
+    unreadCounts.delete(chatId);
+    actualizarBadgeChat();
     if (chatThreadName) chatThreadName.textContent = name;
     if (chatThreadAvatar) {
       chatThreadAvatar.innerHTML = isGroup
@@ -728,7 +752,14 @@ export function initChatSystem(deps) {
         if (yaLoEstoyViendo) return;
 
         unreadChats.add(chatId);
+        unreadCounts.set(chatId, (unreadCounts.get(chatId) || 0) + 1);
         actualizarBadgeChat();
+        // Si en este momento estás mirando la lista de chats (no un hilo en
+        // particular), la refresca para que el numerito y el orden se vean
+        // al instante, sin tener que cerrar y volver a abrir el chat.
+        if (chatModal && !chatModal.hidden && chatDirectoryView && !chatDirectoryView.hidden) {
+          renderDirectory();
+        }
         const info = infoPorChat[chatId];
         mostrarNotificacionChat(info.name, data.lastMessageText, chatId, info.isGroup, info.photoURL);
       }, (err) => {
@@ -752,8 +783,9 @@ export function initChatSystem(deps) {
   chatBtn.addEventListener("click", () => {
     chatModal.hidden = false;
     closeThread();
-    unreadChats.clear();
-    actualizarBadgeChat();
+    // El numerito y el punto rojo del botón 💬 solo se limpian cuando de
+    // verdad abres cada chat (openThread) — así coincide con lo que se ve
+    // en la lista, y no desaparece con solo mirar el directorio.
     if (window.showAppLoading) window.showAppLoading("Abriendo el chat…");
     const terminar = () => { if (window.hideAppLoading) window.hideAppLoading(); };
     renderDirectory().then(terminar).catch(terminar);
