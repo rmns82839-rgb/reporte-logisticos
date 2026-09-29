@@ -2160,7 +2160,7 @@
     const p = getOpenPatient();
     if (!p) return;
     const metodo = p.formaPago === "tarjeta" ? "tarjeta" : "PSE";
-    const text = `${myReportEmoji()} *${p.solicitud || "—"}* ${p.nombrePaciente || "(sin nombre)"}\nPagó con ${metodo} $${getValorFinal(p).toLocaleString("es-CO")}`;
+    const text = `${myReportEmoji()} *${unaLinea(p.solicitud) || "—"}* ${p.nombrePaciente || "(sin nombre)"}\nPagó con ${metodo} $${getValorFinal(p).toLocaleString("es-CO")}`;
     sendWhatsAppText(text);
   });
   const patientNovedades = document.getElementById("patientNovedades");
@@ -2372,9 +2372,21 @@
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   }
 
+  // Si un campo (típicamente "solicitud", pegado desde Excel con un
+  // salto de línea dentro de la misma celda — ej. "129656\n129657") se
+  // envuelve en *negrita* para WhatsApp, WhatsApp deja de reconocer la
+  // negrita porque no cruza líneas, y muestra los asteriscos literales
+  // en el mensaje — lo que además rompe la búsqueda del número de
+  // solicitud en el chat. NUNCA debe quedar un salto de línea dentro de
+  // un *...* — esta función lo evita aplastando cualquier salto a un
+  // espacio antes de envolver el texto en negrita.
+  function unaLinea(texto) {
+    return String(texto || "").replace(/[\r\n]+/g, " ").trim();
+  }
+
   function sendArriboWhatsApp(p) {
     const all = p.grupoId ? getGroupAll(p) : [p];
-    const solicitudes = all.map(x => `*${x.solicitud || "—"}*`).join(" + ");
+    const solicitudes = all.map(x => `*${unaLinea(x.solicitud) || "—"}*`).join(" + ");
     const etiqueta = all.length > 1 ? " (mismo domicilio)" : "";
     const text = `${myReportEmoji()} ${solicitudes}${etiqueta}\n📍 Arribo: ${p.arriboSitio}`;
     sendWhatsAppText(text);
@@ -2389,7 +2401,7 @@
 
   function buildFinalReportText(p) {
     const lines = [
-      `${myReportEmoji()} *${p.solicitud || "—"}*`,
+      `${myReportEmoji()} *${unaLinea(p.solicitud) || "—"}*`,
       `🕐 *Arribo*: ${p.arriboSitio || "—"}`,
       `🚪 *Paciente*: ${p.arriboPaciente || "—"}`,
       `🩸 *Toma*: ${p.horaToma || "—"}`,
@@ -2434,7 +2446,7 @@
   // separado debajo de cada uno.
   function buildGroupReportText(all) {
     const p0 = all[0];
-    const solicitudes = all.map(x => `*${x.solicitud || "—"}*`).join(" + ");
+    const solicitudes = all.map(x => `*${unaLinea(x.solicitud) || "—"}*`).join(" + ");
     const lines = [
       `${myReportEmoji()} ${solicitudes} (mismo domicilio)`,
       `🕐 *Arribo*: ${p0.arriboSitio || "—"}`,
@@ -2443,7 +2455,7 @@
     ];
 
     all.forEach(p => {
-      lines.push(`👤 *${p.nombrePaciente || "(sin nombre)"}* — N° ${p.solicitud || "—"}`);
+      lines.push(`👤 *${unaLinea(p.nombrePaciente) || "(sin nombre)"}* — N° ${unaLinea(p.solicitud) || "—"}`);
       lines.push(`🩸 Toma: ${p.horaToma || "—"}`);
       const tomados = TUBOS_AUX.filter(tb => tb.esTubo !== false && (p.tubos[tb.key] || 0) > 0);
       if (tomados.length === 0) {
@@ -2893,7 +2905,7 @@
 
   function sendCancelWhatsApp(p) {
     const text = [
-      `${myReportEmoji()} *${p.solicitud || "—"}*`,
+      `${myReportEmoji()} *${unaLinea(p.solicitud) || "—"}*`,
       "❌ *Cancelado*",
       `Motivo: ${p.motivoCancelacion || "—"}`,
     ].join("\n");

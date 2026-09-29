@@ -956,7 +956,11 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .patient-fd-badge{font-size:11px; margin-left:2px;}
 .patient-time{font-size:11.5px; color:var(--text-faint); font-weight:700; white-space:nowrap; flex-shrink:0;}
 .patient-meta{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-top:2px;}
-.patient-address{font-size:11.5px; color:var(--text-faint); font-weight:600; margin-top:3px; line-height:1.4;}
+/* Más grande y en el color de la compañía (--co-color, ya lo trae la
+   fila) para poder leerla de un vistazo rápido desde la moto en
+   movimiento — antes era gris tenue del mismo tamaño que los demás
+   datos secundarios y se perdía. */
+.patient-address{font-size:14.5px; color:var(--co-color); font-weight:800; margin-top:4px; line-height:1.35;}
 .patient-doc{font-size:11.5px; color:var(--text-faint); font-weight:600; margin-top:2px;}
 .offline-banner{
   margin:0 16px 14px;
