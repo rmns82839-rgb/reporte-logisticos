@@ -26,7 +26,7 @@
 
 import {
   doc, setDoc, getDoc, addDoc, collection, query, orderBy, limit,
-  onSnapshot, serverTimestamp, updateDoc,
+  onSnapshot, serverTimestamp, updateDoc, arrayUnion,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { PEOPLE, AUXILIARES_LAB } from "./people.js";
 
@@ -331,27 +331,42 @@ export function initChatSystem(deps) {
     if (!chatMessages) return;
     const cercaDelFinal = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 80;
 
+    // "Ocultar solo para mí" está disponible en CUALQUIER mensaje —
+    // mío, del otro, ya borrado o no — sin afectar lo que ve la otra
+    // persona. "Eliminar para todos" (🗑️) solo en mis propios mensajes
+    // sin borrar todavía, y sí cambia lo que ve el otro (queda el aviso
+    // "Se eliminó este mensaje" para ambos).
     chatMessages.innerHTML = docs.map((m) => {
       const mio = m.from === me.phone;
+      const ocultar = `<button type="button" class="chat-bubble-hide" data-id="${m.id}" title="Ocultar solo para mí">🙈</button>`;
       if (m.deleted) {
         return `<div class="chat-bubble-row ${mio ? "mine" : "theirs"}">
-          <div class="chat-bubble chat-bubble-deleted">${mio ? "" : `<span class="chat-bubble-from">${escapeHtml(m.fromName)}</span>`}<em>🚫 Se eliminó este mensaje</em></div>
+          <div class="chat-bubble chat-bubble-deleted">
+            ${mio ? "" : `<span class="chat-bubble-from">${escapeHtml(m.fromName)}</span>`}
+            <em>🚫 Se eliminó este mensaje</em>
+            ${ocultar}
+          </div>
         </div>`;
       }
       const cuerpo = m.type === "image"
         ? `<img src="${escapeHtml(m.imageURL)}" alt="" class="chat-bubble-img" data-full="${escapeHtml(m.imageURL)}">`
         : m.type === "audio"
-          ? `<audio controls preload="none" class="chat-bubble-audio" src="${escapeHtml(m.audioURL)}"></audio>`
+          ? `<div class="chat-voice-msg" data-src="${escapeHtml(m.audioURL)}">
+              <button type="button" class="chat-voice-play" aria-label="Reproducir">▶</button>
+              <div class="chat-voice-bar"><div class="chat-voice-bar-fill"></div></div>
+              <span class="chat-voice-time">${m.audioDuration ? formatDuration(m.audioDuration) : "0:00"}</span>
+              <audio preload="none" src="${escapeHtml(m.audioURL)}"></audio>
+            </div>`
           : `<span class="chat-bubble-text">${escapeHtml(m.text)}</span>`;
       const hora = m.createdAt && typeof m.createdAt.toDate === "function"
         ? m.createdAt.toDate().toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" })
         : "";
-      const borrar = mio ? `<button type="button" class="chat-bubble-del" data-id="${m.id}" title="Eliminar mensaje">🗑️</button>` : "";
+      const borrar = mio ? `<button type="button" class="chat-bubble-del" data-id="${m.id}" title="Eliminar para todos">🗑️</button>` : "";
       return `<div class="chat-bubble-row ${mio ? "mine" : "theirs"}">
         <div class="chat-bubble">
           ${mio ? "" : `<span class="chat-bubble-from">${escapeHtml(m.fromName)}</span>`}
           ${cuerpo}
-          <span class="chat-bubble-time">${hora}${borrar}</span>
+          <span class="chat-bubble-time">${hora}${borrar}${ocultar}</span>
         </div>
       </div>`;
     }).join("");
@@ -362,8 +377,57 @@ export function initChatSystem(deps) {
     chatMessages.querySelectorAll(".chat-bubble-del").forEach((btn) => {
       btn.addEventListener("click", () => eliminarMensaje(btn.dataset.id));
     });
+    chatMessages.querySelectorAll(".chat-bubble-hide").forEach((btn) => {
+      btn.addEventListener("click", () => ocultarParaMi(btn.dataset.id));
+    });
+    chatMessages.querySelectorAll(".chat-voice-msg").forEach((wrap) => {
+      const audio = wrap.querySelector("audio");
+      const playBtn = wrap.querySelector(".chat-voice-play");
+      const bar = wrap.querySelector(".chat-voice-bar");
+      const fill = wrap.querySelector(".chat-voice-bar-fill");
+      const timeEl = wrap.querySelector(".chat-voice-time");
+      playBtn.addEventListener("click", () => {
+        if (audio.paused) {
+          chatMessages.querySelectorAll("audio").forEach((a) => { if (a !== audio) { a.pause(); a.currentTime = 0; } });
+          chatMessages.querySelectorAll(".chat-voice-play").forEach((b) => { if (b !== playBtn) b.textContent = "▶"; });
+          audio.play().catch(() => notify("⚠️ No se pudo reproducir la nota de voz"));
+        } else {
+          audio.pause();
+        }
+      });
+      audio.addEventListener("play", () => { playBtn.textContent = "⏸"; });
+      audio.addEventListener("pause", () => { playBtn.textContent = "▶"; });
+      audio.addEventListener("ended", () => { playBtn.textContent = "▶"; fill.style.width = "0%"; });
+      audio.addEventListener("timeupdate", () => {
+        if (audio.duration) {
+          fill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+          timeEl.textContent = formatDuration(audio.currentTime * 1000);
+        }
+      });
+      audio.addEventListener("loadedmetadata", () => {
+        if (isFinite(audio.duration) && !audio.currentTime) timeEl.textContent = formatDuration(audio.duration * 1000);
+      });
+      bar.addEventListener("click", (e) => {
+        if (!audio.duration) return;
+        const rect = bar.getBoundingClientRect();
+        const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        audio.currentTime = pct * audio.duration;
+      });
+    });
 
     if (cercaDelFinal) chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  async function ocultarParaMi(messageId) {
+    if (!currentChatId) return;
+    try {
+      await updateDoc(doc(db, "chats", currentChatId, "messages", messageId), {
+        hiddenFor: arrayUnion(me.phone),
+      });
+    } catch (e) {
+      console.error("[chat.js] No se pudo ocultar el mensaje:", e);
+      notify("⚠️ No se pudo ocultar el mensaje");
+    }
   }
 
   async function eliminarMensaje(messageId) {
@@ -404,7 +468,10 @@ export function initChatSystem(deps) {
     if (unsubMessages) unsubMessages();
     const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "desc"), limit(200));
     unsubMessages = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
+      const docs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((m) => !(Array.isArray(m.hiddenFor) && m.hiddenFor.includes(me.phone)))
+        .reverse();
       renderMessages(docs);
     }, (err) => {
       console.error("[chat.js] Error escuchando mensajes:", err);
@@ -573,13 +640,24 @@ export function initChatSystem(deps) {
     }, 6500);
   }
 
+  // El punto de partida de cada chat ("hasta dónde ya vi") se guarda en
+  // localStorage, NO solo en memoria — antes se perdía cada vez que se
+  // recargaba la página (algo muy común en un celular: el navegador
+  // "mata" la pestaña en segundo plano y la vuelve a cargar de cero), así
+  // que la app pensaba que el mensaje que ya había llegado era "el estado
+  // inicial" y nunca avisaba. Ahora sobrevive a recargas.
+  function getLastSeen(chatId) {
+    try { return localStorage.getItem(`chat_lastSeen_${chatId}`); } catch (e) { return null; }
+  }
+  function setLastSeen(chatId, millis) {
+    try { localStorage.setItem(`chat_lastSeen_${chatId}`, String(millis)); } catch (e) {}
+  }
+
   function initGlobalNotifications() {
     const infoPorChat = { [GROUP_CHAT_ID]: { name: "Grupo general", isGroup: true, photoURL: null } };
     directorio.forEach((p) => {
       infoPorChat[dmChatId(me.phone, p.phone)] = { name: p.name, isGroup: false, phone: p.phone, photoURL: null };
     });
-
-    const ultimoVisto = {}; // chatId -> millis del último lastMessageAt ya procesado
 
     Object.keys(infoPorChat).forEach((chatId) => {
       onSnapshot(doc(db, "chats", chatId), (snap) => {
@@ -588,11 +666,15 @@ export function initChatSystem(deps) {
         if (!data.lastMessageAt || typeof data.lastMessageAt.toMillis !== "function") return;
         const millis = data.lastMessageAt.toMillis();
 
-        // La primera lectura de cada chat es "el estado con el que abrió
-        // la app" — no es un mensaje nuevo, así que no se notifica.
-        if (ultimoVisto[chatId] === undefined) { ultimoVisto[chatId] = millis; return; }
-        if (millis <= ultimoVisto[chatId]) return;
-        ultimoVisto[chatId] = millis;
+        const guardado = getLastSeen(chatId);
+        if (guardado === null) {
+          // Primera vez que ESTE dispositivo ve este chat: no notifica lo
+          // que ya estaba ahí, solo marca el punto de partida.
+          setLastSeen(chatId, millis);
+          return;
+        }
+        if (millis <= Number(guardado)) return;
+        setLastSeen(chatId, millis);
 
         if (data.lastMessageFrom === me.phone) return; // lo mandé yo
         const yaLoEstoyViendo = currentChatId === chatId && chatModal && !chatModal.hidden;
