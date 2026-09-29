@@ -684,7 +684,14 @@ export function initExamGuide(deps) {
     const term = normStr(search.value);
     const color = colorFilter.value;
     const filtered = catalogo.filter(ex => {
-      const matchTerm = !term || normStr(ex.nombre).includes(term) || String(ex.codigo || "").includes(term);
+      // El buscador también matchea por color de tubo y por cómo se toma
+      // ("lila", "amarillo", "va solo", "hasta 5 exámenes en un tubo",
+      // "se toman 2 tubos") — no solo nombre/código — para poder ubicar
+      // rápido, por ejemplo, todo lo que va en tubo lila sin necesidad de
+      // usar el filtro de color aparte.
+      const behaviorLabel = TUBO_BEHAVIOR_OPTIONS.find(o => o.value === inferTuboBehavior(ex))?.label || "";
+      const searchable = normStr([ex.nombre, ex.codigo, ex.tubo, behaviorLabel, ex.tubo ? "" : "sin clasificar"].join(" "));
+      const matchTerm = !term || searchable.includes(term);
       const matchColor = !color
         || (color === "__sin_clasificar__" ? !ex.tubo : ex.tubo === color);
       return matchTerm && matchColor;

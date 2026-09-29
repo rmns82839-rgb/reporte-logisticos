@@ -1040,7 +1040,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .exam-guide-info-toggle{width:100%; margin:0 0 8px; font-size:11.5px;}
 .exam-guide-info-box{margin-bottom:8px;}
 .exam-guide-info-box .card-hint{margin:0 0 8px;}
-.exam-guide-filters{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.exam-guide-filters{display:grid; grid-template-columns:1fr; gap:8px;}
 .exam-guide-color-select{
   width:100%;
   appearance:none;
