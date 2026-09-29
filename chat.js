@@ -719,6 +719,11 @@ export function initChatSystem(deps) {
           : 0;
         if (millis <= leido) return; // ya lo marqué como visto
 
+        // Se marca como "visto" de una vez (aunque el chat nunca se abra) —
+        // si no, en un chat que nunca abres (como el grupo, si casi nunca
+        // entras), la misma alerta te saldría de nuevo en cada recarga.
+        updateDoc(doc(db, "chats", chatId), { [`lastReadBy.${me.phone}`]: data.lastMessageAt }).catch(() => {});
+
         const yaLoEstoyViendo = currentChatId === chatId && chatModal && !chatModal.hidden;
         if (yaLoEstoyViendo) return;
 
