@@ -1,4 +1,4 @@
-const CACHE_NAME = "reporte-logisticos-v132";
+const CACHE_NAME = "reporte-logisticos-v133";
 const ASSETS = [
   "./",
   "./index.html",
@@ -55,16 +55,22 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
+  // Antes esto era "cache-first": si el archivo ya estaba guardado, lo
+  // servía SIN revisar si había una versión nueva en el servidor. Eso
+  // significa que cada mejora que se sube a Vercel se queda invisible
+  // hasta que alguien note el banner "Hay una versión nueva" y lo toque —
+  // y si no lo toca, sigue viendo la app vieja indefinidamente (fue lo que
+  // pasó con las notificaciones del chat).
+  // Ahora es "network-first": siempre intenta traer la versión más nueva
+  // de internet primero, y solo si no hay conexión usa lo que quedó
+  // guardado (para que la app siga funcionando sin señal).
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => cached);
-    })
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

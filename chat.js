@@ -4,13 +4,13 @@
 //
 // FASE 1 (lo que hay acá): foto de perfil (la sube cada quien), directorio
 // de personas, chat 1-a-1 con cualquiera, un chat grupal fijo ("Grupo
-// general"), texto, fotos, emojis, eliminar tu propio mensaje, y
-// notificaciones DENTRO de la app (nube + sonido) para mensajes nuevos,
-// aunque el chat esté cerrado — no push del celular (eso pide permiso del
-// sistema operativo y es aparte).
+// general"), texto, fotos, notas de voz (mantener presionado el 🎤),
+// emojis, eliminar tu propio mensaje, y notificaciones DENTRO de la app
+// (nube + sonido) para mensajes nuevos, aunque el chat esté cerrado — no
+// push del celular (eso pide permiso del sistema operativo y es aparte).
 //
-// FASE 2 (pendiente, se agrega después si se pide): notas de voz,
-// @menciones con autocompletar, responder citando un mensaje de arriba.
+// FASE 2 (pendiente, se agrega después si se pide): @menciones con
+// autocompletar, responder citando un mensaje de arriba.
 //
 // Requiere reglas de seguridad para las colecciones "profiles" y "chats"
 // en Firestore (ver el mensaje aparte con las reglas exactas). Las fotos
@@ -74,6 +74,33 @@ async function uploadToCloudinary(blob, folder) {
   }
   const data = await resp.json();
   return data.secure_url;
+}
+
+// El audio (notas de voz) en Cloudinary se sube por el endpoint "video"
+// (así maneja Cloudinary los archivos de solo-audio, no hay un endpoint
+// separado para audio puro).
+async function uploadToCloudinaryAudio(blob, folder) {
+  const form = new FormData();
+  form.append("file", blob);
+  form.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  form.append("folder", folder);
+  const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`, {
+    method: "POST",
+    body: form,
+  });
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => "");
+    throw new Error(`Cloudinary respondió ${resp.status}: ${errText}`);
+  }
+  const data = await resp.json();
+  return data.secure_url;
+}
+
+function formatDuration(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, "0")}`;
 }
 
 // ---- Sonido de notificación (dos tonitos sintetizados, sin archivo de
@@ -169,6 +196,8 @@ export function initChatSystem(deps) {
   const chatEmojiPanel = document.getElementById("chatEmojiPanel");
   const chatPhotoBtn = document.getElementById("chatPhotoBtn");
   const chatPhotoInput = document.getElementById("chatPhotoInput");
+  const chatVoiceBtn = document.getElementById("chatVoiceBtn");
+  const chatVoiceTimer = document.getElementById("chatVoiceTimer");
 
   const profileModal = document.getElementById("profileModal");
   const profileModalClose = document.getElementById("profileModalClose");
@@ -311,7 +340,9 @@ export function initChatSystem(deps) {
       }
       const cuerpo = m.type === "image"
         ? `<img src="${escapeHtml(m.imageURL)}" alt="" class="chat-bubble-img" data-full="${escapeHtml(m.imageURL)}">`
-        : `<span class="chat-bubble-text">${escapeHtml(m.text)}</span>`;
+        : m.type === "audio"
+          ? `<audio controls preload="none" class="chat-bubble-audio" src="${escapeHtml(m.audioURL)}"></audio>`
+          : `<span class="chat-bubble-text">${escapeHtml(m.text)}</span>`;
       const hora = m.createdAt && typeof m.createdAt.toDate === "function"
         ? m.createdAt.toDate().toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" })
         : "";
@@ -429,6 +460,81 @@ export function initChatSystem(deps) {
     }
   }
 
+  async function enviarAudio(blob, duracionMs) {
+    if (!currentChatId) return;
+    try {
+      notify("📤 Enviando nota de voz...");
+      const url = await uploadToCloudinaryAudio(blob, `chat-media/${currentChatId}`);
+      await addDoc(collection(db, "chats", currentChatId, "messages"), {
+        from: me.phone, fromName: me.name, type: "audio", audioURL: url, audioDuration: duracionMs,
+        createdAt: serverTimestamp(), deleted: false,
+      });
+      await updateDoc(doc(db, "chats", currentChatId), {
+        lastMessageText: "🎤 Nota de voz", lastMessageAt: serverTimestamp(), lastMessageFrom: me.phone,
+      });
+    } catch (e) {
+      console.error("[chat.js] No se pudo enviar la nota de voz:", e);
+      notify("⚠️ No se pudo enviar la nota de voz — revisa tu conexión");
+    }
+  }
+
+  // ---- Notas de voz: mantener presionado el botón 🎤 para grabar, soltar
+  // para enviar. Usa Pointer Events para que funcione igual con dedo
+  // (celular) y con mouse (computador). ----
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let recStartTime = 0;
+  let recTimerInterval = null;
+  let grabando = false;
+
+  function detenerGrabacion(enviar) {
+    if (!mediaRecorder || mediaRecorder.state !== "recording") return;
+    mediaRecorder._enviarAlParar = enviar;
+    mediaRecorder.stop();
+  }
+
+  async function iniciarGrabacion() {
+    if (!currentChatId || grabando) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      notify("⚠️ Este navegador no permite grabar audio");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      grabando = true;
+      audioChunks = [];
+      const tipoSoportado = ["audio/webm", "audio/mp4", "audio/ogg"].find(
+        (t) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)
+      );
+      mediaRecorder = tipoSoportado ? new MediaRecorder(stream, { mimeType: tipoSoportado }) : new MediaRecorder(stream);
+      recStartTime = Date.now();
+      mediaRecorder.addEventListener("dataavailable", (e) => { if (e.data.size > 0) audioChunks.push(e.data); });
+      mediaRecorder.addEventListener("stop", () => {
+        stream.getTracks().forEach((t) => t.stop());
+        clearInterval(recTimerInterval);
+        grabando = false;
+        if (chatVoiceBtn) chatVoiceBtn.classList.remove("recording");
+        if (chatVoiceTimer) chatVoiceTimer.hidden = true;
+        const duracion = Date.now() - recStartTime;
+        const enviar = mediaRecorder._enviarAlParar !== false;
+        const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+        mediaRecorder = null;
+        if (!enviar) return; // se canceló (deslizó el dedo fuera del botón, etc.)
+        if (duracion < 800) { notify("⚠️ Nota de voz muy corta"); return; }
+        enviarAudio(blob, duracion);
+      });
+      mediaRecorder.start();
+      if (chatVoiceBtn) chatVoiceBtn.classList.add("recording");
+      if (chatVoiceTimer) { chatVoiceTimer.hidden = false; chatVoiceTimer.textContent = "0:00"; }
+      recTimerInterval = setInterval(() => {
+        if (chatVoiceTimer) chatVoiceTimer.textContent = formatDuration(Date.now() - recStartTime);
+      }, 250);
+    } catch (e) {
+      console.error("[chat.js] No se pudo grabar audio:", e);
+      notify("⚠️ No se pudo acceder al micrófono. Revisa los permisos.");
+    }
+  }
+
   // ---- Notificaciones en vivo (nube + sonido) para cualquier mensaje
   // nuevo, aunque el chat de esa persona esté cerrado ----
   function notifyContainer() {
@@ -515,7 +621,9 @@ export function initChatSystem(deps) {
   chatBtn.addEventListener("click", () => {
     chatModal.hidden = false;
     closeThread();
-    renderDirectory();
+    if (window.showAppLoading) window.showAppLoading("Abriendo el chat…");
+    const terminar = () => { if (window.hideAppLoading) window.hideAppLoading(); };
+    renderDirectory().then(terminar).catch(terminar);
   });
   if (chatModalClose) chatModalClose.addEventListener("click", () => { chatModal.hidden = true; closeThread(); });
   if (chatThreadBack) chatThreadBack.addEventListener("click", closeThread);
@@ -538,6 +646,13 @@ export function initChatSystem(deps) {
       e.target.value = "";
       if (file) enviarFoto(file);
     });
+  }
+  if (chatVoiceBtn) {
+    chatVoiceBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); iniciarGrabacion(); });
+    chatVoiceBtn.addEventListener("pointerup", () => detenerGrabacion(true));
+    chatVoiceBtn.addEventListener("pointerleave", () => detenerGrabacion(false));
+    chatVoiceBtn.addEventListener("pointercancel", () => detenerGrabacion(false));
+    chatVoiceBtn.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
   return { openThread };

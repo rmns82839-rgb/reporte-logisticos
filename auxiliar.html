@@ -62,7 +62,7 @@
       </div>
       <div class="topbar-title">
         <span class="topbar-eyebrow">Auxiliar de laboratorio</span>
-        <h1><span class="title-track">Módulo de Auxiliares</span></h1>
+        <h1><span id="titleTrack" class="title-track">Módulo de Auxiliares</span></h1>
       </div>
     </div>
     <div class="topbar-actions">
@@ -486,6 +486,8 @@
         <button id="chatEmojiBtn" type="button" class="icon-btn" aria-label="Emojis">😊</button>
         <button id="chatPhotoBtn" type="button" class="icon-btn" aria-label="Enviar foto">📷</button>
         <input id="chatPhotoInput" type="file" accept="image/*" hidden>
+        <button id="chatVoiceBtn" type="button" class="icon-btn chat-voice-btn" aria-label="Grabar nota de voz" title="Mantén presionado para grabar">🎤</button>
+        <span id="chatVoiceTimer" class="chat-voice-timer" hidden>0:00</span>
         <input id="chatTextInput" type="text" class="text-input chat-text-input" placeholder="Escribe un mensaje...">
         <button id="chatSendBtn" type="button" class="icon-btn chat-send-btn" aria-label="Enviar">➤</button>
       </div>
@@ -3231,6 +3233,28 @@
     if (existing && existing.length > 0) renderPatientsList(existing);
     else checkCloudBackup();
   }
+
+  // ---------------- Título del topbar: carrusel automático si no cabe ----------------
+  // Igual que en index.html (logísticos): si "Módulo de Auxiliares" no entra
+  // completo, en vez de cortarlo con "..." lo desliza de a poco para que se
+  // alcance a leer completo, a la misma velocidad (16s).
+  function setupTitleMarquee() {
+    const h1 = document.querySelector(".topbar h1");
+    const track = document.getElementById("titleTrack");
+    if (!h1 || !track) return;
+    track.classList.remove("marquee");
+    track.style.removeProperty("--marquee-distance");
+    const overflow = track.scrollWidth - h1.clientWidth;
+    if (overflow > 4) {
+      track.style.setProperty("--marquee-distance", `-${overflow + 6}px`);
+      track.classList.add("marquee");
+    }
+  }
+  window.addEventListener("load", () => {
+    setupTitleMarquee();
+    setTimeout(setupTitleMarquee, 400); // reintenta tras cargar la fuente Sora
+  });
+  window.addEventListener("resize", setupTitleMarquee);
 </script>
 </body>
 </html>
