@@ -1264,7 +1264,12 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   list-style:none;
   cursor:pointer;
   display:flex;
-  align-items:center;
+  /* flex-start en vez de center: con un nombre largo que se parte en 3-4
+     líneas, "Sin pago" + el check + la flechita quedaban centrados
+     verticalmente y terminaban flotando en la mitad del nombre, tapándolo
+     visualmente. Alineados arriba quedan pegados a la primera línea del
+     nombre, como un encabezado, sin importar cuántas líneas ocupe. */
+  align-items:flex-start;
   gap:8px;
   -webkit-tap-highlight-color:transparent;
 }
