@@ -21,8 +21,12 @@ export const TUBOS_AUX = [
   { key: "Verde",         emoji: "🟢", color: "#16a34a", esTubo: true },
   { key: "Azul rey",      emoji: "👑", color: "#1e3a8a", esTubo: true },
   { key: "Transparente",  emoji: "⚪", color: "#9ca3af", esTubo: true },
-  { key: "Orina",         emoji: "💧", color: "#d4a24c", esTubo: true },
-  { key: "Orina 24h",     emoji: "🕐", color: "#b8863f", esTubo: true },
+  // Antes "Orina" usaba un tono amarillo-tostado (#d4a24c) casi igual al
+  // tubo Amarillo (#e8b923) — se confundían a simple vista en los chips.
+  // Ahora Orina es naranja y Orina 24h verde lima, bien distintos entre
+  // sí y del Amarillo.
+  { key: "Orina",         emoji: "💧", color: "#f97316", esTubo: true },
+  { key: "Orina 24h",     emoji: "🕐", color: "#84cc16", esTubo: true },
   { key: "Saliva",        emoji: "💦", color: "#67c9d6", esTubo: true },
   { key: "Materia fecal", emoji: "💩", color: "#8b5e3c", esTubo: true },
   { key: "Laminas",       emoji: "🩸", color: "#e07a9e", esTubo: true },
