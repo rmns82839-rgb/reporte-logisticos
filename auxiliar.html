@@ -250,6 +250,7 @@
     <input type="text" id="examRenameInput1" class="text-input" style="margin-bottom:8px;">
     <input type="text" id="examRenameInput2" class="text-input" hidden>
     <button id="examRenameSplitBtn" type="button" class="ghost-btn" style="width:100%; margin-top:4px;">✂️ Está pegado con otro — dividir en 2</button>
+    <button id="examRenameTuboBtn" type="button" class="ghost-btn" style="width:100%; margin-top:8px;">🧪 Cambiar el tubo de este examen</button>
     <button id="examRenameSaveBtn" type="button" class="btn btn-primary" style="width:100%; margin-top:10px;">Guardar</button>
   </div>
 </div>
@@ -425,7 +426,7 @@
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
   import { getFirestore, collection, doc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
-  import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones } from "./exams.js";
+  import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones, splitExamCodeName } from "./exams.js";
   import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
 
   const firebaseConfig = {
@@ -1980,6 +1981,7 @@
   const examRenameInput1 = document.getElementById("examRenameInput1");
   const examRenameInput2 = document.getElementById("examRenameInput2");
   const examRenameSplitBtn = document.getElementById("examRenameSplitBtn");
+  const examRenameTuboBtn = document.getElementById("examRenameTuboBtn");
   const examRenameSaveBtn = document.getElementById("examRenameSaveBtn");
   let examRenameIdx = null;
   let examRenamePatient = null;
@@ -2016,6 +2018,20 @@
     return [texto, texto];
   }
 
+  // Atajo para no depender de acertarle al chip exacto — el lápiz ✏️
+  // siempre lleva a este modal (corregir/separar texto), así que desde
+  // aquí también se puede saltar directo al editor de tubo del mismo
+  // examen, sin tener que cerrar y volver a tocar el chip.
+  examRenameTuboBtn.addEventListener("click", () => {
+    const p = examRenamePatient;
+    if (!p || examRenameIdx === null) return;
+    const { codigo, nombre } = splitExamCodeName(p.examenes[examRenameIdx]);
+    examRenameModal.hidden = true;
+    examGuide.openEditForExam(codigo, nombre, () => {
+      if (getOpenPatient()?.id === p.id) renderPatientCard();
+      renderPapeleria(currentPatients);
+    });
+  });
   examRenameSplitBtn.addEventListener("click", () => {
     const [parte1, parte2] = sugerirSplitExamen(examRenameInput1.value);
     examRenameInput1.value = parte1;

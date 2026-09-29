@@ -1300,6 +1300,17 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   display:flex; align-items:center; justify-content:center;
 }
 .papeleria-patient-name-text{flex:1; min-width:0;}
+/* El check y el badge de pago ahora van en columna (uno debajo del otro)
+   en vez de lado a lado — así usan el espacio vertical que ya queda
+   libre debajo del check cuando el nombre es largo y ocupa varias
+   líneas, en vez de robarle ancho horizontal al nombre. */
+.papeleria-patient-side{
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:5px;
+}
 .papeleria-patient-pago-badge{
   flex-shrink:0;
   font-size:10.5px;

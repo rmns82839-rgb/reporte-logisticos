@@ -240,8 +240,10 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
         <summary class="papeleria-patient-name">
           <span class="papeleria-patient-num">${idx + 1}</span>
           <span class="papeleria-patient-name-text">${escapeHtml(p.nombrePaciente || "(sin nombre)")}</span>
-          <span class="papeleria-patient-pago-badge${valor > 0 ? " pago-si" : " pago-no"}">${valor > 0 ? "💳 Paga" : "Sin pago"}</span>
-          <button type="button" class="papeleria-done-btn${listo ? " active" : ""}" data-pid="${p.id}" title="Marcar papelería lista">${listo ? "✅" : "⬜"}</button>
+          <div class="papeleria-patient-side">
+            <button type="button" class="papeleria-done-btn${listo ? " active" : ""}" data-pid="${p.id}" title="Marcar papelería lista">${listo ? "✅" : "⬜"}</button>
+            <span class="papeleria-patient-pago-badge${valor > 0 ? " pago-si" : " pago-no"}">${valor > 0 ? "💳 Paga" : "Sin pago"}</span>
+          </div>
         </summary>
         <div class="papeleria-info-grid">
           <div class="papeleria-info-row"><span>Documento</span><strong>${escapeHtml(p.tipoDocumento)} ${escapeHtml(formatCedula(p.numDocumento))}</strong></div>
