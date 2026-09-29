@@ -88,6 +88,7 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <button id="chatBtn" class="icon-btn" type="button" title="Chat con auxiliares y logísticos" aria-label="Chat">💬</button>
       <button id="historyBtn" class="icon-btn" type="button" title="Historial de reportes" aria-label="Historial de reportes">
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
       </button>
@@ -299,6 +300,50 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<!-- Chat: directorio + hilo de conversación (1-a-1 y grupal) -->
+<div id="chatModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide chat-modal-card">
+    <button id="chatModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+
+    <div id="chatDirectoryView">
+      <h3>💬 Chat</h3>
+      <p class="card-hint" style="margin-top:-4px;">Con auxiliares de laboratorio y otros logísticos.</p>
+      <div id="chatDirectoryList" class="chat-directory-list"></div>
+    </div>
+
+    <div id="chatThreadView" class="chat-thread-view" hidden>
+      <div class="chat-thread-header">
+        <button id="chatThreadBack" type="button" class="icon-btn" aria-label="Volver">←</button>
+        <span id="chatThreadAvatar" class="chat-thread-avatar"></span>
+        <span id="chatThreadName" class="chat-thread-name">—</span>
+      </div>
+      <div id="chatMessages" class="chat-messages"></div>
+      <div id="chatEmojiPanel" class="chat-emoji-panel" hidden></div>
+      <div class="chat-input-bar">
+        <button id="chatEmojiBtn" type="button" class="icon-btn" aria-label="Emojis">😊</button>
+        <button id="chatPhotoBtn" type="button" class="icon-btn" aria-label="Enviar foto">📷</button>
+        <input id="chatPhotoInput" type="file" accept="image/*" hidden>
+        <input id="chatTextInput" type="text" class="text-input chat-text-input" placeholder="Escribe un mensaje...">
+        <button id="chatSendBtn" type="button" class="icon-btn chat-send-btn" aria-label="Enviar">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mi perfil: foto -->
+<div id="profileModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="profileModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>👤 Mi perfil</h3>
+    <div class="profile-photo-block">
+      <span id="profilePhotoPreview" class="profile-photo-preview"></span>
+      <span id="profileName" class="profile-name">—</span>
+      <button id="profilePhotoBtn" type="button" class="ghost-btn">📷 Cambiar foto de perfil</button>
+      <input id="profilePhotoInput" type="file" accept="image/*" hidden>
+    </div>
+  </div>
+</div>
+
 <div id="networkModal" class="modal-overlay" hidden>
   <div class="modal-card modal-card-wide">
     <button id="networkModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
@@ -413,5 +458,27 @@
 
 <script type="module" src="sync.js"></script>
 <script src="script.js"></script>
+<script type="module">
+  import { initChatSystem } from "./chat.js";
+  import { getApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+  // sync.js (cargado antes que este script) ya llamó a initializeApp — acá
+  // solo se reutiliza esa misma instancia (getApp/getFirestore no la
+  // vuelven a crear). Se espera a que haya login de logístico (puede
+  // tardar un poco si la persona todavía está en la pantalla de bienvenida).
+  function esperarIdentidadYArrancar() {
+    const me = window.ReporteSync && window.ReporteSync.getMyIdentity ? window.ReporteSync.getMyIdentity() : null;
+    if (!me) { setTimeout(esperarIdentidadYArrancar, 400); return; }
+    try {
+      const app = getApp();
+      const db = getFirestore(app);
+      initChatSystem({ app, db, me, role: "logistico", showToast: window.showToast });
+    } catch (e) {
+      console.warn("[index.html] No se pudo iniciar el chat:", e);
+    }
+  }
+  esperarIdentidadYArrancar();
+</script>
 </body>
 </html>

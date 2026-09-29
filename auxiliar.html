@@ -66,6 +66,7 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <button id="chatBtn" class="icon-btn" type="button" title="Chat con logísticos y auxiliares" aria-label="Chat">💬</button>
       <button id="freshdeskToggleBtn" class="icon-btn" type="button" title="Sincronización con Freshdesk: apagada" aria-label="Sincronización con Freshdesk">🔗</button>
       <button id="logoutBtn" class="icon-btn" type="button" title="Cerrar sesión" aria-label="Cerrar sesión">
         <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/></svg>
@@ -462,6 +463,50 @@
   </div>
 </div>
 
+<!-- Chat: directorio + hilo de conversación (1-a-1 y grupal) -->
+<div id="chatModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide chat-modal-card">
+    <button id="chatModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+
+    <div id="chatDirectoryView">
+      <h3>💬 Chat</h3>
+      <p class="card-hint" style="margin-top:-4px;">Con logísticos y otros auxiliares.</p>
+      <div id="chatDirectoryList" class="chat-directory-list"></div>
+    </div>
+
+    <div id="chatThreadView" class="chat-thread-view" hidden>
+      <div class="chat-thread-header">
+        <button id="chatThreadBack" type="button" class="icon-btn" aria-label="Volver">←</button>
+        <span id="chatThreadAvatar" class="chat-thread-avatar"></span>
+        <span id="chatThreadName" class="chat-thread-name">—</span>
+      </div>
+      <div id="chatMessages" class="chat-messages"></div>
+      <div id="chatEmojiPanel" class="chat-emoji-panel" hidden></div>
+      <div class="chat-input-bar">
+        <button id="chatEmojiBtn" type="button" class="icon-btn" aria-label="Emojis">😊</button>
+        <button id="chatPhotoBtn" type="button" class="icon-btn" aria-label="Enviar foto">📷</button>
+        <input id="chatPhotoInput" type="file" accept="image/*" hidden>
+        <input id="chatTextInput" type="text" class="text-input chat-text-input" placeholder="Escribe un mensaje...">
+        <button id="chatSendBtn" type="button" class="icon-btn chat-send-btn" aria-label="Enviar">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mi perfil: foto -->
+<div id="profileModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <button id="profileModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>👤 Mi perfil</h3>
+    <div class="profile-photo-block">
+      <span id="profilePhotoPreview" class="profile-photo-preview"></span>
+      <span id="profileName" class="profile-name">—</span>
+      <button id="profilePhotoBtn" type="button" class="ghost-btn">📷 Cambiar foto de perfil</button>
+      <input id="profilePhotoInput" type="file" accept="image/*" hidden>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script type="module">
@@ -471,6 +516,7 @@
   import { PEOPLE } from "./people.js";
   import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones, splitExamCodeName } from "./exams.js";
   import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
+  import { initChatSystem } from "./chat.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -570,6 +616,7 @@
     const avatarEl = document.getElementById("welcomeAvatar");
     avatarEl.textContent = initials(me.name);
     avatarEl.style.background = avatarColor(me.name);
+    initChatSystem({ app, db, me, role: "auxiliar", showToast });
   }
 
   const examGuide = initExamGuide({ db, me, escapeHtml: escapeHtmlAux, showToast });
@@ -1467,11 +1514,15 @@
 
   let selectedLogisticoPhone = null;
 
-  function openHandoffSelectModal(pending) {
-    selectedLogisticoPhone = null;
+  // Se dibuja primero sin fotos (para que el modal abra al toque, sin
+  // esperar red) y se vuelve a llamar cuando llegan las fotos de perfil
+  // (ver openHandoffSelectModal) — así no se demora abrir por Firestore.
+  function renderLogisticoChips(fotos) {
     const handoffLogisticoChips = document.getElementById("handoffLogisticoChips");
+    const previaSeleccion = selectedLogisticoPhone;
     handoffLogisticoChips.innerHTML = Object.entries(PEOPLE).map(([phone, info]) => `
-      <button type="button" class="company-tube-btn payment-chip" data-phone="${phone}">
+      <button type="button" class="company-tube-btn payment-chip${phone === previaSeleccion ? " active" : ""}" data-phone="${phone}">
+        ${fotos && fotos[phone] ? `<img src="${fotos[phone]}" class="round-avatar-img" alt="">` : ""}
         <span class="co-btn-label">${escapeHtmlAux(info.name)}</span>
       </button>
     `).join("");
@@ -1482,6 +1533,16 @@
         chip.classList.add("active");
       });
     });
+  }
+
+  function openHandoffSelectModal(pending) {
+    selectedLogisticoPhone = null;
+    renderLogisticoChips(null);
+    getDocs(collection(db, "profiles")).then(snap => {
+      const fotos = {};
+      snap.forEach(d => { const data = d.data(); if (data && data.photoURL) fotos[d.id] = data.photoURL; });
+      renderLogisticoChips(fotos);
+    }).catch(e => console.warn("[auxiliar.html] No se pudieron cargar fotos de perfil:", e));
 
     handoffSelectList.innerHTML = pending.map(p => `
       <label class="handoff-select-row">

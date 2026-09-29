@@ -15,7 +15,7 @@ import {
   doc, setDoc, getDoc, deleteDoc, serverTimestamp,
   collection, query, where, onSnapshot, updateDoc, addDoc, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { lookupPerson, lookupAuxiliar } from "./people.js";
+import { lookupPerson, lookupAuxiliar, AUXILIARES_LAB } from "./people.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDjDVuIAWXxTJUrp406Rb7zrRGoQB4GHwg",
@@ -394,6 +394,27 @@ async function claimAuxiliarHandoff(handoffId) {
   }
 }
 
+// Fotos de perfil de todos (logísticos y auxiliares) que hayan subido una
+// desde el chat — para que el selector "¿A quién le está recibiendo?" las
+// use en vez de solo las iniciales. Un solo fetch (no en vivo): si alguien
+// cambia su foto, se ve la próxima vez que se recargue la página, no hace
+// falta que sea instantáneo acá.
+async function getAllProfilePhotos() {
+  await whenReady();
+  try {
+    const snap = await getDocs(collection(db, "profiles"));
+    const map = {};
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data && data.photoURL) map[d.id] = data.photoURL;
+    });
+    return map;
+  } catch (e) {
+    console.warn("[sync.js] No se pudieron cargar las fotos de perfil:", e);
+    return {};
+  }
+}
+
 window.ReporteSync = {
   getMyIdentity, loginWithPhone, logout, syncAux,
   listenMyAssignments, markAssignmentSeen, markAssignmentDone,
@@ -401,4 +422,5 @@ window.ReporteSync = {
   listenAllAssignments,
   getMyAuxiliarIdentity, loginAuxiliarWithPhone, logoutAuxiliar,
   submitAuxiliarHandoff, listenAuxiliarHandoffs, claimAuxiliarHandoff,
+  getAllProfilePhotos, AUXILIARES_LAB,
 };

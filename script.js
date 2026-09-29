@@ -9,6 +9,27 @@ const AUXILIARES = [
   "Camilo", "Milena", "Luis", "Edison"
 ];
 
+// Fotos de perfil (subidas desde el chat) para el selector "¿A quién le
+// está recibiendo?" — se cargan una vez al abrir la app, en segundo plano.
+let auxProfilePhotos = {};
+function auxPhoneByName(name) {
+  const lab = window.ReporteSync && window.ReporteSync.AUXILIARES_LAB;
+  if (!lab) return null;
+  const found = Object.entries(lab).find(([, info]) => info.name === name);
+  return found ? found[0] : null;
+}
+function auxAvatarHtml(name) {
+  const phone = auxPhoneByName(name);
+  const foto = phone && auxProfilePhotos[phone];
+  if (foto) return `<img src="${foto}" class="round-avatar-img" alt="">`;
+  return `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span>`;
+}
+async function loadAuxProfilePhotos() {
+  if (!window.ReporteSync || !window.ReporteSync.getAllProfilePhotos) return;
+  auxProfilePhotos = await window.ReporteSync.getAllProfilePhotos();
+  renderAux();
+}
+
 // Emoji cuadrado por compañía: se usa aparte de los emojis circulares de los
 // tubos para que no se confundan visualmente en el texto plano de WhatsApp
 // (ej: 🔴 Rojo tubo vs 🟥 VIP compañía).
@@ -589,9 +610,15 @@ function renderAux() {
 
   if (hasFixedSelection) {
     const name = AUXILIARES[state.auxIndex];
+    const heroFoto = (() => {
+      const phone = auxPhoneByName(name);
+      return phone && auxProfilePhotos[phone];
+    })();
     auxHero.innerHTML = `
       <div class="aux-hero-card">
-        <span class="aux-hero-avatar" style="--hero-color:${avatarColor(name)}">${initials(name)}</span>
+        ${heroFoto
+          ? `<img src="${heroFoto}" class="round-avatar-img aux-hero-avatar-img" alt="">`
+          : `<span class="aux-hero-avatar" style="--hero-color:${avatarColor(name)}">${initials(name)}</span>`}
         <span class="aux-hero-name">${name}</span>
         <button id="auxChangeBtn" type="button" class="aux-hero-change">🔄 Cambiar auxiliar</button>
       </div>`;
@@ -615,7 +642,7 @@ function renderAux() {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "aux-chip" + (state.auxIndex === i ? " active" : "") + (i === lastSelectedAux ? " pop" : "");
-    chip.innerHTML = `<span class="avatar" style="background:${avatarColor(name)}">${initials(name)}</span><span>${name}</span>`;
+    chip.innerHTML = `${auxAvatarHtml(name)}<span>${name}</span>`;
     chip.addEventListener("click", () => selectAux(i));
     auxGrid.appendChild(chip);
   });
@@ -2156,6 +2183,7 @@ window.addEventListener("load", () => {
   renderWelcomeStrip();
   setTimeout(startAssignmentListener, 800);
   setTimeout(startHandoffListener, 800);
+  setTimeout(loadAuxProfilePhotos, 800);
 });
 
 // ---------------- Red de logísticos: quién le recibe a quién, en vivo ----------------

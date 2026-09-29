@@ -2285,6 +2285,170 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   z-index:400;
   box-shadow:0 10px 26px -10px rgba(0,0,0,0.6);
 }
+/* Foto de perfil reemplazando las iniciales — en el selector "¿A quién le
+   está recibiendo?", el selector de logístico al entregar, y el chat. */
+.round-avatar-img{border-radius:50%; object-fit:cover; display:block;}
+.aux-chip .round-avatar-img{width:36px; height:36px;}
+.aux-hero-avatar-img{width:92px; height:92px;}
+.payment-chip .round-avatar-img{width:28px; height:28px; margin-bottom:2px;}
+
+/* ---------------- Chat (directorio + hilo 1-a-1 / grupal) ---------------- */
+.chat-modal-card{
+  display:flex;
+  flex-direction:column;
+  max-height:82vh;
+  overflow:hidden;
+}
+.chat-directory-list{max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:10px;}
+.chat-directory-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:9px 12px;
+  cursor:pointer;
+  text-align:left;
+}
+.chat-directory-row:active{background:var(--surface-2);}
+.chat-directory-info{display:flex; flex-direction:column; min-width:0;}
+.chat-directory-name{font-size:13px; font-weight:700; color:var(--text);}
+.chat-directory-sub{font-size:11px; font-weight:600; color:var(--text-faint);}
+
+.chat-avatar-img{width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;}
+.chat-avatar-fallback{
+  width:40px; height:40px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:800; color:#fff;
+  flex-shrink:0;
+}
+.chat-avatar-group{background:var(--surface-2); font-size:18px;}
+
+#chatThreadView{display:flex; flex-direction:column; flex:1; min-height:0;}
+.chat-thread-header{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+.chat-thread-avatar .chat-avatar-img,
+.chat-thread-avatar .chat-avatar-fallback{width:32px; height:32px; font-size:12px;}
+.chat-thread-name{font-size:14px; font-weight:800; color:var(--text);}
+
+.chat-messages{
+  flex:1;
+  min-height:220px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:4px 2px 8px;
+}
+.chat-bubble-row{display:flex;}
+.chat-bubble-row.mine{justify-content:flex-end;}
+.chat-bubble-row.theirs{justify-content:flex-start;}
+.chat-bubble{
+  max-width:78%;
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:7px 10px;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.chat-bubble-row.mine .chat-bubble{background:var(--send-soft); border-color:var(--send);}
+.chat-bubble-from{font-size:10px; font-weight:800; color:var(--send);}
+.chat-bubble-text{font-size:13px; font-weight:600; color:var(--text); line-height:1.4; white-space:pre-wrap; overflow-wrap:break-word;}
+.chat-bubble-img{max-width:100%; border-radius:10px; cursor:pointer; display:block;}
+.chat-bubble-time{font-size:9.5px; font-weight:700; color:var(--text-faint); align-self:flex-end; display:flex; align-items:center; gap:6px;}
+.chat-bubble-del{border:none; background:none; cursor:pointer; font-size:11px; padding:0; opacity:.6;}
+.chat-bubble-del:active{opacity:1;}
+.chat-bubble-deleted{opacity:.6; font-style:italic; font-size:12px;}
+
+.chat-emoji-panel{
+  display:grid;
+  grid-template-columns:repeat(8, 1fr);
+  gap:4px;
+  max-height:140px;
+  overflow-y:auto;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:8px;
+  margin-bottom:8px;
+}
+.chat-emoji-item{
+  border:none;
+  background:none;
+  font-size:19px;
+  padding:4px;
+  cursor:pointer;
+  border-radius:8px;
+}
+.chat-emoji-item:active{background:var(--surface-3);}
+
+.chat-input-bar{display:flex; align-items:center; gap:6px;}
+.chat-text-input{flex:1; margin:0;}
+.chat-send-btn{background:var(--send); color:#06251b;}
+
+.profile-photo-block{display:flex; flex-direction:column; align-items:center; gap:10px;}
+.profile-photo-preview .chat-avatar-img,
+.profile-photo-preview .chat-avatar-fallback{width:88px; height:88px; font-size:26px;}
+.profile-name{font-size:15px; font-weight:800; color:var(--text);}
+
+/* Notificación de chat en vivo — nube de texto flotante arriba de la
+   pantalla cuando llega un mensaje nuevo en cualquier chat, aunque no
+   lo tengas abierto. Tiene que verse por encima de todo (incluso
+   modales) para que no se pierda. */
+.chat-notify-container{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  z-index:700;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  padding-top:calc(12px + env(safe-area-inset-top, 0px));
+  pointer-events:none;
+}
+.chat-notify-bubble{
+  pointer-events:auto;
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  width:min(92vw, 360px);
+  background:var(--surface-3);
+  border:1.5px solid var(--send);
+  border-radius:16px;
+  padding:10px 12px;
+  box-shadow:0 14px 34px -10px rgba(0,0,0,0.7);
+  cursor:pointer;
+  transform:translateY(-140%);
+  opacity:0;
+  transition:transform .28s cubic-bezier(.34,1.4,.64,1), opacity .22s ease;
+}
+.chat-notify-bubble.show{
+  transform:translateY(0);
+  opacity:1;
+}
+.chat-notify-avatar{flex-shrink:0;}
+.chat-notify-avatar .chat-avatar-img,
+.chat-notify-avatar .chat-avatar-fallback{width:36px; height:36px; font-size:13px;}
+.chat-notify-body{flex:1; min-width:0;}
+.chat-notify-name{font-size:12.5px; font-weight:800; color:var(--send);}
+.chat-notify-text{font-size:12.5px; font-weight:600; color:var(--text); line-height:1.35; overflow-wrap:break-word;}
+.chat-notify-close{
+  flex-shrink:0;
+  border:none;
+  background:none;
+  color:var(--text-faint);
+  font-size:16px;
+  line-height:1;
+  padding:2px 4px;
+  cursor:pointer;
+}
+.chat-notify-close:active{color:var(--text);}
+
 /* ---------------- Loader de moto (splash de apertura + import de planilla) ---------------- */
 .app-loading-overlay{
   position:fixed;
