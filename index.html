@@ -329,6 +329,15 @@
         <button id="chatSendBtn" type="button" class="icon-btn chat-send-btn" aria-label="Enviar">➤</button>
       </div>
     </div>
+
+    <!-- Menú al mantener presionado un mensaje: ocultar solo para mí / eliminar para todos -->
+    <div id="chatMsgActionSheet" class="chat-msg-action-backdrop" hidden>
+      <div class="chat-msg-action-card">
+        <button type="button" id="chatMsgActionHide" class="chat-msg-action-btn">🙈 Ocultar solo para mí</button>
+        <button type="button" id="chatMsgActionDelete" class="chat-msg-action-btn danger">🗑️ Eliminar para todos</button>
+        <button type="button" id="chatMsgActionCancel" class="chat-msg-action-btn cancel">Cancelar</button>
+      </div>
+    </div>
   </div>
 </div>
 

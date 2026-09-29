@@ -221,6 +221,19 @@ html,body{
   justify-content:center;
   cursor:pointer;
   flex-shrink:0;
+  position:relative;
+}
+.icon-btn.has-unread::after{
+  content:"";
+  position:absolute;
+  top:1px;
+  right:1px;
+  width:11px;
+  height:11px;
+  border-radius:50%;
+  background:#F1453B;
+  border:2px solid var(--surface);
+  animation:voicePulse 1.3s ease-in-out infinite;
 }
 #freshdeskToggleBtn.active{background:var(--send-soft); border-color:var(--send); color:var(--send);}
 .icon-btn:active{background:var(--surface-2); transform:scale(0.95);}
@@ -2359,19 +2372,49 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .chat-bubble-text{font-size:13px; font-weight:600; color:var(--text); line-height:1.4; white-space:pre-wrap; overflow-wrap:break-word;}
 .chat-bubble-img{max-width:100%; border-radius:10px; cursor:pointer; display:block;}
 .chat-bubble-time{font-size:9.5px; font-weight:700; color:var(--text-faint); align-self:flex-end; display:flex; align-items:center; gap:6px;}
-.chat-bubble-del,
-.chat-bubble-hide{border:none; background:none; cursor:pointer; font-size:11px; padding:0; opacity:.6;}
-.chat-bubble-del:active,
-.chat-bubble-hide:active{opacity:1;}
 .chat-bubble-deleted{
   opacity:.75;
   font-style:italic;
   font-size:12px;
+}
+.chat-bubble-row{-webkit-user-select:none; user-select:none;}
+
+/* Menú al mantener presionado un mensaje (en vez de botones sueltos que
+   se tocaban sin querer al hacer scroll). */
+.chat-msg-action-backdrop{
+  position:absolute;
+  inset:0;
+  z-index:80;
+  background:rgba(6,10,18,0.72);
   display:flex;
   align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
+  justify-content:center;
+  padding:20px;
 }
+.chat-msg-action-card{
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  width:min(100%, 280px);
+  box-shadow:0 14px 34px -10px rgba(0,0,0,0.7);
+}
+.chat-msg-action-btn{
+  border:none;
+  background:var(--surface-2);
+  color:var(--text);
+  font-size:13.5px;
+  font-weight:700;
+  padding:12px 14px;
+  border-radius:12px;
+  text-align:left;
+  cursor:pointer;
+}
+.chat-msg-action-btn.danger{color:#F1453B;}
+.chat-msg-action-btn.cancel{background:none; color:var(--text-faint); text-align:center;}
 
 /* Reproductor propio de notas de voz — reemplaza el control nativo del
    navegador (se ve distinto y descuadrado según el celular) por uno
