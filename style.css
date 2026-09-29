@@ -1037,6 +1037,20 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .tube-pick-chip span{font-size:8px; font-weight:700; color:var(--text-faint); line-height:1;}
 .tube-pick-chip.active{border-color:var(--send); background:var(--send-soft);}
 
+.exam-guide-info-toggle{width:100%; margin:0 0 8px; font-size:11.5px;}
+.exam-guide-info-box{margin-bottom:8px;}
+.exam-guide-info-box .card-hint{margin:0 0 8px;}
+.exam-guide-filters{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.exam-guide-color-select{
+  width:100%;
+  appearance:none;
+  -webkit-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b93a7' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  background-size:16px;
+  padding-right:30px;
+}
 .exam-guide-list{max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:10px;}
 .exam-guide-row{
   display:flex;
@@ -2270,6 +2284,103 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
      tapado y hay que cerrar la tarjeta para leerlo. */
   z-index:400;
   box-shadow:0 10px 26px -10px rgba(0,0,0,0.6);
+}
+/* ---------------- Loader de moto (splash de apertura + import de planilla) ---------------- */
+.app-loading-overlay{
+  position:fixed;
+  inset:0;
+  z-index:500;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:22px;
+  background:radial-gradient(circle at 50% 38%, #16223d 0%, #060a12 78%);
+  transition:opacity .35s ease;
+}
+.app-loading-overlay[hidden]{display:none;}
+.app-loading-overlay.fade-out{opacity:0; pointer-events:none;}
+
+.app-loading-track{
+  position:relative;
+  width:min(92vw, 480px);
+  height:130px;
+  overflow:hidden;
+}
+.app-loading-line{
+  position:absolute;
+  top:50%;
+  height:3px;
+  width:26%;
+  border-radius:3px;
+  background:linear-gradient(90deg, transparent, rgba(79,157,255,0.55), transparent);
+  animation:motoZoom 1.15s cubic-bezier(.45,0,.55,1) infinite;
+}
+.app-loading-line.l1{transform:translateY(-30px);}
+.app-loading-line.l2{transform:translateY(6px); animation-delay:.08s; opacity:.7;}
+.app-loading-line.l3{transform:translateY(34px); animation-delay:.16s; opacity:.45;}
+
+.app-loading-moto{
+  position:absolute;
+  top:50%;
+  left:-25%;
+  width:110px;
+  height:110px;
+  transform:translateY(-50%);
+  border-radius:22px;
+  animation:motoZoom 1.15s cubic-bezier(.45,0,.55,1) infinite;
+  filter:drop-shadow(0 10px 18px rgba(0,0,0,.55));
+}
+@keyframes motoZoom{
+  0%{ left:-25%; }
+  100%{ left:105%; }
+}
+.app-loading-text{
+  color:#dce6f5;
+  font-size:13.5px;
+  font-weight:700;
+  letter-spacing:.02em;
+  text-align:center;
+  animation:appLoadingPulse 1.3s ease-in-out infinite;
+}
+@keyframes appLoadingPulse{
+  0%, 100%{opacity:.55;}
+  50%{opacity:1;}
+}
+@media (prefers-reduced-motion: reduce){
+  .app-loading-moto, .app-loading-line{animation:none; left:calc(50% - 55px);}
+  .app-loading-text{animation:none; opacity:1;}
+}
+
+.app-update-banner{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  z-index:401;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:10px 16px;
+  padding-top:calc(10px + env(safe-area-inset-top, 0px));
+  background:var(--send);
+  color:#06251b;
+  font-size:12.5px;
+  font-weight:700;
+  text-align:center;
+  box-shadow:0 6px 18px -8px rgba(0,0,0,0.5);
+}
+.app-update-banner button{
+  border:none;
+  border-radius:8px;
+  background:#06251b;
+  color:var(--send);
+  font-size:12px;
+  font-weight:800;
+  padding:6px 12px;
+  cursor:pointer;
 }
 .toast.show{
   opacity:1;

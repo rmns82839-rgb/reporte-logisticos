@@ -1,4 +1,4 @@
-const CACHE_NAME = "reporte-logisticos-v9";
+const CACHE_NAME = "reporte-logisticos-v129";
 const ASSETS = [
   "./",
   "./index.html",
@@ -12,15 +12,27 @@ const ASSETS = [
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/icon-192-maskable.png",
+  "./icons/icon-512-maskable.png",
   "./icons/favicon-32.png",
   "./icons/apple-touch-icon.png",
+  "./icons/loading-moto.png",
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  // Antes hacía self.skipWaiting() aquí, y la versión nueva tomaba control
+  // sola apenas terminaba de instalarse — si alguien tenía la app abierta
+  // a mitad de una tarjeta de paciente, se le recargaba la pantalla sin
+  // avisar. Ahora se queda "esperando" y solo activa cuando la página le
+  // manda el mensaje SKIP_WAITING (banner "Hay una versión nueva" en la
+  // app), para que el auxiliar decida cuándo recargar.
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

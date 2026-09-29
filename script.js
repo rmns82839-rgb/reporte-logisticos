@@ -1806,9 +1806,42 @@ window.addEventListener("resize", setupTitleMarquee);
 setInterval(() => { renderHours(); }, 60000);
 
 // ---------------- PWA: service worker ----------------
+// Banner "Hay una versión nueva": avisa cuando ya se descargó un update en
+// segundo plano, en vez de dejar que la próxima recarga (o dos) la traiga
+// sin avisar y alguien reporte un bug que ya estaba arreglado.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      if (reg.waiting) mostrarBannerActualizacion(reg);
+      reg.addEventListener("updatefound", () => {
+        const nuevo = reg.installing;
+        if (!nuevo) return;
+        nuevo.addEventListener("statechange", () => {
+          if (nuevo.state === "installed" && navigator.serviceWorker.controller) {
+            mostrarBannerActualizacion(reg);
+          }
+        });
+      });
+    }).catch(() => {});
+  });
+
+  let recargandoPorActualizacion = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (recargandoPorActualizacion) return;
+    recargandoPorActualizacion = true;
+    window.location.reload();
+  });
+}
+
+function mostrarBannerActualizacion(reg) {
+  if (document.getElementById("appUpdateBanner")) return;
+  const banner = document.createElement("div");
+  banner.id = "appUpdateBanner";
+  banner.className = "app-update-banner";
+  banner.innerHTML = `<span>🔄 Hay una versión nueva de la app</span><button type="button">Actualizar</button>`;
+  document.body.appendChild(banner);
+  banner.querySelector("button").addEventListener("click", () => {
+    if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
   });
 }
 

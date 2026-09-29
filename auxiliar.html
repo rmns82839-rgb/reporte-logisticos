@@ -18,6 +18,41 @@
 
 <div class="bg-glow"></div>
 
+<!-- Loader de moto: splash de apertura + se reutiliza (showAppLoading /
+     hideAppLoading, colgados de window) mientras se importa la planilla. -->
+<div id="appLoadingOverlay" class="app-loading-overlay">
+  <div class="app-loading-track">
+    <span class="app-loading-line l1"></span>
+    <span class="app-loading-line l2"></span>
+    <span class="app-loading-line l3"></span>
+    <img src="icons/loading-moto.png" alt="" class="app-loading-moto">
+  </div>
+  <span class="app-loading-text">Cargando…</span>
+</div>
+<script>
+  (function () {
+    var overlay = document.getElementById("appLoadingOverlay");
+    window.showAppLoading = function (texto) {
+      if (!overlay) return;
+      if (texto) overlay.querySelector(".app-loading-text").textContent = texto;
+      overlay.hidden = false;
+      overlay.classList.remove("fade-out");
+    };
+    window.hideAppLoading = function () {
+      if (!overlay) return;
+      overlay.classList.add("fade-out");
+      setTimeout(function () { overlay.hidden = true; }, 380);
+    };
+    var inicio = Date.now();
+    function ocultarSplash() {
+      var falta = Math.max(0, 650 - (Date.now() - inicio));
+      setTimeout(window.hideAppLoading, falta);
+    }
+    if (document.readyState === "complete") ocultarSplash();
+    else window.addEventListener("load", ocultarSplash);
+  })();
+</script>
+
 <div class="app">
 
   <header class="topbar">
@@ -80,9 +115,17 @@
         <section class="card">
           <details class="hour-group">
             <summary><span class="group-label">🧪 Guía de exámenes</span><span id="examGuideBadge" class="group-badge">0</span></summary>
-            <p class="card-hint">Se construye sola con cada planilla que importas — busca por nombre o código, toca el tubo para corregirlo si hace falta. Si un examen no aparece, agrégalo a mano.</p>
-            <input type="text" id="examGuideSearch" class="text-input" placeholder="Buscar por nombre o código...">
-            <button type="button" id="examGuideAddBtn" class="ghost-btn" style="margin:8px 0;">➕ Agregar examen a la guía</button>
+            <button type="button" id="examGuideInfoToggle" class="ghost-btn exam-guide-info-toggle" aria-expanded="false">ℹ️ Cómo funciona / agregar examen a mano</button>
+            <div id="examGuideInfoBox" class="exam-guide-info-box" hidden>
+              <p class="card-hint">Se construye sola con cada planilla que importas — busca por nombre o código, toca el tubo para corregirlo si hace falta. Si un examen no aparece, agrégalo a mano.</p>
+              <button type="button" id="examGuideAddBtn" class="ghost-btn" style="margin:8px 0;">➕ Agregar examen a la guía</button>
+            </div>
+            <div class="exam-guide-filters">
+              <input type="text" id="examGuideSearch" class="text-input" placeholder="Buscar por nombre o código...">
+              <select id="examGuideColorFilter" class="text-input exam-guide-color-select">
+                <option value="">🎨 Todos los colores</option>
+              </select>
+            </div>
             <div id="examGuideList" class="exam-guide-list"></div>
           </details>
         </section>
@@ -424,7 +467,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-  import { getFirestore, collection, doc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
   import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones, splitExamCodeName } from "./exams.js";
   import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
@@ -439,9 +482,67 @@
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  // Persistencia offline: si el auxiliar pierde señal a mitad de una
+  // escritura (clasificar un examen, entregar al logístico, pericraneales,
+  // papelería...) y cierra o recarga la app antes de reconectar, sin esto
+  // esa escritura se pierde para siempre — solo vivía en memoria. Con
+  // persistentLocalCache queda guardada en IndexedDB y se manda sola en
+  // cuanto vuelve la señal. persistentMultipleTabManager evita errores si
+  // llega a tener la app abierta en 2 pestañas/ventanas a la vez.
+  let db;
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch (e) {
+    // Falla en navegación privada o si el navegador no soporta IndexedDB
+    // — la app sigue funcionando igual, solo sin caché offline.
+    console.warn("[auxiliar.html] Sin persistencia offline de Firestore:", e);
+    db = initializeFirestore(app, {});
+  }
   const auth = getAuth(app);
   signInAnonymously(auth).catch(() => {});
+
+  // Banner "Hay una versión nueva" — auxiliar.html no carga script.js
+  // (tiene su propio módulo), así que necesita su propia copia de este
+  // aviso; igual que en script.js, ya no se recarga sola a mitad de una
+  // tarjeta de paciente, se queda esperando a que el auxiliar toque
+  // "Actualizar".
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").then((reg) => {
+        if (reg.waiting) mostrarBannerActualizacion(reg);
+        reg.addEventListener("updatefound", () => {
+          const nuevo = reg.installing;
+          if (!nuevo) return;
+          nuevo.addEventListener("statechange", () => {
+            if (nuevo.state === "installed" && navigator.serviceWorker.controller) {
+              mostrarBannerActualizacion(reg);
+            }
+          });
+        });
+      }).catch(() => {});
+    });
+
+    let recargandoPorActualizacion = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (recargandoPorActualizacion) return;
+      recargandoPorActualizacion = true;
+      window.location.reload();
+    });
+  }
+
+  function mostrarBannerActualizacion(reg) {
+    if (document.getElementById("appUpdateBanner")) return;
+    const banner = document.createElement("div");
+    banner.id = "appUpdateBanner";
+    banner.className = "app-update-banner";
+    banner.innerHTML = `<span>🔄 Hay una versión nueva de la app</span><button type="button">Actualizar</button>`;
+    document.body.appendChild(banner);
+    banner.querySelector("button").addEventListener("click", () => {
+      if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    });
+  }
 
   const AUXILIAR_IDENTITY_KEY = "reporte_logisticos_auxiliar_identity_v1";
   const ROLE_KEY = "reporte_logisticos_role_v1";
@@ -476,6 +577,20 @@
   initPapeleriaParallax();
   examGuide.refreshBadgeOnly();
   document.getElementById("examGuideAddBtn").addEventListener("click", () => examGuide.openAddManual());
+
+  // El texto de "cómo funciona" + el botón de agregar a mano quedan
+  // ocultos por defecto — el buscador se ve de una vez al abrir la guía,
+  // sin tener que hacer scroll pasando la explicación cada vez.
+  const examGuideInfoToggle = document.getElementById("examGuideInfoToggle");
+  const examGuideInfoBox = document.getElementById("examGuideInfoBox");
+  examGuideInfoToggle.addEventListener("click", () => {
+    const abierto = examGuideInfoBox.hidden;
+    examGuideInfoBox.hidden = !abierto;
+    examGuideInfoToggle.setAttribute("aria-expanded", String(abierto));
+    examGuideInfoToggle.textContent = abierto
+      ? "ℹ️ Ocultar"
+      : "ℹ️ Cómo funciona / agregar examen a mano";
+  });
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
     try {
@@ -583,13 +698,23 @@
   // de un vistazo si ese paciente ya se sincronizó con Freshdesk sin
   // tener que ir hasta el Resumen del día. Solo aparece con la
   // sincronización encendida y si el paciente tiene solicitud.
+  // "558701 ✅ · 558702 ❌" — para saber de un vistazo cuál de las
+  // solicitudes de un paciente con 2+ números falló, sin adivinar.
+  function fdResumenSolicitudes(p) {
+    const r = p.freshdeskResultados;
+    if (!r || !Object.keys(r).length) return "";
+    return Object.entries(r).map(([sol, ok]) => `${sol} ${ok ? "✅" : "❌"}`).join(" · ");
+  }
+
   function fdBadgeHtml(p) {
     if (!fdActivo() || !p.solicitud) return "";
     // Antes de marcar cualquier tiempo no hay nada que sincronizar
     // todavía — no tiene sentido mostrar una advertencia desde el inicio.
     if (!p.arriboSitio && p.estado !== "cancelado") return "";
     if (p.freshdeskSincronizado) return ' <span class="patient-fd-badge fd-ok" title="Sincronizado con Freshdesk">✅</span>';
-    return ' <span class="patient-fd-badge fd-pendiente" title="Falta sincronizar con Freshdesk">🔗⚠️</span>';
+    const resumen = fdResumenSolicitudes(p);
+    const title = resumen ? `Falta sincronizar — ${resumen}` : "Falta sincronizar con Freshdesk";
+    return ` <span class="patient-fd-badge fd-pendiente" title="${escapeHtmlAux(title)}">🔗⚠️</span>`;
   }
   const freshdeskToggleBtn = document.getElementById("freshdeskToggleBtn");
 
@@ -662,6 +787,16 @@
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
+      // Guarda el resultado de CADA solicitud por separado (no solo si
+      // "en general" salió bien) — así el badge y el toast pueden decir
+      // exactamente cuál número quedó pendiente, sin adivinar.
+      if (json && Array.isArray(json.resultados)) {
+        p.freshdeskResultados = Object.fromEntries(json.resultados.map(r => [r.solicitud, !!r.ok]));
+      } else {
+        // Sin respuesta usable (ej. sin señal) — no se sabe el estado de
+        // ninguna, se marcan todas como pendientes para el próximo reintento.
+        p.freshdeskResultados = Object.fromEntries(solicitudesSeparadas.map(s => [s, false]));
+      }
       // json.ok solo exige que UNA solicitud se haya actualizado bien
       // (freshdesk-sync.js: okCount > 0). Con 2+ números de solicitud eso
       // dejaría marcar como "sincronizado" a un paciente al que, en
@@ -676,10 +811,19 @@
         p.freshdeskPendiente = false;
       } else {
         p.freshdeskPendiente = true;
+        // Con 1 sola solicitud el badge 🔗⚠️ ya es suficiente aviso — el
+        // toast solo aporta cuando hay 2+ números y hace falta decir CUÁL
+        // quedó pendiente.
+        if (solicitudesSeparadas.length > 1) {
+          showToast(`🔗 Freshdesk: ${fdResumenSolicitudes(p)}`, 3200);
+        }
       }
     } catch (e) {
       console.warn("[auxiliar.html] No se pudo sincronizar con Freshdesk:", e);
       p.freshdeskPendiente = true;
+      p.freshdeskResultados = Object.fromEntries(
+        String(p.solicitud || "").split(/[\s,;\/]+/).filter(n => /^\d+$/.test(n)).map(s => [s, false])
+      );
     }
     savePatients(currentPatients);
     renderDaySummary(currentPatients);
@@ -1794,6 +1938,7 @@
 
     importStatus.hidden = false;
     importStatus.textContent = "Leyendo el archivo...";
+    if (window.showAppLoading) window.showAppLoading("Leyendo tu planilla…");
 
     const reader = new FileReader();
     reader.onload = async (ev) => {
@@ -1810,6 +1955,7 @@
 
         if (allPatients.length === 0) {
           importStatus.textContent = `No encontré pacientes en una hoja para "${me.name}" en este archivo. Revisa que sea el Excel correcto.`;
+          if (window.hideAppLoading) window.hideAppLoading();
           return;
         }
 
@@ -1824,10 +1970,16 @@
         }
 
         importStatus.textContent = "Revisando exámenes contra el catálogo...";
+        if (window.showAppLoading) window.showAppLoading("Revisando exámenes…");
+        // A partir de acá checkAndClassifyNewExams puede abrir su propio
+        // modal (para clasificar exámenes nuevos) — hay que quitar el
+        // loader de pantalla completa antes de que eso pase, si no tapa
+        // el modal y parece que la app se quedó pegada.
         checkAndClassifyNewExams(
           { db, me, escapeHtml: escapeHtmlAux, showToast, examScanFilter: (p) => !isFsfb(p) },
           allPatients,
           (patients, nuevosCount) => {
+            if (window.hideAppLoading) window.hideAppLoading();
             if (nuevosCount > 0) { examGuide.invalidate(); examGuide.refreshBadgeOnly(); }
             finalizeImport(patients);
           }
@@ -1835,10 +1987,12 @@
       } catch (err) {
         console.error(err);
         importStatus.textContent = "No se pudo leer el archivo. ¿Seguro que es un Excel válido?";
+        if (window.hideAppLoading) window.hideAppLoading();
       }
     };
     reader.onerror = () => {
       importStatus.textContent = "No se pudo leer el archivo.";
+      if (window.hideAppLoading) window.hideAppLoading();
     };
     reader.readAsArrayBuffer(file);
   });

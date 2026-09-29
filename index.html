@@ -17,6 +17,44 @@
 
 <div class="bg-glow"></div>
 
+<!-- Loader de moto: se ve al abrir la app (splash) y también se reutiliza
+     (showAppLoading/hideAppLoading, colgados de window) para cualquier
+     operación larga, como el import de la planilla en auxiliar.html. -->
+<div id="appLoadingOverlay" class="app-loading-overlay">
+  <div class="app-loading-track">
+    <span class="app-loading-line l1"></span>
+    <span class="app-loading-line l2"></span>
+    <span class="app-loading-line l3"></span>
+    <img src="icons/loading-moto.png" alt="" class="app-loading-moto">
+  </div>
+  <span class="app-loading-text">Cargando…</span>
+</div>
+<script>
+  (function () {
+    var overlay = document.getElementById("appLoadingOverlay");
+    window.showAppLoading = function (texto) {
+      if (!overlay) return;
+      if (texto) overlay.querySelector(".app-loading-text").textContent = texto;
+      overlay.hidden = false;
+      overlay.classList.remove("fade-out");
+    };
+    window.hideAppLoading = function () {
+      if (!overlay) return;
+      overlay.classList.add("fade-out");
+      setTimeout(function () { overlay.hidden = true; }, 380);
+    };
+    // Splash de apertura: se ve un mínimo de tiempo (para que la animación
+    // no sea un parpadeo) y se oculta sola cuando la página ya cargó.
+    var inicio = Date.now();
+    function ocultarSplash() {
+      var falta = Math.max(0, 650 - (Date.now() - inicio));
+      setTimeout(window.hideAppLoading, falta);
+    }
+    if (document.readyState === "complete") ocultarSplash();
+    else window.addEventListener("load", ocultarSplash);
+  })();
+</script>
+
 <div id="roleGateScreen" class="modal-overlay" style="z-index:200;">
   <div class="modal-card">
     <h3>👋 Bienvenido</h3>

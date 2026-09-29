@@ -593,6 +593,10 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
 
     pintarLista();
     actualizarBotonContinuar();
+    // Si el loader de "importar planilla" sigue en pantalla, se quita
+    // antes de abrir este modal — si no, la animación de la moto queda
+    // tapándolo y parece que la app se congeló.
+    if (window.hideAppLoading) window.hideAppLoading();
     modal.hidden = false;
 
     // Los botones se reasignan cada vez (onclick, no addEventListener) —
@@ -645,6 +649,7 @@ export function initExamGuide(deps) {
 
   const badge = document.getElementById("examGuideBadge");
   const search = document.getElementById("examGuideSearch");
+  const colorFilter = document.getElementById("examGuideColorFilter");
   const list = document.getElementById("examGuideList");
   const editModal = document.getElementById("examGuideEditModal");
   const editClose = document.getElementById("examGuideEditClose");
@@ -655,6 +660,13 @@ export function initExamGuide(deps) {
   const examGuideEditPerplexity = document.getElementById("examGuideEditPerplexity");
   const examGuideEditLuz = document.getElementById("examGuideEditLuz");
   const examGuideEditSaveBtn = document.getElementById("examGuideEditSaveBtn");
+
+  // Opciones del filtro de color — no dependen del catálogo, se llenan
+  // una sola vez con los tubos conocidos.
+  colorFilter.innerHTML =
+    '<option value="">🎨 Todos los colores</option>' +
+    TUBOS_AUX.map(t => `<option value="${t.key}">${t.emoji} ${t.key}</option>`).join("") +
+    '<option value="__sin_clasificar__">❓ Sin clasificar</option>';
 
   let catalogo = [];
   let loaded = false;
@@ -670,16 +682,20 @@ export function initExamGuide(deps) {
 
   function render() {
     const term = normStr(search.value);
-    const filtered = term
-      ? catalogo.filter(ex => normStr(ex.nombre).includes(term) || String(ex.codigo || "").includes(term))
-      : catalogo;
+    const color = colorFilter.value;
+    const filtered = catalogo.filter(ex => {
+      const matchTerm = !term || normStr(ex.nombre).includes(term) || String(ex.codigo || "").includes(term);
+      const matchColor = !color
+        || (color === "__sin_clasificar__" ? !ex.tubo : ex.tubo === color);
+      return matchTerm && matchColor;
+    });
 
     badge.textContent = catalogo.length;
 
     if (filtered.length === 0) {
       list.innerHTML = catalogo.length === 0
         ? '<p class="card-hint" style="margin:8px 0 0;">Todavía no hay exámenes clasificados — se van agregando solos con cada planilla que importes.</p>'
-        : '<p class="card-hint" style="margin:8px 0 0;">Sin resultados para esa búsqueda.</p>';
+        : '<p class="card-hint" style="margin:8px 0 0;">Sin resultados para ese filtro.</p>';
       return;
     }
 
@@ -876,6 +892,10 @@ export function initExamGuide(deps) {
       }
     };
 
+    // Si el loader de importar planilla sigue en pantalla, se quita antes
+    // de mostrar el modal — si no, se ve como si la app se hubiera
+    // quedado pegada tapando el modal con la animación de la moto.
+    if (window.hideAppLoading) window.hideAppLoading();
     editModal.hidden = false;
   }
 
@@ -885,6 +905,7 @@ export function initExamGuide(deps) {
   });
 
   search.addEventListener("input", render);
+  colorFilter.addEventListener("change", render);
   search.closest("details").addEventListener("toggle", (e) => {
     if (e.target.open) loadIfNeeded();
   });

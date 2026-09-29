@@ -11,7 +11,8 @@ import {
   getAuth, signInAnonymously, onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, deleteDoc, serverTimestamp,
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, setDoc, getDoc, deleteDoc, serverTimestamp,
   collection, query, where, onSnapshot, updateDoc, addDoc, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { lookupPerson, lookupAuxiliar } from "./people.js";
@@ -38,7 +39,18 @@ function whenReady() {
 
 try {
   const app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
+  // Persistencia offline (ver la misma nota en auxiliar.html) — para que
+  // una asignación, un pickupEvent, etc. quede en IndexedDB y no se
+  // pierda si el logístico se queda sin señal y cierra la app antes de
+  // que la escritura salga.
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch (e) {
+    console.warn("[sync.js] Sin persistencia offline de Firestore:", e);
+    db = initializeFirestore(app, {});
+  }
   const auth = getAuth(app);
 
   signInAnonymously(auth).catch((e) => {
