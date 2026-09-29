@@ -1185,10 +1185,35 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 
 #papeleriaResumen{display:contents;}
 .papeleria-scroll-wrap{max-height:70vh; overflow-y:auto; overflow-x:hidden;}
+/* Ya NO es sticky — quedaba pegado arriba del scroll y tapaba a los
+   pacientes debajo. Ahora vive dentro de un <details> colapsable
+   (.papeleria-resumen-details), cerrado por defecto. */
+.papeleria-resumen-details{margin-bottom:10px;}
+.papeleria-resumen-details > summary{
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 12px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  font-size:12px;
+  font-weight:800;
+  color:var(--text);
+}
+.papeleria-resumen-details > summary::-webkit-details-marker{display:none;}
+.papeleria-resumen-details > summary::after{
+  content:"▾";
+  color:var(--text-faint);
+  font-weight:900;
+  transition:transform .15s;
+}
+.papeleria-resumen-details[open] > summary::after{transform:rotate(180deg);}
+.papeleria-resumen-details[open] > summary{margin-bottom:8px;}
 .papeleria-parallax-wrap{
-  position:sticky;
-  top:8px;
-  z-index:5;
+  position:relative;
   overflow:hidden;
   border-radius:14px;
   padding:14px 10px 10px;
@@ -1212,21 +1237,33 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
    cuántas aparezcan (varían porque algunas son condicionales — Habeas
    Data, Planilla, VIH solo si aplica), y se ajustan solas al ancho
    disponible en vez de dejar huecos o desbordar en pantallas chicas. */
-.papeleria-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(74px, 1fr)); gap:6px;}
-.papeleria-count-card{
+/* Pastillas en una sola fila horizontal con scroll, en vez de la
+   cuadrícula de tarjetas grandes de antes — mucho más compacto en alto,
+   que era justo el problema (tapaba la info del paciente debajo). */
+.papeleria-pills-row{
+  display:flex;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  gap:6px;
+  padding-bottom:2px;
+}
+.papeleria-pill{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:baseline;
+  gap:4px;
   background:var(--surface-3);
   border:1.5px solid var(--border);
-  border-radius:10px;
-  padding:8px 4px;
-  text-align:center;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
+  border-radius:999px;
+  padding:6px 11px;
+  font-size:10.5px;
+  font-weight:700;
+  color:var(--text-dim);
+  white-space:nowrap;
 }
-.papeleria-count-num{font-size:18px; font-weight:900;}
-.papeleria-count-label{font-size:9px; font-weight:700; color:var(--text-dim); margin-top:2px;}
-.papeleria-flag-card .papeleria-count-label{font-size:11px; margin-top:0;}
+.papeleria-pill strong{font-size:13.5px; font-weight:900;}
+.papeleria-pill-flag{color:var(--fsfb); font-size:11px;}
 .papeleria-tubos-total{margin-top:10px; text-align:center;}
 .papeleria-tubos-label{display:block; font-size:11px; font-weight:800; color:var(--text-dim); margin-bottom:6px;}
 .papeleria-tubos-chips{display:flex; flex-wrap:wrap; gap:6px;}
@@ -1247,7 +1284,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   border:1px solid var(--border);
   border-left:4px solid var(--text-faint);
   border-radius:10px;
-  padding:9px 10px;
+  padding:12px 12px;
 }
 .papeleria-patient-row > summary{
   list-style:none;
@@ -1271,24 +1308,24 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 }
 .papeleria-patient-row[open] > summary::after{transform:rotate(45deg);}
 .papeleria-patient-row[open] > summary{margin-bottom:8px;}
-.papeleria-patient-name{font-size:12px; font-weight:700; color:var(--text);}
+.papeleria-patient-name{font-size:14.5px; font-weight:800; color:var(--text);}
 .papeleria-patient-num{
   flex-shrink:0;
-  width:20px; height:20px;
+  width:24px; height:24px;
   border-radius:50%;
   background:var(--surface-2);
   border:1px solid var(--border);
   color:var(--text-faint);
-  font-size:10.5px;
+  font-size:12px;
   font-weight:800;
   display:flex; align-items:center; justify-content:center;
 }
 .papeleria-patient-name-text{flex:1; min-width:0;}
 .papeleria-patient-pago-badge{
   flex-shrink:0;
-  font-size:9.5px;
+  font-size:10.5px;
   font-weight:800;
-  padding:3px 7px;
+  padding:4px 8px;
   border-radius:10px;
   white-space:nowrap;
 }
@@ -1308,43 +1345,51 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .papeleria-patient-row.done{opacity:.55;}
 .papeleria-patient-row.done .papeleria-patient-num{background:var(--send-soft); border-color:var(--send); color:var(--send);}
 .papeleria-collapse-btn{width:100%; margin-top:10px; font-size:11.5px;}
-.papeleria-info-grid{display:flex; flex-direction:column; gap:5px; margin-bottom:8px;}
-.papeleria-info-row{display:flex; justify-content:space-between; gap:10px; font-size:11px;}
+.papeleria-info-grid{display:flex; flex-direction:column; gap:6px; margin-bottom:10px;}
+.papeleria-info-row{display:flex; justify-content:space-between; gap:10px; font-size:12.5px;}
 .papeleria-info-row span{color:var(--text-faint); font-weight:600; flex-shrink:0;}
 .papeleria-info-row strong{color:var(--text-dim); font-weight:700; text-align:right;}
 .papeleria-solicitud-chip{
   display:inline-block;
   color:#fff;
-  font-size:13px;
+  font-size:14px;
   font-weight:800;
-  padding:5px 12px;
+  padding:6px 13px;
   border-radius:8px;
-  margin-bottom:8px;
+  margin-bottom:9px;
 }
-.papeleria-tubos-paciente{margin:0 0 8px;}
-.papeleria-tubos-paciente-label{display:block; font-size:11px; font-weight:700; color:var(--text-dim); margin-bottom:5px;}
-.papeleria-pago{font-size:11.5px; font-weight:800; color:var(--send); margin:0 0 8px;}
+.papeleria-tubos-paciente{margin:0 0 9px;}
+.papeleria-tubos-paciente-label{display:block; font-size:12px; font-weight:700; color:var(--text-dim); margin-bottom:6px;}
+.papeleria-pago{font-size:13px; font-weight:800; color:var(--send); margin:0 0 9px;}
 .papeleria-pago-no{color:var(--text-faint); font-weight:600;}
-.papeleria-examenes{margin-bottom:8px;}
-.papeleria-examenes-label{display:block; font-size:10px; font-weight:800; color:var(--text-faint); margin-bottom:5px;}
+.papeleria-examenes{margin-bottom:9px;}
+.papeleria-examenes-label{display:block; font-size:11.5px; font-weight:800; color:var(--text-faint); margin-bottom:6px;}
 .papeleria-reco{
   background:var(--surface-2);
   border-left:3px solid #e5484d;
   border-radius:8px;
-  padding:7px 9px;
-  margin-bottom:8px;
+  padding:9px 11px;
+  margin-bottom:9px;
 }
-.papeleria-reco-label{display:block; font-size:10px; font-weight:800; color:#e5484d; margin-bottom:3px;}
-.papeleria-reco-item{font-size:11.5px; font-weight:600; color:var(--text-dim); margin:0;}
-.papeleria-patient-items{display:flex; flex-wrap:wrap; gap:5px;}
+.papeleria-reco-label{display:block; font-size:11.5px; font-weight:800; color:#e5484d; margin-bottom:4px;}
+.papeleria-reco-item{font-size:13px; font-weight:600; color:var(--text-dim); margin:0;}
+.papeleria-patient-items{display:flex; flex-wrap:wrap; gap:6px;}
 .papeleria-chip{
-  font-size:10.5px;
+  font-size:11.5px;
   font-weight:600;
   color:var(--text-dim);
   background:var(--surface-2);
   border:1px solid var(--border);
   border-radius:12px;
-  padding:4px 9px;
+  padding:5px 10px;
+}
+/* Los chips de exámenes dentro de Papelería (renderExamChipsHtml, ya
+   estilados en .exam-chip global) se ven más grandes que en la tarjeta del
+   paciente, porque aquí sí importa poder leerlos rápido sin tener que
+   acercar el celular. */
+.papeleria-examenes .exam-chip, .papeleria-examenes .exam-row{
+  font-size:14px;
+  padding:10px 12px;
 }
 
 .patient-time-grid{display:flex; flex-direction:column; gap:8px;}

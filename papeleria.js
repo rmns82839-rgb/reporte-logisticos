@@ -85,6 +85,12 @@ export function resumenDelDia(catalogo, patients, getValorFinal, isFsfb) {
   return { recibosFsfb, recibosVip, venos, sondas, vihs, habeasFsfb, planillasFsfb, tubosPorColor, totalTubosDia, totalCubrirLuzDia };
 }
 
+// Antes este resumen iba siempre visible y con position:sticky — al hacer
+// scroll dentro de la lista de pacientes se quedaba pegado arriba y tapaba
+// la información de los pacientes debajo. Ahora va en un <details> cerrado
+// por defecto (no ocupa espacio hasta que se toca), sin sticky, y las
+// tarjetas de conteo se muestran como pastillas compactas en una sola fila
+// horizontal con scroll en vez de una cuadrícula que ocupaba varias filas.
 export function renderResumenDelDiaHtml(resumen) {
   const items = [
     ["Recibos FSFB", resumen.recibosFsfb, "var(--fsfb)"],
@@ -95,24 +101,19 @@ export function renderResumenDelDiaHtml(resumen) {
   if (resumen.habeasFsfb > 0) items.push(["📄 Habeas Data FSFB", resumen.habeasFsfb, "var(--fsfb)"]);
   if (resumen.vihs > 0) items.push(["🚨 VIH", resumen.vihs, "#e5484d"]);
 
-  const countCardsHtml = items.map(([label, n, color]) => `
-    <div class="papeleria-count-card" style="border-color:${color}66;">
-      <div class="papeleria-count-num" style="color:${color};">${n}</div>
-      <div class="papeleria-count-label">${label}</div>
-    </div>
+  const pillsHtml = items.map(([label, n, color]) => `
+    <span class="papeleria-pill" style="border-color:${color}66;">
+      <strong style="color:${color};">${n}</strong> ${label}
+    </span>
   `).join("");
 
   // Planilla de entrega: solo aplica si hay pacientes FSFB hoy — no tiene
   // una cantidad propia que valga la pena contar (es una por paciente,
   // igual a Habeas Data), así que se muestra como aviso de "sí aplica
-  // hoy", sin número, en vez de una tarjeta de conteo.
-  const planillaChipHtml = resumen.planillasFsfb > 0
-    ? `<div class="papeleria-count-card papeleria-flag-card" style="border-color:var(--fsfb)66;">
-        <div class="papeleria-count-label" style="color:var(--fsfb);">📋 Planilla de entrega</div>
-      </div>`
+  // hoy", sin número, en vez de un conteo.
+  const planillaPillHtml = resumen.planillasFsfb > 0
+    ? `<span class="papeleria-pill papeleria-pill-flag" style="border-color:var(--fsfb)66;">📋 Planilla de entrega</span>`
     : "";
-
-  const gridHtml = `<div class="papeleria-grid">${countCardsHtml}${planillaChipHtml}</div>`;
 
   const tubosEntries = Object.entries(resumen.tubosPorColor);
   const luzTxt = resumen.totalCubrirLuzDia > 0 ? ` · 🌑 ${resumen.totalCubrirLuzDia} cubierto${resumen.totalCubrirLuzDia !== 1 ? "s" : ""} de la luz` : "";
@@ -128,10 +129,16 @@ export function renderResumenDelDiaHtml(resumen) {
       </div>`
     : "";
 
-  return `<div class="papeleria-parallax-wrap">
-    <div id="papeleriaParallaxBg" class="papeleria-parallax-bg"></div>
-    <div class="papeleria-parallax-content">${gridHtml}${tubosHtml}</div>
-  </div>`;
+  return `<details class="papeleria-resumen-details">
+    <summary>📊 Recibos y consentimientos del día</summary>
+    <div class="papeleria-parallax-wrap">
+      <div id="papeleriaParallaxBg" class="papeleria-parallax-bg"></div>
+      <div class="papeleria-parallax-content">
+        <div class="papeleria-pills-row">${pillsHtml}${planillaPillHtml}</div>
+        ${tubosHtml}
+      </div>
+    </div>
+  </details>`;
 }
 
 // Efecto parallax sutil del fondo del resumen — se llama UNA vez al
