@@ -626,8 +626,19 @@
     if (!fdActivo()) return;
     if (!p.solicitud) return;
     try {
+      // p.solicitud puede traer varios números pegados con espacio cuando
+      // mergeDuplicatePatientRows unificó 2+ filas de la misma persona
+      // (ver arriba). Hay que mandarlos como solicitudes separadas — si no,
+      // freshdesk-sync.js les quita el espacio y arma un ID de ticket que
+      // no existe, y NINGUNO de los dos números queda sincronizado. Se
+      // divide por cualquier separador razonable (espacio, coma, ";", "/")
+      // y se descarta lo que no sea puramente numérico, por si la planilla
+      // trae basura pegada al número.
+      const solicitudesSeparadas = String(p.solicitud || "")
+        .split(/[\s,;\/]+/)
+        .filter(n => /^\d+$/.test(n));
       const body = {
-        solicitudes: [p.solicitud],
+        solicitudes: solicitudesSeparadas,
         tiempos: {
           fecha: localDateKey(),
           arriboSitio: to24hLabel(p.arriboSitio),
@@ -651,7 +662,16 @@
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
-      if (json && json.ok) {
+      // json.ok solo exige que UNA solicitud se haya actualizado bien
+      // (freshdesk-sync.js: okCount > 0). Con 2+ números de solicitud eso
+      // dejaría marcar como "sincronizado" a un paciente al que, en
+      // realidad, le faltó actualizar uno de los tickets. Por eso acá se
+      // exige que TODAS las solicitudes enviadas hayan quedado ok.
+      const todasOk = !!json && json.ok &&
+        Array.isArray(json.resultados) &&
+        json.resultados.length === solicitudesSeparadas.length &&
+        json.resultados.every(r => r.ok);
+      if (todasOk) {
         p.freshdeskSincronizado = true;
         p.freshdeskPendiente = false;
       } else {
