@@ -172,6 +172,12 @@ export function aplicarCorrecciones(examenes, correccionesMap) {
 // Chips de colores para la lista de exámenes de la tarjeta del paciente
 // — cada examen se pinta con el color real del tubo que le corresponde
 // según el catálogo. Sin clasificar todavía = chip gris con "?".
+// Cualquier chip (esté bien, mal o sin clasificar) se puede tocar para
+// abrir el editor de tubo — importante porque un examen puede quedar
+// clasificado con el tubo EQUIVOCADO (emparejado por error con otro
+// examen parecido) y no solo "sin clasificar"; en ese caso antes no había
+// forma de corregirlo directo desde la tarjeta o desde Papelería, solo
+// desde la Guía completa.
 export function renderExamChipsHtml(catalogo, examenes, escapeHtml) {
   if (!examenes || examenes.length === 0) return "";
   return examenes.map((examStr, idx) => {
@@ -182,9 +188,9 @@ export function renderExamChipsHtml(catalogo, examenes, escapeHtml) {
     const emoji = tb ? tb.emoji : "❓";
     const luz = r.entry && r.entry.cubrirLuz ? " 🌑" : "";
     const sinClasificar = !r.entry;
-    const cls = sinClasificar ? "exam-chip exam-chip-unclassified" : "exam-chip";
-    const attrs = sinClasificar ? ` data-codigo="${escapeHtml(codigo)}" data-nombre="${escapeHtml(nombre)}" title="Toca para clasificar"` : "";
-    return `<div class="${cls}" style="border-left-color:${color};"${attrs}><span class="exam-chip-tube">${emoji}</span><span class="exam-chip-name">${escapeHtml(examStr)}${luz}</span><button type="button" class="exam-chip-edit-btn" data-idx="${idx}" title="Editar o separar el nombre">✏️</button></div>`;
+    const cls = sinClasificar ? "exam-chip exam-chip-unclassified" : "exam-chip exam-chip-classified";
+    const title = sinClasificar ? "Toca para clasificar" : "Toca para corregir el tubo";
+    return `<div class="${cls}" style="border-left-color:${color};" data-codigo="${escapeHtml(codigo)}" data-nombre="${escapeHtml(nombre)}" title="${title}"><span class="exam-chip-tube">${emoji}</span><span class="exam-chip-name">${escapeHtml(examStr)}${luz}</span><button type="button" class="exam-chip-edit-btn" data-idx="${idx}" title="Editar o separar el nombre">✏️</button></div>`;
   }).join("");
 }
 

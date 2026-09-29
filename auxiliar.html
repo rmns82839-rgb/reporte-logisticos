@@ -876,7 +876,12 @@
       const resumen = resumenDelDia(catalogo, patients, getValorFinal, isFsfb);
       papeleriaResumen.innerHTML = renderResumenDelDiaHtml(resumen);
       papeleriaLista.innerHTML = renderChecklistListaHtml(catalogo, patients, getValorFinal, isFsfb, escapeHtmlAux, (p) => getCompanyInfo(p).color);
-      papeleriaLista.querySelectorAll(".exam-chip-unclassified").forEach(chip => {
+      // Cualquier chip (bien, mal o sin clasificar) abre el editor de tubo
+      // — así se puede corregir un examen mal emparejado (ej. algo que
+      // quedó marcado como tubo amarillo por error, pero es en saliva)
+      // directo desde Papelería, sin ir hasta la Guía completa. Se guarda
+      // igual en el catálogo de Firebase.
+      papeleriaLista.querySelectorAll(".exam-chip").forEach(chip => {
         chip.addEventListener("click", (e) => {
           e.preventDefault(); // no cerrar el <details> del paciente al tocar el chip
           examGuide.openEditForExam(chip.dataset.codigo, chip.dataset.nombre, () => renderPapeleria(currentPatients));
@@ -2565,7 +2570,10 @@
         // mientras se cargaba el catálogo, no pisar lo que se ve ahora.
         if (getOpenPatient()?.id !== p.id) return;
         patientCardExamsList.innerHTML = renderExamChipsHtml(catalogo, p.examenes, escapeHtmlAux);
-        patientCardExamsList.querySelectorAll(".exam-chip-unclassified").forEach(chip => {
+        // Cualquier chip (bien, mal o sin clasificar) abre el editor de
+        // tubo, no solo los "sin clasificar" — un examen puede haber
+        // quedado con el tubo equivocado por un emparejamiento erróneo.
+        patientCardExamsList.querySelectorAll(".exam-chip").forEach(chip => {
           chip.addEventListener("click", () => {
             examGuide.openEditForExam(chip.dataset.codigo, chip.dataset.nombre, () => renderPatientCard());
           });

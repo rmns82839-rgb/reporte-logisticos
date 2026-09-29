@@ -1151,10 +1151,13 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   font-size:12.5px;
   color:var(--text-dim);
   font-weight:600;
+  /* Cualquier chip se puede tocar para abrir el editor de tubo — ya no
+     es solo para los "sin clasificar" (exam-chip-classified también). */
+  cursor:pointer;
 }
 .exam-chip-tube{flex-shrink:0; font-size:13px;}
 .exam-chip-name{min-width:0; overflow-wrap:break-word;}
-.exam-chip-unclassified{cursor:pointer;}
+.exam-chip:active{opacity:.7;}
 .exam-chip-edit-btn{
   flex-shrink:0;
   width:24px; height:24px;
@@ -1165,7 +1168,6 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
   cursor:pointer;
   display:flex; align-items:center; justify-content:center;
 }
-.exam-chip-unclassified:active{opacity:.7;}
 
 .tube-count-box:empty{display:none;}
 .tube-count-total{font-size:12.5px; font-weight:800; color:var(--text); margin:10px 0 4px;}
