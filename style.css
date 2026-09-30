@@ -2321,7 +2321,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .round-avatar-img{border-radius:50%; object-fit:cover; display:block;}
 .aux-chip .round-avatar-img{width:36px; height:36px;}
 .aux-hero-avatar-img{width:92px; height:92px;}
-.payment-chip .round-avatar-img{width:28px; height:28px; margin-bottom:2px;}
+.payment-chip .round-avatar-img{width:44px; height:44px; margin-bottom:4px;}
 /* Iniciales de color como respaldo cuando la persona aún no ha subido foto
    de perfil (mismo criterio que usa el chat con .chat-avatar-fallback). */
 .round-avatar-fallback{
@@ -2332,7 +2332,7 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .aux-chip .round-avatar-fallback{width:36px; height:36px; font-size:13px;}
 .aux-hero-avatar-img ~ .round-avatar-fallback,
 .round-avatar-fallback.aux-hero-avatar-img{width:92px; height:92px; font-size:28px;}
-.payment-chip .round-avatar-fallback{width:28px; height:28px; margin-bottom:2px; font-size:11px;}
+.payment-chip .round-avatar-fallback{width:44px; height:44px; margin-bottom:4px; font-size:16px;}
 
 /* ---------------- Chat (directorio + hilo 1-a-1 / grupal) ---------------- */
 .chat-modal-card{
