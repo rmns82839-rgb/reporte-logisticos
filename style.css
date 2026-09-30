@@ -226,16 +226,16 @@ html,body{
 .icon-btn.has-unread::after{
   content:attr(data-unread-count);
   position:absolute;
-  top:-3px;
-  right:-3px;
-  min-width:17px;
-  height:17px;
+  top:-7px;
+  right:-7px;
+  min-width:16px;
+  height:16px;
   padding:0 3px;
   border-radius:9px;
   background:#F1453B;
   color:#fff;
   border:2px solid var(--surface);
-  font-size:10px;
+  font-size:9.5px;
   font-weight:800;
   line-height:1;
   display:flex;
@@ -1391,6 +1391,16 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .papeleria-tubos-paciente-label{display:block; font-size:12px; font-weight:700; color:var(--text-dim); margin-bottom:6px;}
 .papeleria-pago{font-size:13px; font-weight:800; color:var(--send); margin:0 0 9px;}
 .papeleria-pago-no{color:var(--text-faint); font-weight:600;}
+/* Repite el valor a pagar al final del listado de exámenes de cada
+   paciente, para no tener que volver a subir a verlo después de leer el
+   último examen — con una rayita arriba para que se note que es un
+   recordatorio, no un error de que salió dos veces. */
+.papeleria-pago-bottom{
+  border-top:1px dashed var(--border);
+  padding-top:9px;
+  margin-top:2px;
+}
+.papeleria-pago-bottom .papeleria-pago{margin:0;}
 .papeleria-examenes{margin-bottom:9px;}
 .papeleria-examenes-label{display:block; font-size:11.5px; font-weight:800; color:var(--text-faint); margin-bottom:6px;}
 .papeleria-reco{

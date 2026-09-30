@@ -256,6 +256,7 @@ export function renderChecklistListaHtml(catalogo, patients, getValorFinal, isFs
         ${examenesHtml}
         ${recomendacionesHtml}
         <div class="papeleria-patient-items">${items.map(it => `<span class="papeleria-chip">${escapeHtml(it.label)}</span>`).join("")}</div>
+        ${examenesHtml ? `<div class="papeleria-pago-bottom">${pagoHtml}</div>` : ""}
         <button type="button" class="ghost-btn papeleria-collapse-btn">▲ Colapsar</button>
       </details>
     `;
