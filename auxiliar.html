@@ -1533,7 +1533,9 @@
     const previaSeleccion = selectedLogisticoPhone;
     handoffLogisticoChips.innerHTML = Object.entries(PEOPLE).map(([phone, info]) => `
       <button type="button" class="company-tube-btn payment-chip${phone === previaSeleccion ? " active" : ""}" data-phone="${phone}">
-        ${fotos && fotos[phone] ? `<img src="${fotos[phone]}" class="round-avatar-img" alt="">` : ""}
+        ${fotos && fotos[phone]
+          ? `<img src="${fotos[phone]}" class="round-avatar-img" alt="">`
+          : `<span class="round-avatar-fallback" style="background:${avatarColor(info.name)};">${initials(info.name)}</span>`}
         <span class="co-btn-label">${escapeHtmlAux(info.name)}</span>
       </button>
     `).join("");
