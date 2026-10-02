@@ -234,8 +234,26 @@
         <span id="patientsCountBadge" class="co-btn-count">0</span>
       </div>
       <p class="card-hint">Tocar cada paciente para trabajarlo (arribo, toma, tubos, pago) viene en el siguiente paso.</p>
-      <button id="reorderModeBtn" class="ghost-btn" type="button">🔀 Reorganizar ruta</button>
-      <div id="patientsList" class="papeleria-list"></div>
+
+      <!-- En ruta/con toma en curso — reordenar no aplica aquí, ya se está
+           atendiendo. Se abre de entrada cuando hay alguien en este estado. -->
+      <details id="patientsEnRutaDetails" class="hour-group" open>
+        <summary><span class="group-label">🚗 En ruta</span><span id="patientsEnRutaBadge" class="group-badge">0</span></summary>
+        <div id="patientsListEnRuta" class="papeleria-list"></div>
+      </details>
+
+      <!-- Pendientes — la única sección reordenable (arrastrar o numerar). -->
+      <details id="patientsPendientesDetails" class="hour-group" open>
+        <summary><span class="group-label">⏳ Pendientes</span><span id="patientsPendientesBadge" class="group-badge">0</span></summary>
+        <button id="reorderModeBtn" class="ghost-btn" type="button">🔀 Reorganizar ruta</button>
+        <div id="patientsList" class="papeleria-list"></div>
+      </details>
+
+      <!-- Completados/cancelados — plegado por defecto para no estorbar. -->
+      <details id="patientsCompletadosDetails" class="hour-group">
+        <summary><span class="group-label">✅ Completados</span><span id="patientsCompletadosBadge" class="group-badge">0</span></summary>
+        <div id="patientsListCompletados" class="papeleria-list"></div>
+      </details>
     </section>
 
   </main>
@@ -374,6 +392,7 @@
     <details class="hour-group" id="patientTubesDetails">
       <summary><span class="group-label">🧪 Tubos tomados</span><span id="patientTubesBadge" class="group-badge">0</span></summary>
       <div id="patientTubesGrid" class="tube-company-grid"></div>
+      <button type="button" id="patientTubesAutoBtn" class="ghost-btn" style="margin-top:8px;">🔄 Usar estimado de la guía</button>
     </details>
 
     <div class="patient-pericraneal-box">
@@ -1618,6 +1637,14 @@
   const patientsCountBadge = document.getElementById("patientsCountBadge");
   const importStatus = document.getElementById("importStatus");
   const reorderModeBtn = document.getElementById("reorderModeBtn");
+  const patientsEnRutaDetails = document.getElementById("patientsEnRutaDetails");
+  const patientsPendientesDetails = document.getElementById("patientsPendientesDetails");
+  const patientsCompletadosDetails = document.getElementById("patientsCompletadosDetails");
+  const patientsListEnRuta = document.getElementById("patientsListEnRuta");
+  const patientsListCompletados = document.getElementById("patientsListCompletados");
+  const patientsEnRutaBadge = document.getElementById("patientsEnRutaBadge");
+  const patientsPendientesBadge = document.getElementById("patientsPendientesBadge");
+  const patientsCompletadosBadge = document.getElementById("patientsCompletadosBadge");
 
   let reorderMode = false;
   reorderModeBtn.addEventListener("click", () => {
@@ -1711,15 +1738,20 @@
     return clean ? `${clean}, Bogotá, Colombia` : "";
   }
 
-  function buildPatientRow(p, index) {
+  // draggable=false se usa para "En ruta" y "Completados": esas secciones
+  // son de solo lectura (no se reordenan ni se numeran a mano, ya pasaron
+  // el punto en que eso tiene sentido) — se omite el ☰ y el número queda
+  // como simple referencia, sin aceptar toques.
+  function buildPatientRow(p, index, opts) {
+    const draggable = !opts || opts.draggable !== false;
     const row = document.createElement("div");
     row.className = "patient-row patient-row-co" + (p.estado === "listo" ? " patient-row-done" : "") + (p.estado === "cancelado" ? " patient-row-cancelled" : "");
     row.style.setProperty("--co-color", getCompanyInfo(p).color);
     row.dataset.id = p.id;
 
     row.innerHTML = `
-      <span class="patient-drag-handle" title="Mantén y arrastra para reordenar">☰</span>
-      <button type="button" class="patient-num-input" title="Toca para numerar en modo Reorganizar">${index + 1}</button>
+      ${draggable ? '<span class="patient-drag-handle" title="Mantén y arrastra para reordenar">☰</span>' : ""}
+      <button type="button" class="patient-num-input" title="${draggable ? "Toca para numerar en modo Reorganizar" : ""}"${draggable ? "" : " disabled"}>${index + 1}</button>
       <div class="patient-body">
         <div class="patient-top">
           <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}${p.grupoId ? ' <span title="Vinculado con otros pacientes">🔗</span>' : ""}${fdBadgeHtml(p)}</span>
@@ -1745,14 +1777,16 @@
       openPatientCard(p);
     });
 
-    row.querySelector(".patient-num-input").addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (!reorderMode) return;
-      const idx = tapSequence.indexOf(p.id);
-      if (idx === -1) tapSequence.push(p.id);
-      else tapSequence.splice(idx, 1);
-      updateNumberBadges();
-    });
+    if (draggable) {
+      row.querySelector(".patient-num-input").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!reorderMode) return;
+        const idx = tapSequence.indexOf(p.id);
+        if (idx === -1) tapSequence.push(p.id);
+        else tapSequence.splice(idx, 1);
+        updateNumberBadges();
+      });
+    }
 
     row.querySelector(".patient-copy-addr").addEventListener("click", (e) => {
       copyToClipboard(p.direccion || "", "Dirección copiada", e.currentTarget);
@@ -1769,11 +1803,17 @@
       copyToClipboard(cedulaSinPuntos, "Cédula copiada — pégala en ADRES", e.currentTarget);
     });
 
-    bindDragHandle(row.querySelector(".patient-drag-handle"), row);
+    if (draggable) {
+      bindDragHandle(row.querySelector(".patient-drag-handle"), row);
+    }
 
     return row;
   }
 
+  // El número que se ve en cada fila (idx+1) sigue reflejando la posición
+  // real dentro de TODO el día (currentPatients), no la posición dentro de
+  // su sección — así "paciente #7" significa lo mismo sin importar si hoy
+  // ya está en ruta, pendiente o completado.
   function renderPatientsList(patients) {
     currentPatients = patients || [];
     if (currentPatients.length === 0) {
@@ -1783,10 +1823,38 @@
     }
     patientsSection.hidden = false;
     patientsCountBadge.textContent = currentPatients.length;
-    patientsList.innerHTML = "";
-    currentPatients.forEach((p, i) => {
-      patientsList.appendChild(buildPatientRow(p, i));
+
+    const enRuta = currentPatients.filter(p => p.estado === "en_proceso");
+    const pendientes = currentPatients.filter(p => p.estado !== "en_proceso" && p.estado !== "listo" && p.estado !== "cancelado");
+    const completados = currentPatients.filter(p => p.estado === "listo" || p.estado === "cancelado");
+
+    patientsEnRutaDetails.hidden = enRuta.length === 0;
+    // Por defecto se abre "En ruta" si hay alguien ahí; si no hay nadie en
+    // ruta, se abre "Pendientes" — así siempre queda a la vista lo que
+    // importa en este momento sin tener que desplegar nada a mano.
+    patientsEnRutaDetails.open = enRuta.length > 0;
+    patientsPendientesDetails.open = enRuta.length === 0 || patientsPendientesDetails.open;
+    patientsCompletadosDetails.hidden = completados.length === 0;
+
+    patientsEnRutaBadge.textContent = enRuta.length;
+    patientsPendientesBadge.textContent = pendientes.length;
+    patientsCompletadosBadge.textContent = completados.length;
+
+    patientsListEnRuta.innerHTML = "";
+    enRuta.forEach((p) => {
+      patientsListEnRuta.appendChild(buildPatientRow(p, currentPatients.indexOf(p), { draggable: false }));
     });
+
+    patientsList.innerHTML = "";
+    pendientes.forEach((p) => {
+      patientsList.appendChild(buildPatientRow(p, currentPatients.indexOf(p), { draggable: true }));
+    });
+
+    patientsListCompletados.innerHTML = "";
+    completados.forEach((p) => {
+      patientsListCompletados.appendChild(buildPatientRow(p, currentPatients.indexOf(p), { draggable: false }));
+    });
+
     renderDaySummary(currentPatients);
     renderPapeleria(currentPatients);
     renderHandoffCard(currentPatients);
@@ -1866,13 +1934,22 @@
     handle.addEventListener("pointercancel", endDrag);
   }
 
+  // patientsList ahora solo contiene a los pendientes (es la única sección
+  // reordenable) — el nuevo orden se arma a mano y se pisa SOLO el tramo de
+  // pendientes, dejando a los que están en ruta o completados exactamente
+  // donde estaban, para no perder ni desordenar el resto del día.
   function persistOrderFromDOM() {
     const ids = [...patientsList.children].map(row => row.dataset.id);
     const byId = {};
     currentPatients.forEach(p => { byId[p.id] = p; });
-    const reordered = ids.map(id => byId[id]).filter(Boolean);
-    currentPatients = reordered;
-    savePatients(reordered);
+    const reorderedPendientes = ids.map(id => byId[id]).filter(Boolean);
+    let idx = 0;
+    const merged = currentPatients.map(p => {
+      if (p.estado === "en_proceso" || p.estado === "listo" || p.estado === "cancelado") return p;
+      return reorderedPendientes[idx++];
+    });
+    currentPatients = merged;
+    savePatients(merged);
     updateNumberBadges();
   }
 
@@ -2392,6 +2469,27 @@
     persistOpenPatient();
   });
   const patientTubesBadge = document.getElementById("patientTubesBadge");
+  // Botón de resincronizar a mano: por si se agregaron exámenes después del
+  // autocompletado inicial, o si el auxiliar quiere volver a dejar los
+  // tubos tal como los calcula la guía (pisa lo que haya, a diferencia del
+  // autocompletado automático que solo actúa si no hay nada marcado).
+  const patientTubesAutoBtn = document.getElementById("patientTubesAutoBtn");
+  patientTubesAutoBtn.addEventListener("click", () => {
+    const p = getOpenPatient();
+    if (!p) return;
+    getCatalogoCached(db).then(catalogo => {
+      if (getOpenPatient()?.id !== p.id) return;
+      const conteo = computeTubeCounts(catalogo, p.examenes);
+      if (!p.tubos) p.tubos = {};
+      TUBOS_AUX.forEach(tb => { p.tubos[tb.key] = 0; });
+      conteo.tubos.forEach(t => { p.tubos[t.tubo] = (p.tubos[t.tubo] || 0) + t.cantidad; });
+      p.tubosAuto = true;
+      persistOpenPatient();
+      renderPatientCard();
+      renderPatientsList(currentPatients);
+      showToast("Tubos actualizados según la guía", 2000);
+    });
+  });
   const patientValorBadge = document.getElementById("patientValorBadge");
   const valorOriginalNote = document.getElementById("valorOriginalNote");
   const valorAdjustToggle = document.getElementById("valorAdjustToggle");
@@ -2862,6 +2960,23 @@
         });
         const conteo = computeTubeCounts(catalogo, p.examenes);
         patientCardTubeEstimate.innerHTML = renderTubeCountHtml(conteo, escapeHtmlAux);
+
+        // Autocompletar "Tubos tomados" con la referencia que ya da el
+        // clasificador — así no hay que volver a marcar a mano el mismo
+        // tubo que ya se sabe que le toca a cada examen. Solo se hace
+        // UNA vez por paciente (p.tubosAuto) y solo si todavía no se ha
+        // marcado nada a mano, para no pisar un conteo real ya tocado
+        // (ej. se rompió un tubo y se repitió, o se agregaron de más).
+        if (!p.tubosAuto) {
+          if (!p.tubos) p.tubos = {};
+          const yaTieneAlgo = Object.values(p.tubos).some(q => q > 0);
+          if (!yaTieneAlgo && conteo.tubos.length) {
+            conteo.tubos.forEach(t => { p.tubos[t.tubo] = (p.tubos[t.tubo] || 0) + t.cantidad; });
+            p.tubosAuto = true;
+            persistOpenPatient();
+            pintarTubosGrid();
+          }
+        }
       });
     }
 
@@ -2948,34 +3063,41 @@
     const tieneSondaEnExamenes = /sonda/i.test((p.examenes || []).join(" "));
     patientSondaBox.hidden = !tieneSondaEnExamenes;
     patientSondaRetiradaToggle.checked = !!p.sondaRetirada;
-    let totalTubos = 0;
-    patientTubesGrid.innerHTML = TUBOS_AUX.filter(tb => tb.esTubo !== false).map(tb => {
-      const qty = p.tubos[tb.key] || 0;
-      totalTubos += qty;
-      return `
-        <div class="tube-co-tile${qty > 0 ? " active" : ""}" style="--co-color:var(--send);">
-          ${qty > 0 ? `<div class="tube-co-badge">${qty}</div>` : ""}
-          <div class="tube-co-emoji">${tb.emoji}</div>
-          <div class="tube-co-label">${tb.key}</div>
-          <div class="tube-co-controls">
-            <button type="button" class="tube-co-step minus" data-key="${tb.key}">−</button>
-            <span class="tube-co-value">${qty}</span>
-            <button type="button" class="tube-co-step plus" data-key="${tb.key}">+</button>
-          </div>
-        </div>`;
-    }).join("");
-    patientTubesBadge.textContent = totalTubos;
 
-    patientTubesGrid.querySelectorAll(".tube-co-step").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const key = btn.dataset.key;
-        const delta = btn.classList.contains("plus") ? 1 : -1;
-        p.tubos[key] = Math.max(0, (p.tubos[key] || 0) + delta);
-        persistOpenPatient();
-        renderPatientCard();
-        renderPatientsList(currentPatients);
+    // Separado en función aparte porque el autocompletado desde la guía
+    // (más abajo, cuando llega el catálogo) necesita poder repintar esta
+    // grilla una segunda vez sin repetir todo renderPatientCard().
+    function pintarTubosGrid() {
+      let totalTubos = 0;
+      patientTubesGrid.innerHTML = TUBOS_AUX.filter(tb => tb.esTubo !== false).map(tb => {
+        const qty = p.tubos[tb.key] || 0;
+        totalTubos += qty;
+        return `
+          <div class="tube-co-tile${qty > 0 ? " active" : ""}" style="--co-color:var(--send);">
+            ${qty > 0 ? `<div class="tube-co-badge">${qty}</div>` : ""}
+            <div class="tube-co-emoji">${tb.emoji}</div>
+            <div class="tube-co-label">${tb.key}</div>
+            <div class="tube-co-controls">
+              <button type="button" class="tube-co-step minus" data-key="${tb.key}">−</button>
+              <span class="tube-co-value">${qty}</span>
+              <button type="button" class="tube-co-step plus" data-key="${tb.key}">+</button>
+            </div>
+          </div>`;
+      }).join("");
+      patientTubesBadge.textContent = totalTubos;
+
+      patientTubesGrid.querySelectorAll(".tube-co-step").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const key = btn.dataset.key;
+          const delta = btn.classList.contains("plus") ? 1 : -1;
+          p.tubos[key] = Math.max(0, (p.tubos[key] || 0) + delta);
+          persistOpenPatient();
+          renderPatientCard();
+          renderPatientsList(currentPatients);
+        });
       });
-    });
+    }
+    pintarTubosGrid();
 
     const fsfbPatient = isFsfb(p);
     patientOrdenDetails.hidden = !fsfbPatient;
