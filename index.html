@@ -348,12 +348,14 @@
     <h3>👤 Mi perfil</h3>
     <div class="profile-photo-block">
       <span id="profilePhotoPreview" class="profile-photo-preview"></span>
-      <div class="profile-name-row">
-        <input id="profileNameInput" type="text" class="text-input" placeholder="Tu nombre" style="text-align:center;">
-        <button id="profileNameSaveBtn" type="button" class="ghost-btn">💾 Guardar</button>
-      </div>
       <button id="profilePhotoBtn" type="button" class="ghost-btn">📷 Cambiar foto de perfil</button>
       <input id="profilePhotoInput" type="file" accept="image/*" hidden>
+
+      <div class="profile-name-field">
+        <label for="profileNameInput" class="profile-name-label">Nombre que van a ver los demás</label>
+        <input id="profileNameInput" type="text" class="text-input" placeholder="Escribe tu nombre">
+        <button id="profileNameSaveBtn" type="button" class="btn btn-primary">💾 Guardar nombre</button>
+      </div>
     </div>
   </div>
 </div>

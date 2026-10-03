@@ -2561,9 +2561,23 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .profile-photo-preview .chat-avatar-img,
 .profile-photo-preview .chat-avatar-fallback{width:88px; height:88px; font-size:26px;}
 .profile-name{font-size:15px; font-weight:800; color:var(--text);}
-.profile-name-row{display:flex; gap:8px; align-items:center; width:100%;}
-.profile-name-row .text-input{flex:1; margin-bottom:0;}
-.profile-name-row .ghost-btn{flex-shrink:0; white-space:nowrap;}
+.profile-name-field{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  width:100%;
+  margin-top:4px;
+  padding-top:14px;
+  border-top:1px solid var(--border-soft);
+}
+.profile-name-label{
+  font-size:12.5px;
+  font-weight:700;
+  color:var(--text-faint);
+  text-align:left;
+}
+.profile-name-field .text-input{width:100%; margin-bottom:0;}
+.profile-name-field .btn{width:100%;}
 
 /* Notificación de chat en vivo — nube de texto flotante arriba de la
    pantalla cuando llega un mensaje nuevo en cualquier chat, aunque no
