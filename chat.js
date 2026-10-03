@@ -208,7 +208,17 @@ export function initChatSystem(deps) {
   const profilePhotoPreview = document.getElementById("profilePhotoPreview");
   const profilePhotoInput = document.getElementById("profilePhotoInput");
   const profilePhotoBtn = document.getElementById("profilePhotoBtn");
-  const profileName = document.getElementById("profileName");
+  const profileNameInput = document.getElementById("profileNameInput");
+  const profileNameSaveBtn = document.getElementById("profileNameSaveBtn");
+
+  // Nombre que cada perfil puede cambiar a su gusto (ej. un apodo, o el
+  // nombre completo) — se guarda en Firestore (profiles/{phone}.displayName)
+  // y queda disponible en cualquier celular donde la persona inicie sesión.
+  // El nombre "real" de people.js NUNCA cambia (sigue haciendo falta para
+  // emparejar la hoja de la planilla con el auxiliar, por ejemplo) — esto
+  // solo cambia cómo se VE: saludo, avatar, y el nombre que ven los demás
+  // en el chat y en los reportes.
+  let miDisplayName = me.name;
 
   if (!chatBtn || !chatModal) return null; // esta página no tiene el chat montado
 
@@ -249,19 +259,31 @@ export function initChatSystem(deps) {
     }
   }
 
+  function actualizarSaludoEnPantalla() {
+    const greetingEl = document.getElementById("welcomeGreeting");
+    // El saludo trae su propio texto/emoji según la página (auxiliar.html
+    // dice "¡Hola, X! 👋", index.html puede decir otra cosa) — solo se
+    // reemplaza el nombre dentro del texto ya puesto, no se inventa uno.
+    if (greetingEl && greetingEl.textContent.includes(me.name) && miDisplayName !== me.name) {
+      greetingEl.textContent = greetingEl.textContent.split(me.name).join(miDisplayName);
+    }
+  }
+
   async function refreshMyAvatarBadge() {
     const perfil = await getMyProfile();
+    miDisplayName = (perfil && perfil.displayName) || me.name;
     const avatarEl = document.getElementById("welcomeAvatar");
-    if (avatarEl) avatarEl.innerHTML = avatarHtml(perfil?.photoURL, me.name);
-    if (profilePhotoPreview) profilePhotoPreview.innerHTML = avatarHtml(perfil?.photoURL, me.name);
-    if (profileName) profileName.textContent = me.name;
+    if (avatarEl) avatarEl.innerHTML = avatarHtml(perfil?.photoURL, miDisplayName);
+    if (profilePhotoPreview) profilePhotoPreview.innerHTML = avatarHtml(perfil?.photoURL, miDisplayName);
+    if (profileNameInput) profileNameInput.value = miDisplayName;
+    actualizarSaludoEnPantalla();
   }
   refreshMyAvatarBadge();
 
   const welcomeAvatarEl = document.getElementById("welcomeAvatar");
   if (welcomeAvatarEl && profileModal) {
     welcomeAvatarEl.style.cursor = "pointer";
-    welcomeAvatarEl.title = "Tocar para cambiar tu foto de perfil";
+    welcomeAvatarEl.title = "Tocar para cambiar tu foto o tu nombre";
     welcomeAvatarEl.addEventListener("click", () => { profileModal.hidden = false; });
   }
   if (profileModalClose) profileModalClose.addEventListener("click", () => { profileModal.hidden = true; });
@@ -276,13 +298,32 @@ export function initChatSystem(deps) {
         const blob = await resizeImageFile(file, 512, 0.85);
         const url = await uploadToCloudinary(blob, "profile-photos");
         await setDoc(doc(db, "profiles", me.phone), {
-          name: me.name, role, photoURL: url, updatedAt: serverTimestamp(),
+          role, photoURL: url, updatedAt: serverTimestamp(),
         }, { merge: true });
         await refreshMyAvatarBadge();
         notify("✅ Foto de perfil actualizada");
       } catch (err) {
         console.error("[chat.js] Error subiendo foto de perfil:", err);
         notify("⚠️ No se pudo subir la foto. Revisa tu conexión.");
+      }
+    });
+  }
+  if (profileNameSaveBtn && profileNameInput) {
+    profileNameSaveBtn.addEventListener("click", async () => {
+      const nuevoNombre = profileNameInput.value.trim();
+      if (!nuevoNombre) { notify("Escribe un nombre"); return; }
+      profileNameSaveBtn.disabled = true;
+      try {
+        await setDoc(doc(db, "profiles", me.phone), {
+          displayName: nuevoNombre, role, updatedAt: serverTimestamp(),
+        }, { merge: true });
+        await refreshMyAvatarBadge();
+        notify("✅ Nombre actualizado");
+      } catch (err) {
+        console.error("[chat.js] Error guardando el nombre:", err);
+        notify("⚠️ No se pudo guardar el nombre. Revisa tu conexión.");
+      } finally {
+        profileNameSaveBtn.disabled = false;
       }
     });
   }
@@ -570,7 +611,7 @@ export function initChatSystem(deps) {
     chatTextInput.value = "";
     try {
       await addDoc(collection(db, "chats", currentChatId, "messages"), {
-        from: me.phone, fromName: me.name, type: "text", text: texto,
+        from: me.phone, fromName: miDisplayName, type: "text", text: texto,
         createdAt: serverTimestamp(), deleted: false,
       });
       await updateDoc(doc(db, "chats", currentChatId), {
@@ -590,7 +631,7 @@ export function initChatSystem(deps) {
       const blob = await resizeImageFile(file, 1280, 0.8);
       const url = await uploadToCloudinary(blob, `chat-media/${currentChatId}`);
       await addDoc(collection(db, "chats", currentChatId, "messages"), {
-        from: me.phone, fromName: me.name, type: "image", imageURL: url,
+        from: me.phone, fromName: miDisplayName, type: "image", imageURL: url,
         createdAt: serverTimestamp(), deleted: false,
       });
       await updateDoc(doc(db, "chats", currentChatId), {
@@ -608,7 +649,7 @@ export function initChatSystem(deps) {
       notify("📤 Enviando nota de voz...");
       const url = await uploadToCloudinaryAudio(blob, `chat-media/${currentChatId}`);
       await addDoc(collection(db, "chats", currentChatId, "messages"), {
-        from: me.phone, fromName: me.name, type: "audio", audioURL: url, audioDuration: duracionMs,
+        from: me.phone, fromName: miDisplayName, type: "audio", audioURL: url, audioDuration: duracionMs,
         createdAt: serverTimestamp(), deleted: false,
       });
       await updateDoc(doc(db, "chats", currentChatId), {
@@ -820,5 +861,9 @@ export function initChatSystem(deps) {
     chatVoiceBtn.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
-  return { openThread };
+  // getDisplayName() — para que auxiliar.html/index.html puedan usar el
+  // mismo nombre (el que la persona eligió, o el de people.js si no ha
+  // cambiado nada) en lo que ellos mismos guardan en Firebase (estado en
+  // vivo, respaldo, historial), sin repetir la lectura de "profiles".
+  return { openThread, getDisplayName: () => miDisplayName };
 }

@@ -391,7 +391,7 @@ export async function guardarClasificacionExamen(db, docId, datos, clasificadoPo
 // elegido — así dos exámenes del mismo color y la misma opción siempre
 // comparten tubo, y nunca se mezclan colores distintos.
 export const TUBO_BEHAVIOR_OPTIONS = [
-  { value: "grupo5", label: "🧪 Hasta 5 exámenes en un tubo" },
+  { value: "grupo7", label: "🧪 Hasta 7 exámenes en un tubo" },
   { value: "grupo2", label: "🧪 Hasta 2 exámenes en un tubo" },
   { value: "solo", label: "🔒 Va solo en un tubo" },
   { value: "doble", label: "🔒 Se toman 2 tubos" },
@@ -399,7 +399,7 @@ export const TUBO_BEHAVIOR_OPTIONS = [
 
 export function deriveTuboFields(tubo, behavior) {
   switch (behavior) {
-    case "grupo5": return { grupo: `${tubo}-5`, capacidadGrupo: 5, cantidadTubos: 1 };
+    case "grupo7": return { grupo: `${tubo}-7`, capacidadGrupo: 7, cantidadTubos: 1 };
     case "grupo2": return { grupo: `${tubo}-2`, capacidadGrupo: 2, cantidadTubos: 1 };
     case "doble":  return { grupo: "", capacidadGrupo: 0, cantidadTubos: 2 };
     case "solo":
@@ -408,10 +408,37 @@ export function deriveTuboFields(tubo, behavior) {
 }
 
 // Para precargar el desplegable al editar un examen ya clasificado.
+// Ojo: exámenes clasificados ANTES de subir el tope de 5 a 7 quedaron
+// guardados con capacidadGrupo:5 — se siguen reconociendo como el mismo
+// grupo grande (grupo7) para que el desplegable no los muestre como "va
+// solo" por error; al guardar de nuevo quedan ya en 7.
 export function inferTuboBehavior(entry) {
   if ((entry.cantidadTubos || 1) > 1) return "doble";
-  if (entry.grupo && entry.capacidadGrupo === 5) return "grupo5";
+  if (entry.grupo && entry.capacidadGrupo >= 5) return "grupo7";
   if (entry.grupo && entry.capacidadGrupo === 2) return "grupo2";
+  return "solo";
+}
+
+// Al clasificar un examen NUEVO, sugiere el comportamiento ("¿cómo se
+// toma?") según lo que ya usan los demás exámenes de ese MISMO color de
+// tubo en el catálogo — en vez de arrancar siempre en "va solo".
+// Antes el desplegable nacía fijo en "solo" y, si el auxiliar no lo
+// cambiaba a mano cada vez (clasificando varios exámenes seguido es
+// fácil que pase), un examen de química (ej. glucosa, colesterol) que
+// en la vida real comparte tubo con otros 4-5 quedaba guardado como si
+// fuera solo — y entonces la tarjeta de paciente lo contaba como un
+// tubo aparte en vez de agruparlo. Ahora, si el color elegido ya tiene
+// exámenes agrupados (grupo7/grupo2) en la base, se sugiere ese mismo
+// grupo; solo si NINGÚN examen de ese color está agrupado todavía cae
+// en "solo" por defecto.
+export function sugerirTuboBehaviorPorColor(catalogo, tubo) {
+  const conteo = { grupo7: 0, grupo2: 0, solo: 0, doble: 0 };
+  (catalogo || []).forEach(entry => {
+    if (entry.tubo !== tubo) return;
+    conteo[inferTuboBehavior(entry)]++;
+  });
+  if (conteo.grupo7 >= conteo.grupo2 && conteo.grupo7 > 0) return "grupo7";
+  if (conteo.grupo2 > 0) return "grupo2";
   return "solo";
 }
 
@@ -539,7 +566,17 @@ export function checkAndClassifyNewExams(deps, allPatients, onDone) {
           const luzField = list.querySelector(`.exam-luz-field[data-idx-luz="${idx}"]`);
           if (behaviorField) behaviorField.style.display = esNoTubo ? "none" : "";
           if (luzField) luzField.style.display = esNoTubo ? "none" : "";
-          if (esNoTubo) { pending[idx].tuboBehavior = "solo"; pending[idx].cubrirLuz = false; }
+          if (esNoTubo) {
+            pending[idx].tuboBehavior = "solo";
+            pending[idx].cubrirLuz = false;
+          } else {
+            // Sugiere el comportamiento según lo que ya usan otros
+            // exámenes de este mismo color — el auxiliar lo puede
+            // cambiar igual si este examen en particular es la excepción.
+            pending[idx].tuboBehavior = sugerirTuboBehaviorPorColor(catalogo, chip.dataset.tube);
+            const behaviorSelect = list.querySelector(`.exam-tubo-behavior[data-idx="${idx}"]`);
+            if (behaviorSelect) behaviorSelect.value = pending[idx].tuboBehavior;
+          }
 
           actualizarBotonContinuar();
         });

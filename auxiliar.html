@@ -407,10 +407,13 @@
       <div id="patientCardTubeEstimate" class="tube-count-box"></div>
     </details>
 
-    <details class="hour-group">
+    <details class="hour-group" open>
       <summary><span class="group-label">⏱️ Tiempos</span></summary>
       <div id="patientTimeGrid" class="patient-time-grid"></div>
-      <div id="patientTimeIndicators" class="time-indicators-box"></div>
+      <details class="hour-group hour-group-nested">
+        <summary><span class="group-label">🎯 Metas del equipo</span></summary>
+        <div id="patientTimeIndicators" class="time-indicators-box"></div>
+      </details>
     </details>
 
     <details class="hour-group" id="patientTubesDetails">
@@ -554,7 +557,10 @@
     <h3>👤 Mi perfil</h3>
     <div class="profile-photo-block">
       <span id="profilePhotoPreview" class="profile-photo-preview"></span>
-      <span id="profileName" class="profile-name">—</span>
+      <div class="profile-name-row">
+        <input id="profileNameInput" type="text" class="text-input" placeholder="Tu nombre" style="text-align:center;">
+        <button id="profileNameSaveBtn" type="button" class="ghost-btn">💾 Guardar</button>
+      </div>
       <button id="profilePhotoBtn" type="button" class="ghost-btn">📷 Cambiar foto de perfil</button>
       <input id="profilePhotoInput" type="file" accept="image/*" hidden>
     </div>
@@ -663,6 +669,13 @@
   function initials(name) { return name.slice(0, 2).toUpperCase(); }
 
   const me = getMyAuxiliarIdentity();
+  // getDisplayName() refleja el nombre que el auxiliar eligió desde "Mi
+  // perfil" (o el de people.js si no ha cambiado nada) — se usa en todo lo
+  // que este archivo guarda en Firebase con su nombre (estado en vivo,
+  // respaldo, historial), para que coordinador/logísticos vean el mismo
+  // nombre que el auxiliar ve en su saludo.
+  let chatSystem = null;
+  function miNombreMostrado() { return (chatSystem && chatSystem.getDisplayName()) || (me ? me.name : ""); }
   if (!me) {
     window.location.href = "index.html";
   } else {
@@ -670,10 +683,15 @@
     const avatarEl = document.getElementById("welcomeAvatar");
     avatarEl.textContent = initials(me.name);
     avatarEl.style.background = avatarColor(me.name);
-    initChatSystem({ app, db, me, role: "auxiliar", showToast });
+    chatSystem = initChatSystem({ app, db, me, role: "auxiliar", showToast });
   }
 
-  const examGuide = initExamGuide({ db, me, escapeHtml: escapeHtmlAux, showToast });
+  // Objeto aparte (no el "me" de siempre) solo para que exams.js registre
+  // "clasificado por" con el nombre que el auxiliar eligió mostrar — el
+  // getter se evalúa cada vez que se guarda, así que ya refleja el nombre
+  // actualizado aunque haya cambiado después de cargar la página.
+  const meForExamGuide = { get name() { return miNombreMostrado(); } };
+  const examGuide = initExamGuide({ db, me: meForExamGuide, escapeHtml: escapeHtmlAux, showToast });
   getCatalogoCached(db); // precarga en segundo plano, para que los chips de la tarjeta ya tengan color desde el primer paciente que se abra
   initPapeleriaParallax();
   examGuide.refreshBadgeOnly();
@@ -1318,7 +1336,7 @@
         }));
         await setDoc(doc(db, "auxiliarStatus", `${me.phone}_${localDateKey()}`), {
           auxiliarPhone: me.phone,
-          auxiliarName: me.name,
+          auxiliarName: miNombreMostrado(),
           date: localDateKey(),
           updatedAt: serverTimestamp(),
           stats,
@@ -1342,7 +1360,7 @@
       try {
         await setDoc(doc(db, "auxiliarBackups", `${me.phone}_${localDateKey()}`), {
           auxiliarPhone: me.phone,
-          auxiliarName: me.name,
+          auxiliarName: miNombreMostrado(),
           date: localDateKey(),
           updatedAt: serverTimestamp(),
           count: patients.length,
@@ -1547,7 +1565,7 @@
         const ref = doc(collection(db, "auxiliarHandoffs"));
         batch.set(ref, {
           auxiliarPhone: me.phone,
-          auxiliarName: me.name,
+          auxiliarName: miNombreMostrado(),
           logisticoPhone: logistico.phone,
           logisticoName: logistico.name,
           date: localDateKey(),
@@ -2248,7 +2266,7 @@
         // loader de pantalla completa antes de que eso pase, si no tapa
         // el modal y parece que la app se quedó pegada.
         checkAndClassifyNewExams(
-          { db, me, escapeHtml: escapeHtmlAux, showToast, examScanFilter: (p) => !isFsfb(p) },
+          { db, me: meForExamGuide, escapeHtml: escapeHtmlAux, showToast, examScanFilter: (p) => !isFsfb(p) },
           allPatients,
           (patients, nuevosCount) => {
             if (window.hideAppLoading) window.hideAppLoading();
@@ -2512,7 +2530,7 @@
 
     // Se guarda para siempre — así si el mismo texto pegado vuelve a
     // salir en otra planilla, se corrige solo, sin volver a tocarlo.
-    const ok = await guardarCorreccionExamen(db, original, nuevos, me ? me.name : "");
+    const ok = await guardarCorreccionExamen(db, original, nuevos, miNombreMostrado());
     invalidateCorreccionesCache();
     if (!ok) showToast("Se corrigió aquí, pero no se pudo guardar para futuras planillas — revisa tu conexión", 3600);
   });
@@ -2785,7 +2803,7 @@
       }
       await addDoc(collection(db, "historialVisitas"), {
         auxiliarPhone: me.phone,
-        auxiliarName: me.name,
+        auxiliarName: miNombreMostrado(),
         fecha: localDateKey(),
         pacienteId: p.id,
         solicitud: p.solicitud || "",
