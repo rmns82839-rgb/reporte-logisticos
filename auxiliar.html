@@ -358,6 +358,29 @@
   </div>
 </div>
 
+<!-- Se abre solo al importar una planilla que llegó sin "Hora cita" —
+     deja elegir desde qué hora arrancar y va sumando 30 min por paciente,
+     cada uno editable, igual que la vista previa del horario de arriba
+     pero sin tocar el orden ni a los pacientes que SÍ traían hora. -->
+<div id="assignScheduleModal" class="modal-overlay" hidden>
+  <div class="modal-card modal-card-wide">
+    <button id="assignScheduleModalClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
+    <h3>🕐 Esta planilla no trae hora de cita</h3>
+    <p class="card-hint">Elige a qué hora arrancas — cada paciente queda 30 min después del anterior, en el mismo orden de la planilla, pero puedes ajustar cualquiera.</p>
+    <div id="assignScheduleStartButtons" class="company-tube-buttons">
+      <button type="button" class="company-tube-btn payment-chip" data-start="300">
+        <span class="co-btn-label">5:00 AM</span>
+      </button>
+      <button type="button" class="company-tube-btn payment-chip" data-start="330">
+        <span class="co-btn-label">5:30 AM</span>
+      </button>
+    </div>
+    <div id="assignSchedulePreviewList" class="papeleria-list" style="margin-top:14px;"></div>
+    <button id="assignScheduleConfirmBtn" class="btn btn-primary" type="button" style="width:100%; margin-top:14px;">✅ Asignar estos horarios</button>
+    <button id="assignScheduleSkipBtn" class="ghost-btn" type="button">Omitir por ahora</button>
+  </div>
+</div>
+
 <div id="patientCardModal" class="modal-overlay" hidden>
   <div class="modal-card modal-card-wide">
     <button id="patientCardClose" class="icon-btn modal-close" type="button" aria-label="Cerrar">✕</button>
@@ -387,6 +410,7 @@
     <details class="hour-group" open>
       <summary><span class="group-label">⏱️ Tiempos</span></summary>
       <div id="patientTimeGrid" class="patient-time-grid"></div>
+      <div id="patientTimeIndicators" class="time-indicators-box"></div>
     </details>
 
     <details class="hour-group" id="patientTubesDetails">
@@ -542,7 +566,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
   import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones, splitExamCodeName } from "./exams.js";
   import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
@@ -2071,6 +2095,88 @@
   });
 
 
+  // ---------------- Asignar horario cuando la planilla no trae "Hora cita" ----------------
+  // A veces la planilla llega sin esa columna llena — en vez de dejar a
+  // todos sin hora, se ofrece elegir desde qué hora arrancar y el resto
+  // se numera cada 30 min, en el mismo orden en que vinieron en la
+  // planilla (editable uno por uno). A los que SÍ traían hora no se les
+  // toca nada.
+  const assignScheduleModal = document.getElementById("assignScheduleModal");
+  const assignScheduleModalClose = document.getElementById("assignScheduleModalClose");
+  const assignScheduleStartButtons = document.getElementById("assignScheduleStartButtons");
+  const assignSchedulePreviewList = document.getElementById("assignSchedulePreviewList");
+  const assignScheduleConfirmBtn = document.getElementById("assignScheduleConfirmBtn");
+  const assignScheduleSkipBtn = document.getElementById("assignScheduleSkipBtn");
+
+  let assignScheduleTargets = [];
+  let assignScheduleTimes = [];
+  let assignScheduleStartMinutes = 300; // 5:00 AM
+
+  function assignRecalcTimes() {
+    assignScheduleTimes = assignScheduleTargets.map((p, i) => minutesToLabel(assignScheduleStartMinutes + i * 30));
+  }
+
+  function assignRenderPreview() {
+    assignSchedulePreviewList.innerHTML = assignScheduleTargets.map((p, i) => `
+      <div class="patient-row" style="align-items:center;">
+        <span class="patient-num-input" style="pointer-events:none;">${i + 1}</span>
+        <div class="patient-body" style="cursor:default; flex:1;">
+          <div class="patient-top">
+            <span class="patient-name">${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}</span>
+          </div>
+        </div>
+        <input type="time" class="schedule-time-input" data-idx="${i}" value="${toHtmlTime(assignScheduleTimes[i])}">
+      </div>
+    `).join("");
+
+    assignSchedulePreviewList.querySelectorAll(".schedule-time-input").forEach(inp => {
+      inp.addEventListener("change", () => {
+        const idx = parseInt(inp.dataset.idx, 10);
+        assignScheduleTimes[idx] = fromHtmlTime(inp.value);
+      });
+    });
+  }
+
+  assignScheduleStartButtons.querySelectorAll(".payment-chip").forEach((btn, i) => {
+    btn.addEventListener("click", () => {
+      assignScheduleStartMinutes = parseInt(btn.dataset.start, 10);
+      assignScheduleStartButtons.querySelectorAll(".payment-chip").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      assignRecalcTimes();
+      assignRenderPreview();
+    });
+  });
+
+  function maybeOpenAssignScheduleModal(patients) {
+    assignScheduleTargets = patients.filter(p => !p.horaCita);
+    if (assignScheduleTargets.length === 0) return;
+    assignScheduleStartMinutes = 300;
+    assignScheduleStartButtons.querySelectorAll(".payment-chip").forEach((b, i) => b.classList.toggle("active", i === 0));
+    assignRecalcTimes();
+    assignRenderPreview();
+    assignScheduleModal.hidden = false;
+  }
+
+  function closeAssignScheduleModal() {
+    assignScheduleModal.hidden = true;
+  }
+  assignScheduleModalClose.addEventListener("click", closeAssignScheduleModal);
+  assignScheduleModal.addEventListener("click", (e) => {
+    if (e.target === assignScheduleModal) closeAssignScheduleModal();
+  });
+  assignScheduleSkipBtn.addEventListener("click", closeAssignScheduleModal);
+
+  assignScheduleConfirmBtn.addEventListener("click", () => {
+    assignScheduleTargets.forEach((p, i) => {
+      p.horaCita = assignScheduleTimes[i];
+      p.horaProgramada = assignScheduleTimes[i];
+    });
+    savePatients(currentPatients);
+    closeAssignScheduleModal();
+    renderPatientsList(currentPatients);
+    showToast("Horarios asignados", 2200);
+  });
+
   document.getElementById("importExcelBtn").addEventListener("click", () => {
     document.getElementById("importExcelInput").click();
   });
@@ -2080,6 +2186,7 @@
     renderPatientsList(allPatients);
     importStatus.textContent = `✅ Se importaron ${allPatients.length} pacientes.`;
     showToast(`${allPatients.length} pacientes importados`, 2400);
+    maybeOpenAssignScheduleModal(allPatients);
   }
 
   document.getElementById("importExcelInput").addEventListener("change", (e) => {
@@ -2399,6 +2506,7 @@
   const patientCardTubeEstimate = document.getElementById("patientCardTubeEstimate");
   const patientCardExamsBadge = document.getElementById("patientCardExamsBadge");
   const patientTimeGrid = document.getElementById("patientTimeGrid");
+  const patientTimeIndicators = document.getElementById("patientTimeIndicators");
   const patientTubesGrid = document.getElementById("patientTubesGrid");
   const patientPericranealValue = document.getElementById("patientPericranealValue");
   const patientPericranealMinus = document.getElementById("patientPericranealMinus");
@@ -2574,6 +2682,129 @@
     return currentPatients.filter(x => x.grupoId === p.grupoId);
   }
 
+  // Metas de tiempo del equipo (las mismas que usa RutaLab Pro) — por
+  // ahora es un indicador personal en la propia tarjeta del paciente;
+  // compara contra la meta y pinta verde/rojo, sin tocar nada del
+  // servidor todavía (eso viene después, para el panel del equipo).
+  const METAS_TIEMPO = {
+    entrePacientes:   { label: "Entre pacientes",      metaMin: 15, color: "#60a5fa" },
+    arriboPaciente:   { label: "Arribo → Paciente",    metaMin: 6,  color: "#f59e0b" },
+    pacienteToma:     { label: "Paciente → Toma",      metaMin: 10, color: "#8b5cf6" },
+    tomaSalida:       { label: "Toma → Salida",        metaMin: 6,  color: "#10b981" },
+  };
+
+  // El "paciente anterior" para medir "Entre pacientes" es el que está
+  // justo antes en el orden de la ruta (currentPatients) — salvo que sea
+  // un compañero de grupo (mismo domicilio, ahí no hay traslado real).
+  function paquientePrevioParaEntrePacientes(p) {
+    const idx = currentPatients.indexOf(p);
+    if (idx <= 0) return null;
+    const prev = currentPatients[idx - 1];
+    if (!prev || !prev.horaSalida) return null;
+    if (getGroupMates(p).some(m => m.id === prev.id)) return null;
+    return prev;
+  }
+
+  // Devuelve los 4 segmentos con sus minutos reales (null = todavía no se
+  // puede calcular porque falta alguno de los dos tiempos que lo forman)
+  // y si cumplió la meta o no.
+  function calcularIndicadoresTiempo(p) {
+    const minOf = (campo) => (p[campo] ? labelToMinutes(p[campo]) : null);
+    const prev = paquientePrevioParaEntrePacientes(p);
+
+    const tramos = [
+      { key: "entrePacientes", desde: prev ? labelToMinutes(prev.horaSalida) : null, hasta: minOf("arriboSitio") },
+      { key: "arriboPaciente", desde: minOf("arriboSitio"), hasta: minOf("arriboPaciente") },
+      { key: "pacienteToma",   desde: minOf("arriboPaciente"), hasta: minOf("horaToma") },
+      { key: "tomaSalida",     desde: minOf("horaToma"), hasta: minOf("horaSalida") },
+    ];
+
+    return tramos.map(t => {
+      const meta = METAS_TIEMPO[t.key];
+      if (t.desde == null || t.hasta == null) {
+        return { ...meta, key: t.key, minutos: null, cumple: null };
+      }
+      let delta = t.hasta - t.desde;
+      if (delta < 0) delta += 24 * 60; // por si cruza medianoche (no debería pasar en este horario)
+      return { ...meta, key: t.key, minutos: delta, cumple: delta <= meta.metaMin };
+    });
+  }
+
+  function renderIndicadoresTiempoHtml(p) {
+    const indicadores = calcularIndicadoresTiempo(p);
+    return `
+      <p class="time-indicators-title">🎯 Metas del equipo</p>
+      <div class="time-indicators-grid">
+        ${indicadores.map(ind => `
+          <div class="time-indicator-tile">
+            <span class="time-indicator-label">${escapeHtmlAux(ind.label)}</span>
+            <span class="time-indicator-value" style="color:${ind.minutos == null ? "var(--text-faint)" : (ind.cumple ? "#10b981" : "#f85149")};">
+              ${ind.minutos == null ? `meta ≤ ${ind.metaMin} min` : `${ind.minutos} min ${ind.cumple ? "✅" : "⚠️"}`}
+            </span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  // Un registro histórico por paciente finalizado o cancelado — es la base
+  // para el futuro panel del equipo (KPIs, buscador de paciente con su
+  // historial, etc.). Nunca bloquea el flujo si Firestore falla; es un
+  // respaldo adicional a lo que ya se guarda en el celular.
+  async function archivarVisitaEnHistorial(p) {
+    if (!me || !db) return;
+    try {
+      const indicadores = calcularIndicadoresTiempo(p);
+      const indicadoresPorClave = {};
+      indicadores.forEach(ind => {
+        indicadoresPorClave[ind.key] = { minutos: ind.minutos, cumple: ind.cumple, metaMin: ind.metaMin };
+      });
+      const tubosTotal = Object.values(p.tubos || {}).reduce((s, n) => s + (n || 0), 0);
+      // Duración total de la visita (arribo al sitio → salida), aparte de
+      // los 4 tramos por separado — para poder responder de una sola vez
+      // "¿cuánto se demoró la última vez con este paciente?".
+      let duracionTotalMin = null;
+      if (p.arriboSitio && p.horaSalida) {
+        let delta = labelToMinutes(p.horaSalida) - labelToMinutes(p.arriboSitio);
+        if (delta < 0) delta += 24 * 60;
+        duracionTotalMin = delta;
+      }
+      await addDoc(collection(db, "historialVisitas"), {
+        auxiliarPhone: me.phone,
+        auxiliarName: me.name,
+        fecha: localDateKey(),
+        pacienteId: p.id,
+        solicitud: p.solicitud || "",
+        nombrePaciente: p.nombrePaciente || "",
+        tipoDocumento: p.tipoDocumento || "",
+        numDocumento: p.numDocumento || "",
+        tipoCliente: p.tipoCliente || "",
+        companyKey: getCompanyInfo(p).key,
+        estado: p.estado,
+        motivoCancelacion: p.motivoCancelacion || "",
+        horaCita: p.horaCita || "",
+        arriboSitio: p.arriboSitio || "",
+        arriboPaciente: p.arriboPaciente || "",
+        horaToma: p.horaToma || "",
+        horaSalida: p.horaSalida || "",
+        indicadores: indicadoresPorClave,
+        duracionTotalMin,
+        examenes: p.examenes || [],
+        examenesCount: (p.examenes || []).length,
+        tubos: p.tubos || {},
+        tubosTotal,
+        pericraneales: p.pericraneales || 0,
+        punciones: p.punciones || 0,
+        valorCobro: p.valorCobro || 0,
+        valorFinal: getValorFinal(p),
+        formaPago: p.formaPago || "",
+        createdAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn("[auxiliar.html] No se pudo archivar el historial de esta visita:", e);
+    }
+  }
+
   function addPatientToGroup(targetId, newId) {
     const target = currentPatients.find(x => x.id === targetId);
     const nuevo = currentPatients.find(x => x.id === newId);
@@ -2643,7 +2874,11 @@
     const palabras = normalizarPalabras(p.tipoCliente);
     let key = "vip", label = "VIP";
     if (palabras.includes("FSFB")) { key = "fsfb"; label = "FSFB"; }
-    else if (palabras.includes("POLIZA")) { key = "poliza"; label = "Póliza"; }
+    else if (
+      palabras.includes("POLIZA")
+      || palabras.includes("SALUDVIDA")
+      || (palabras.includes("SALUD") && palabras.includes("VIDA"))
+    ) { key = "poliza"; label = "Póliza"; }
     else if (palabras.includes("EMERMEDICA")) { key = "emermedica"; label = "Emermédica"; }
     else if (palabras.includes("AXA")) { key = "axa"; label = "AXA"; }
     else if (palabras.includes("PARTICULAR")) { key = "particular"; label = "Particular"; }
@@ -2997,6 +3232,7 @@
       </div>
     `;
     }).join("");
+    patientTimeIndicators.innerHTML = renderIndicadoresTiempoHtml(p);
 
     patientTimeGrid.querySelectorAll(".patient-time-mark").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -3254,6 +3490,7 @@
         savePatients(currentPatients);
         sendGroupFinalReportWhatsApp(all);
         all.forEach(x => syncFreshdeskIfOn(x));
+        all.forEach(x => archivarVisitaEnHistorial(x));
       } else {
         const warning = checkSalidaRequirements(p);
         if (warning) { showToast(warning, 3200); return; }
@@ -3261,6 +3498,7 @@
         persistOpenPatient();
         sendFinalReportWhatsApp(p);
         syncFreshdeskIfOn(p);
+        archivarVisitaEnHistorial(p);
       }
       renderPatientsList(currentPatients);
     }
@@ -3336,6 +3574,7 @@
     savePatients(currentPatients);
     sendCancelWhatsApp(p);
     syncFreshdeskIfOn(p);
+    archivarVisitaEnHistorial(p);
 
     closeCancelReasonModal();
     renderPatientCard();

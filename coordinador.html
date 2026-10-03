@@ -297,6 +297,61 @@
   .network-item-time{font-size:11px; color:var(--text-faint); font-weight:600; white-space:nowrap; flex-shrink:0;}
   .network-item-nums{display:flex; gap:12px; flex-wrap:wrap; color:var(--text-dim); font-weight:700; font-size:12.5px;}
   .network-item-loc{color:var(--text-faint); font-weight:600;}
+  /* ---------- metas del equipo + historial de pacientes ---------- */
+  .hist-range-buttons{display:flex; gap:8px; margin-bottom:14px;}
+  .hist-range-btn{
+    flex:1;
+    padding:9px 0;
+    border-radius:10px;
+    border:1.5px solid var(--border);
+    background:var(--surface-3);
+    color:var(--text-dim);
+    font-family:inherit;
+    font-size:12.5px;
+    font-weight:800;
+    cursor:pointer;
+  }
+  .hist-range-btn.active{border-color:var(--send); color:var(--send); background:var(--send-soft);}
+  .hist-kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;}
+  .hist-kpi-tile{
+    background:var(--surface-3);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .hist-kpi-label{font-size:10.5px; font-weight:700; color:var(--text-faint);}
+  .hist-kpi-value{font-size:13.5px; font-weight:800;}
+  .hist-kpi-sub{font-size:10px; color:var(--text-faint); font-weight:600;}
+  .hist-subtitle{font-family:var(--font-display); font-size:13px; font-weight:700; margin:16px 0 10px;}
+  .hist-aux-list{display:flex; flex-direction:column; gap:7px; margin-bottom:6px;}
+  .hist-aux-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    background:var(--surface-3);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:9px 12px;
+    font-size:12.5px;
+  }
+  .hist-aux-name{font-weight:800; flex:1; min-width:0;}
+  .hist-aux-count{color:var(--text-faint); font-weight:600; white-space:nowrap;}
+  .hist-aux-pct{font-weight:800; white-space:nowrap;}
+  .hist-search-row{display:flex; gap:8px; align-items:center; margin-bottom:12px;}
+  .hist-search-row .text-input{flex:1;}
+  .hist-search-results{display:flex; flex-direction:column; gap:8px;}
+  .hist-search-count{font-size:12px; color:var(--text-faint); font-weight:700; margin:0 0 4px;}
+  .hist-visit-row{background:var(--surface-3); border:1px solid var(--border); border-radius:10px; padding:10px 12px;}
+  .hist-visit-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-weight:800; font-size:12.5px; margin-bottom:3px;}
+  .hist-visit-estado{font-size:11px; font-weight:700; color:var(--text-faint); white-space:nowrap;}
+  .hist-visit-sub{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-bottom:6px;}
+  .hist-visit-metas{display:flex; flex-wrap:wrap; gap:8px;}
+  .hist-visit-meta{font-size:10.5px; font-weight:800;}
+
   [hidden]{display:none !important;}
 </style>
 </head>
@@ -420,6 +475,27 @@
     </div>
   </div>
 
+  <div class="dash-section">
+    <h2 class="dash-title">🎯 Metas del equipo e historial de pacientes</h2>
+    <div id="histRangeButtons" class="hist-range-buttons">
+      <button type="button" class="hist-range-btn active" data-days="0">Hoy</button>
+      <button type="button" class="hist-range-btn" data-days="7">7 días</button>
+      <button type="button" class="hist-range-btn" data-days="30">30 días</button>
+    </div>
+
+    <div id="histKpiGrid" class="hist-kpi-grid"><p class="dash-empty">Cargando...</p></div>
+
+    <h3 class="hist-subtitle">Cumplimiento por auxiliar</h3>
+    <div id="histAuxList" class="hist-aux-list"><p class="dash-empty">Sin datos todavía</p></div>
+
+    <h3 class="hist-subtitle">🔎 Buscar paciente</h3>
+    <div class="hist-search-row">
+      <input id="histSearchInput" type="text" class="text-input assign-text-left" placeholder="Cédula o nombre del paciente" style="margin-bottom:0;">
+      <button id="histSearchBtn" type="button" class="btn-primary" style="width:auto; padding:13px 18px;">Buscar</button>
+    </div>
+    <div id="histSearchResults" class="hist-search-results"></div>
+  </div>
+
 </div>
 
 <script type="module">
@@ -518,6 +594,212 @@
   }
 
   const ESTADO_LABELS = { listo: "✅ Listo", en_proceso: "🕓 En ruta", pendiente: "⏳ Pendiente", cancelado: "❌ Cancelado" };
+
+  // ---------------- Metas del equipo + historial de pacientes ----------------
+  // Lee la colección "historialVisitas" que auxiliar.html va llenando cada
+  // vez que se finaliza o cancela un paciente. Todo se agrega del lado
+  // del cliente (sin Cloud Functions) — con el volumen de este equipo
+  // alcanza de sobra.
+  const METAS_TIEMPO_COORD = {
+    entrePacientes: { label: "Entre pacientes",   metaMin: 15 },
+    arriboPaciente: { label: "Arribo → Paciente", metaMin: 6 },
+    pacienteToma:   { label: "Paciente → Toma",   metaMin: 10 },
+    tomaSalida:     { label: "Toma → Salida",     metaMin: 6 },
+  };
+  const METAS_ORDEN = ["entrePacientes", "arriboPaciente", "pacienteToma", "tomaSalida"];
+
+  function colorPorPorcentaje(pct) {
+    if (pct == null) return "var(--text-faint)";
+    if (pct >= 80) return "var(--send)";
+    if (pct >= 50) return "var(--poliza)";
+    return "var(--danger)";
+  }
+
+  let histDocsCache = [];
+
+  async function loadHistorialRange(days) {
+    const histKpiGrid = document.getElementById("histKpiGrid");
+    const histAuxList = document.getElementById("histAuxList");
+    histKpiGrid.innerHTML = '<p class="dash-empty">Cargando...</p>';
+    histAuxList.innerHTML = "";
+    try {
+      const hastaKey = localDateKey();
+      const desdeKey = localDateKey(-days);
+      const q = query(collection(db, "historialVisitas"), where("fecha", ">=", desdeKey), where("fecha", "<=", hastaKey));
+      const snap = await getDocs(q);
+      const docs = [];
+      snap.forEach(d => docs.push(d.data()));
+      histDocsCache = docs;
+      renderHistKpis(docs);
+      renderHistAuxList(docs);
+    } catch (e) {
+      console.warn("[coordinador] No se pudo cargar el historial:", e);
+      histKpiGrid.innerHTML = '<p class="dash-empty">No se pudo cargar el historial.</p>';
+    }
+  }
+
+  function renderHistKpis(docs) {
+    const histKpiGrid = document.getElementById("histKpiGrid");
+    if (docs.length === 0) { histKpiGrid.innerHTML = '<p class="dash-empty">Sin datos en este rango</p>'; return; }
+
+    const atendidos = docs.filter(d => d.estado === "listo").length;
+    const cancelados = docs.filter(d => d.estado === "cancelado").length;
+    const poliza = docs.filter(d => d.companyKey === "poliza").length;
+    const fsfb = docs.filter(d => d.companyKey === "fsfb").length;
+    const otros = docs.length - poliza - fsfb;
+
+    const metaStats = {};
+    METAS_ORDEN.forEach(key => { metaStats[key] = { cumplidos: 0, total: 0, sumaMin: 0 }; });
+    docs.forEach(d => {
+      const ind = d.indicadores || {};
+      METAS_ORDEN.forEach(key => {
+        const seg = ind[key];
+        if (seg && seg.minutos != null) {
+          metaStats[key].total++;
+          metaStats[key].sumaMin += seg.minutos;
+          if (seg.cumple) metaStats[key].cumplidos++;
+        }
+      });
+    });
+
+    const tilesMetas = METAS_ORDEN.map(key => {
+      const m = METAS_TIEMPO_COORD[key];
+      const s = metaStats[key];
+      const pct = s.total ? Math.round((s.cumplidos / s.total) * 100) : null;
+      const prom = s.total ? Math.round(s.sumaMin / s.total) : null;
+      return `
+        <div class="hist-kpi-tile">
+          <span class="hist-kpi-label">${m.label}</span>
+          <span class="hist-kpi-value" style="color:${colorPorPorcentaje(pct)};">${pct == null ? "sin datos" : `${pct}% ≤ ${m.metaMin}min`}</span>
+          <span class="hist-kpi-sub">${prom == null ? "" : `prom. ${prom} min`}</span>
+        </div>`;
+    }).join("");
+
+    const tilesExtra = `
+      <div class="hist-kpi-tile">
+        <span class="hist-kpi-label">Pacientes atendidos</span>
+        <span class="hist-kpi-value" style="color:var(--send);">${atendidos}</span>
+      </div>
+      <div class="hist-kpi-tile">
+        <span class="hist-kpi-label">Cancelados</span>
+        <span class="hist-kpi-value" style="color:var(--danger);">${cancelados}</span>
+      </div>
+      <div class="hist-kpi-tile">
+        <span class="hist-kpi-label">FSFB / Póliza / Otros</span>
+        <span class="hist-kpi-value" style="font-size:13px;">${fsfb} / ${poliza} / ${otros}</span>
+      </div>
+    `;
+
+    histKpiGrid.innerHTML = tilesMetas + tilesExtra;
+  }
+
+  function renderHistAuxList(docs) {
+    const histAuxList = document.getElementById("histAuxList");
+    if (docs.length === 0) { histAuxList.innerHTML = '<p class="dash-empty">Sin datos todavía</p>'; return; }
+
+    const porAux = new Map();
+    docs.forEach(d => {
+      const key = d.auxiliarPhone || d.auxiliarName || "?";
+      if (!porAux.has(key)) porAux.set(key, { nombre: d.auxiliarName || "—", docs: [] });
+      porAux.get(key).docs.push(d);
+    });
+
+    histAuxList.innerHTML = [...porAux.values()].map(aux => {
+      const total = aux.docs.length;
+      let cumplidos = 0, medibles = 0;
+      aux.docs.forEach(d => {
+        METAS_ORDEN.forEach(key => {
+          const seg = (d.indicadores || {})[key];
+          if (seg && seg.minutos != null) { medibles++; if (seg.cumple) cumplidos++; }
+        });
+      });
+      const pct = medibles ? Math.round((cumplidos / medibles) * 100) : null;
+      return `
+        <div class="hist-aux-row">
+          <span class="hist-aux-name">${escapeHtml(aux.nombre)}</span>
+          <span class="hist-aux-count">${total} paciente${total !== 1 ? "s" : ""}</span>
+          <span class="hist-aux-pct" style="color:${colorPorPorcentaje(pct)};">${pct == null ? "—" : pct + "% metas"}</span>
+        </div>`;
+    }).join("");
+  }
+
+  function soloDigitos(s) { return String(s || "").replace(/\D/g, ""); }
+  function normalizarBusqueda(s) {
+    return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim();
+  }
+
+  async function buscarPacienteHistorial(texto) {
+    const histSearchResults = document.getElementById("histSearchResults");
+    const limpio = String(texto || "").trim();
+    if (!limpio) { histSearchResults.innerHTML = ""; return; }
+    histSearchResults.innerHTML = '<p class="dash-empty">Buscando...</p>';
+    try {
+      const digitos = soloDigitos(limpio);
+      let docs = [];
+      if (digitos.length >= 5) {
+        const q = query(collection(db, "historialVisitas"), where("numDocumento", "==", digitos));
+        const snap = await getDocs(q);
+        snap.forEach(d => docs.push(d.data()));
+      } else {
+        // Búsqueda por nombre: Firestore no hace texto libre, así que se
+        // trae un rango amplio (últimos 180 días) y se filtra acá.
+        const desdeKey = localDateKey(-180);
+        const hastaKey = localDateKey();
+        const q = query(collection(db, "historialVisitas"), where("fecha", ">=", desdeKey), where("fecha", "<=", hastaKey));
+        const snap = await getDocs(q);
+        const buscado = normalizarBusqueda(limpio);
+        snap.forEach(d => {
+          const data = d.data();
+          if (normalizarBusqueda(data.nombrePaciente).includes(buscado)) docs.push(data);
+        });
+      }
+      docs.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+      renderHistSearchResults(docs);
+    } catch (e) {
+      console.warn("[coordinador] Error buscando paciente:", e);
+      histSearchResults.innerHTML = '<p class="dash-empty">No se pudo buscar.</p>';
+    }
+  }
+
+  function renderHistSearchResults(docs) {
+    const histSearchResults = document.getElementById("histSearchResults");
+    if (docs.length === 0) { histSearchResults.innerHTML = '<p class="dash-empty">Sin visitas registradas con ese dato.</p>'; return; }
+
+    const encabezado = `<p class="hist-search-count">${docs.length} visita${docs.length !== 1 ? "s" : ""} encontrada${docs.length !== 1 ? "s" : ""}${docs[0].nombrePaciente ? ` — ${escapeHtml(docs[0].nombrePaciente)}` : ""}</p>`;
+
+    const filas = docs.map(d => {
+      const metas = METAS_ORDEN.map(key => {
+        const seg = (d.indicadores || {})[key];
+        if (!seg || seg.minutos == null) return "";
+        return `<span class="hist-visit-meta" style="color:${seg.cumple ? "var(--send)" : "var(--danger)"};">${METAS_TIEMPO_COORD[key].label}: ${seg.minutos}min</span>`;
+      }).filter(Boolean).join("");
+      return `
+        <div class="hist-visit-row">
+          <div class="hist-visit-top">
+            <span>${escapeHtml(d.fecha || "—")} · ${escapeHtml(d.auxiliarName || "—")}</span>
+            <span class="hist-visit-estado">${ESTADO_LABELS[d.estado] || d.estado || "—"}</span>
+          </div>
+          <div class="hist-visit-sub">${escapeHtml(d.tipoCliente || "")} · ${d.examenesCount || 0} exámenes · ${d.tubosTotal || 0} tubos${d.duracionTotalMin != null ? ` · ${d.duracionTotalMin} min en total` : ""}</div>
+          <div class="hist-visit-metas">${metas}</div>
+        </div>`;
+    }).join("");
+
+    histSearchResults.innerHTML = encabezado + filas;
+  }
+
+  document.querySelectorAll(".hist-range-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".hist-range-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadHistorialRange(parseInt(btn.dataset.days, 10));
+    });
+  });
+  document.getElementById("histSearchBtn").addEventListener("click", () => {
+    buscarPacienteHistorial(document.getElementById("histSearchInput").value);
+  });
+  document.getElementById("histSearchInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") buscarPacienteHistorial(document.getElementById("histSearchInput").value);
+  });
 
   function renderAuxLiveCards(docs) {
     const el = document.getElementById("auxLiveCards");
@@ -722,6 +1004,7 @@
       statusText.textContent = "Conectado — actualizando en vivo";
 
       loadYesterdayTotals();
+      loadHistorialRange(0);
       startAssignmentsListener();
 
       const today = localDateKey();
