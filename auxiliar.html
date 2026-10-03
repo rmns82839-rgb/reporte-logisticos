@@ -407,7 +407,7 @@
       <div id="patientCardTubeEstimate" class="tube-count-box"></div>
     </details>
 
-    <details class="hour-group" open>
+    <details class="hour-group">
       <summary><span class="group-label">⏱️ Tiempos</span></summary>
       <div id="patientTimeGrid" class="patient-time-grid"></div>
       <div id="patientTimeIndicators" class="time-indicators-box"></div>
@@ -1000,12 +1000,26 @@
   // valor a cobrar se suman, número de solicitud queda con los dos
   // pegados. Así no toca hacer 2 arribos ni 2 tarjetas para la misma
   // visita.
+  //
+  // EXCEPCIÓN: glucosa/insulina/glicemia pre y post carga (o pre y post
+  // prandial). Esos SÍ son 2 visitas reales y separadas al mismo
+  // paciente — la toma en ayunas/pre, y la toma 2 horas después (post) —
+  // así vengan con el mismo número de documento. Si se unifican en una
+  // sola tarjeta, el auxiliar solo ve 1 arribo y se pierde la segunda
+  // toma. Por eso, cuando alguna de las filas de ese paciente trae estos
+  // exámenes, NO se fusiona: se dejan como tarjetas separadas (cada una
+  // con su propia hora de cita, que ya viene distinta en la planilla).
+  function esExamenDobleToma(examenes) {
+    const texto = (examenes || []).join(" ").toUpperCase();
+    return /PRE\s*Y?\s*POST|POST\s*[\s-]?\s*CARGA|POSCARGA|POS\s*PRANDIAL|POSPRANDIAL|2\s*TOMAS?\s*POST/.test(texto);
+  }
+
   function mergeDuplicatePatientRows(patients) {
     const resultado = [];
     patients.forEach(p => {
       const key = String(p.numDocumento || "").replace(/\D/g, "");
       const existente = key ? resultado.find(x => String(x.numDocumento || "").replace(/\D/g, "") === key) : null;
-      if (!existente) {
+      if (!existente || esExamenDobleToma(existente.examenes) || esExamenDobleToma(p.examenes)) {
         resultado.push(p);
         return;
       }
