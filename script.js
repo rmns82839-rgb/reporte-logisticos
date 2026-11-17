@@ -6,7 +6,7 @@
 
 const AUXILIARES = [
   "Cristian", "Iván", "Brenda", "Jonathan", "Marlio",
-  "Camilo", "Milena", "Luis", "Edison"
+  "Milena", "Luis", "Edison", "Lizeth"
 ];
 
 // Fotos de perfil (subidas desde el chat) para el selector "¿A quién le
@@ -2066,8 +2066,44 @@ function startHandoffListener() {
   stopHandoffListener = window.ReporteSync.listenAuxiliarHandoffs(auxName, myIdentity.phone, renderHandoffBanner);
 }
 
+// IDs ya importados (se guardan localmente) — si el "claimed" tarda en
+// llegar de Firebase, el banner no vuelve a ofrecer lo mismo ni se importa
+// dos veces.
+const IMPORTED_HANDOFFS_KEY = "importedHandoffIds";
+function loadImportedHandoffIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(IMPORTED_HANDOFFS_KEY) || "[]")); }
+  catch (e) { return new Set(); }
+}
+function rememberImportedHandoffIds(ids) {
+  try {
+    const set = loadImportedHandoffIds();
+    ids.forEach(id => set.add(id));
+    localStorage.setItem(IMPORTED_HANDOFFS_KEY, JSON.stringify([...set].slice(-400)));
+  } catch (e) {}
+}
+// Entregas repetidas del mismo paciente (por toques repetidos en
+// "entregar") se juntan en una sola; todas se marcan reclamadas al importar.
+function dedupeHandoffDocs(docs) {
+  const done = loadImportedHandoffIds();
+  const seen = new Map();
+  (docs || []).forEach(d => {
+    if (done.has(d.id)) return;
+    const key = [d.patientName, d.company, d.time, d.cancelled ? 1 : 0, JSON.stringify(d.tubes || {})].join("|");
+    if (!seen.has(key)) seen.set(key, { ...d, _allIds: [d.id] });
+    else seen.get(key)._allIds.push(d.id);
+  });
+  return [...seen.values()];
+}
+
+let handoffImporting = false;
+
 function renderHandoffBanner(docs) {
-  currentHandoffDocs = docs || [];
+  const rawIds = (docs || []).map(d => d.id);
+  currentHandoffDocs = dedupeHandoffDocs(docs);
+  // Si lo único que quedaba eran duplicados ya importados, ciérralos en Firebase.
+  if (currentHandoffDocs.length === 0 && rawIds.length > 0 && window.ReporteSync) {
+    rawIds.forEach(id => window.ReporteSync.claimAuxiliarHandoff(id));
+  }
   if (currentHandoffDocs.length === 0) { handoffBanner.hidden = true; return; }
 
   let vipPatients = 0, fsfbPatients = 0, cancelados = 0, tubeTotal = 0;
@@ -2129,10 +2165,13 @@ function claimHourSlotForHandoff(data, company, timeLabel, cancelled) {
   return false;
 }
 
-handoffBannerImportBtn.addEventListener("click", async () => {
-  if (currentHandoffDocs.length === 0) return;
+handoffBannerImportBtn.addEventListener("click", () => {
+  if (handoffImporting || currentHandoffDocs.length === 0) return;
+  handoffImporting = true;                 // candado contra toques repetidos
   const data = currentData();
   const docsToClaim = currentHandoffDocs.slice();
+  currentHandoffDocs = [];
+  handoffBanner.hidden = true;             // se oculta al instante
   let sinCupo = 0;
 
   docsToClaim.forEach(d => {
@@ -2144,9 +2183,12 @@ handoffBannerImportBtn.addEventListener("click", async () => {
     });
   });
 
+  const allIds = [];
+  docsToClaim.forEach(d => (d._allIds || [d.id]).forEach(id => allIds.push(id)));
+  rememberImportedHandoffIds(allIds);
+
   saveState();
   renderAll();
-  handoffBanner.hidden = true;
   showToast(
     sinCupo > 0
       ? `✅ Entrega importada — ${sinCupo} paciente${sinCupo !== 1 ? "s" : ""} no encontró franja libre, revisa las horas`
@@ -2154,10 +2196,13 @@ handoffBannerImportBtn.addEventListener("click", async () => {
     3200
   );
 
+  // En segundo plano y en paralelo: no frena nada.
   if (window.ReporteSync) {
-    for (const d of docsToClaim) {
-      await window.ReporteSync.claimAuxiliarHandoff(d.id);
-    }
+    (window.withBusy ? window.withBusy : (x) => x)(Promise.all(allIds.map(id => window.ReporteSync.claimAuxiliarHandoff(id))), "Cerrando la entrega…")
+      .catch(() => {})
+      .finally(() => { handoffImporting = false; });
+  } else {
+    handoffImporting = false;
   }
 });
 

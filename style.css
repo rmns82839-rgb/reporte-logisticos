@@ -3118,3 +3118,8 @@ details[open] > .card-collapse-title::after{transform:rotate(180deg);}
 .assign-badge-pendiente{background:rgba(255,176,32,0.16); color:var(--poliza);}
 .assign-badge-vista{background:rgba(74,141,251,0.16); color:var(--fsfb);}
 .assign-badge-hecha{background:var(--send-soft); color:var(--send);}
+/* Pre / Post */
+.prepost-banner { margin: 8px 0; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.4;
+  background: color-mix(in srgb, #7c5cff 14%, transparent); border: 1px solid color-mix(in srgb, #7c5cff 40%, transparent); color: var(--text); }
+.prepost-badge { display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  letter-spacing: .4px; vertical-align: middle; background: color-mix(in srgb, #7c5cff 22%, transparent); color: var(--text); }

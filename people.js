@@ -25,10 +25,10 @@ export const AUXILIARES_LAB = {
   "3122669683": { name: "Brenda"   },
   "3143656427": { name: "Jonathan" },
   "3025429012": { name: "Marlio"   },
-  "3192179849": { name: "Camilo"   },
   "3195175992": { name: "Milena"   },
   "3172623815": { name: "Luis"     },
   "3007552512": { name: "Edison"   },
+  "3125596867": { name: "Lizeth"   },
 };
 
 // Clave compartida que exige Firestore para crear una asignación (ver

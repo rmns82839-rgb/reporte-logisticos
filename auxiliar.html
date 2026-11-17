@@ -20,6 +20,7 @@
 
 <!-- Loader de moto: splash de apertura + se reutiliza (showAppLoading /
      hideAppLoading, colgados de window) mientras se importa la planilla. -->
+<script src="busy.js"></script>
 <div id="appLoadingOverlay" class="app-loading-overlay">
   <div class="app-loading-track">
     <span class="app-loading-line l1"></span>
@@ -390,6 +391,7 @@
       <p id="patientCardMeta" class="card-hint" style="margin:0;">—</p>
       <button id="patientCancelBtn" type="button" class="cancel-link-btn">❌ Cancelar</button>
     </div>
+    <div id="patientPrePostBanner" class="prepost-banner" hidden></div>
     <p id="patientCardAddress" class="patient-card-address"></p>
     <div id="patientLinkBanner" class="patient-link-banner" hidden></div>
     <button id="patientLinkBtn" type="button" class="ghost-btn" style="margin-bottom:10px;">🔗 Vincular con otro paciente (mismo domicilio)</button>
@@ -577,6 +579,7 @@
   import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
   import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones, splitExamCodeName } from "./exams.js";
+  import { esExamenDobleToma, ensurePrePostTags, syncPrePost, postWindow, parejaDe, prePostReportLines } from "./prepost.js";
   import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
   import { initChatSystem } from "./chat.js";
 
@@ -1029,11 +1032,6 @@
   // toma. Por eso, cuando alguna de las filas de ese paciente trae estos
   // exámenes, NO se fusiona: se dejan como tarjetas separadas (cada una
   // con su propia hora de cita, que ya viene distinta en la planilla).
-  function esExamenDobleToma(examenes) {
-    const texto = (examenes || []).join(" ").toUpperCase();
-    return /PRE\s*Y?\s*POST|POST\s*[\s-]?\s*CARGA|POSCARGA|POS\s*PRANDIAL|POSPRANDIAL|2\s*TOMAS?\s*POST/.test(texto);
-  }
-
   function mergeDuplicatePatientRows(patients) {
     const resultado = [];
     patients.forEach(p => {
@@ -1126,6 +1124,7 @@
   }
 
   function savePatients(patients) {
+    try { ensurePrePostTags(patients); syncPrePost(patients); } catch (e) { console.warn("[auxiliar.html] pre/post:", e); }
     try { localStorage.setItem(patientsStorageKey(), JSON.stringify(patients)); } catch (e) {}
   }
 
@@ -1169,9 +1168,18 @@
   const papeleriaResumen = document.getElementById("papeleriaResumen");
   const papeleriaLista = document.getElementById("papeleriaLista");
 
+  // La papelería es pesada y vive en un desplegable: se redibuja diferida
+  // (agrupa varios toques seguidos en un solo dibujo) para que la pantalla
+  // responda al toque de una.
+  let papeleriaTimer = null;
   function renderPapeleria(patients) {
-    if (!patients || patients.length === 0) { papeleriaSection.hidden = true; return; }
+    if (!patients || patients.length === 0) { clearTimeout(papeleriaTimer); papeleriaSection.hidden = true; return; }
     papeleriaSection.hidden = false;
+    clearTimeout(papeleriaTimer);
+    papeleriaTimer = setTimeout(() => renderPapeleriaNow(currentPatients), 350);
+  }
+  function renderPapeleriaNow(patients) {
+    if (!patients || patients.length === 0) return;
     getCatalogoCached(db).then(catalogo => {
       const resumen = resumenDelDia(catalogo, patients, getValorFinal, isFsfb);
       papeleriaResumen.innerHTML = renderResumenDelDiaHtml(resumen);
@@ -1317,6 +1325,7 @@
   // vea en tiempo real (tiempos, pagos, estado de cada paciente). Con un
   // pequeño debounce para no escribir en Firebase en cada tecla.
   let pushStatusTimer = null;
+  let lastStatusSig = "";
   function pushAuxiliarStatus(patients, stats) {
     if (!me) return;
     clearTimeout(pushStatusTimer);
@@ -1336,43 +1345,63 @@
           valorFinal: getValorFinal(p),
           motivoCancelacion: p.motivoCancelacion || "",
         }));
-        await setDoc(doc(db, "auxiliarStatus", `${me.phone}_${localDateKey()}`), {
+        // Si nada cambió desde la última vez, no se escribe (ahorra red).
+        const sig = JSON.stringify([stats, lightPatients]);
+        if (sig === lastStatusSig) return;
+        lastStatusSig = sig;
+        setDoc(doc(db, "auxiliarStatus", `${me.phone}_${localDateKey()}`), {
           auxiliarPhone: me.phone,
           auxiliarName: miNombreMostrado(),
           date: localDateKey(),
           updatedAt: serverTimestamp(),
           stats,
           patients: lightPatients,
-        });
+        }).catch(e => { lastStatusSig = ""; console.warn("[auxiliar.html] No se pudo publicar el estado en vivo:", e); });
       } catch (e) {
         console.warn("[auxiliar.html] No se pudo publicar el estado en vivo:", e);
       }
-    }, 900);
+    }, 3000);
   }
 
   // Respaldo COMPLETO (todos los campos, no la versión liviana de arriba)
   // en Firebase, por si el celular se pierde, se resetea o se borra el
   // caché a mitad del turno — así se puede recuperar el día desde otro
   // celular. Nunca bloquea ni retrasa nada local si falla.
+  // Throttle (no debounce): corre como máximo cada 20 s con lo último que
+  // haya, y solo si algo cambió. Sin await: nunca frena la pantalla.
   let pushBackupTimer = null;
+  let backupLatest = null;
+  let lastBackupSig = "";
+  function flushFullBackup() {
+    clearTimeout(pushBackupTimer);
+    pushBackupTimer = null;
+    const patients = backupLatest;
+    if (!me || !patients) return;
+    try {
+      const sig = JSON.stringify(patients);
+      if (sig === lastBackupSig) return;
+      lastBackupSig = sig;
+      setDoc(doc(db, "auxiliarBackups", `${me.phone}_${localDateKey()}`), {
+        auxiliarPhone: me.phone,
+        auxiliarName: miNombreMostrado(),
+        date: localDateKey(),
+        updatedAt: serverTimestamp(),
+        count: patients.length,
+        patients,
+      }).catch(e => { lastBackupSig = ""; console.warn("[auxiliar.html] No se pudo subir el respaldo completo:", e); });
+    } catch (e) {
+      console.warn("[auxiliar.html] No se pudo subir el respaldo completo:", e);
+    }
+  }
   function pushFullBackup(patients) {
     if (!me) return;
-    clearTimeout(pushBackupTimer);
-    pushBackupTimer = setTimeout(async () => {
-      try {
-        await setDoc(doc(db, "auxiliarBackups", `${me.phone}_${localDateKey()}`), {
-          auxiliarPhone: me.phone,
-          auxiliarName: miNombreMostrado(),
-          date: localDateKey(),
-          updatedAt: serverTimestamp(),
-          count: patients.length,
-          patients,
-        });
-      } catch (e) {
-        console.warn("[auxiliar.html] No se pudo subir el respaldo completo:", e);
-      }
-    }, 2000);
+    backupLatest = patients;
+    if (pushBackupTimer) return;
+    pushBackupTimer = setTimeout(flushFullBackup, 20000);
   }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && pushBackupTimer) flushFullBackup();
+  });
 
   // Si al abrir la app hoy no hay nada guardado localmente (celular nuevo,
   // se borró el caché, se reinstaló, etc.) pero SÍ hay un respaldo de hoy
@@ -1516,7 +1545,7 @@
         const patient = currentPatients.find(x => x.id === btn.dataset.id);
         if (!patient) return;
         btn.disabled = true;
-        const warned = await revertHandoffPatient(patient);
+        const warned = await window.withBusy(revertHandoffPatient(patient), "Revirtiendo entrega…");
         savePatients(currentPatients);
         renderPatientsList(currentPatients);
         showToast(
@@ -1534,7 +1563,7 @@
     handoffRevertAllBtn.disabled = true;
     let warnedCount = 0;
     for (const patient of delivered) {
-      const warned = await revertHandoffPatient(patient);
+      const warned = await window.withBusy(revertHandoffPatient(patient), "Revirtiendo entregas…");
       if (warned) warnedCount++;
     }
     savePatients(currentPatients);
@@ -1550,44 +1579,48 @@
   // Un documento de Firebase POR PACIENTE (no un lote agrupado) — así
   // revertir uno solo puede borrar exactamente ese documento sin tocar
   // los demás que se hayan entregado en la misma tanda.
-  async function submitAuxiliarHandoff(selected, logistico) {
-    try {
-      const batch = writeBatch(db);
-      const results = {};
-      selected.forEach(p => {
-        const cancelled = p.estado === "cancelado";
-        const tubes = {};
-        if (!cancelled) {
-          Object.keys(p.tubos || {}).forEach(key => {
-            const qty = p.tubos[key] || 0;
-            const tb = TUBOS_AUX.find(t => t.key === key);
-            if (qty > 0 && tb && tb.esTubo !== false) tubes[key] = qty;
-          });
-        }
-        const ref = doc(collection(db, "auxiliarHandoffs"));
-        batch.set(ref, {
-          auxiliarPhone: me.phone,
-          auxiliarName: miNombreMostrado(),
-          logisticoPhone: logistico.phone,
-          logisticoName: logistico.name,
-          date: localDateKey(),
-          createdAt: serverTimestamp(),
-          claimed: false,
-          company: handoffCompanyKey(p),
-          patientName: p.nombrePaciente || "(sin nombre)",
-          time: p.horaProgramada || p.horaCita || "",
-          cancelled,
-          tubes,
-        });
-        results[p.id] = ref.id;
-      });
-      await batch.commit();
-      return results;
-    } catch (e) {
-      console.warn("[auxiliar.html] No se pudo entregar al logístico:", e);
-      return null;
-    }
+  function handoffDocIdFor(p) {
+    const raw = `${me.phone}_${localDateKey()}_${p.id}`;
+    return raw.replace(/[\/\s#?\[\]%]+/g, "-").slice(0, 400);
   }
+
+  // Arma el lote con IDs DETERMINÍSTICOS (mismo paciente => mismo documento),
+  // así aunque el botón se toque varias veces nunca se duplican las horas
+  // del lado del logístico: set() sobre el mismo ID solo lo sobrescribe.
+  function buildHandoffBatch(selected, logistico) {
+    const batch = writeBatch(db);
+    const results = {};
+    selected.forEach(p => {
+      const cancelled = p.estado === "cancelado";
+      const tubes = {};
+      if (!cancelled) {
+        Object.keys(p.tubos || {}).forEach(key => {
+          const qty = p.tubos[key] || 0;
+          const tb = TUBOS_AUX.find(t => t.key === key);
+          if (qty > 0 && tb && tb.esTubo !== false) tubes[key] = qty;
+        });
+      }
+      const id = handoffDocIdFor(p);
+      batch.set(doc(db, "auxiliarHandoffs", id), {
+        auxiliarPhone: me.phone,
+        auxiliarName: miNombreMostrado(),
+        logisticoPhone: logistico.phone,
+        logisticoName: logistico.name,
+        date: localDateKey(),
+        createdAt: serverTimestamp(),
+        claimed: false,
+        company: handoffCompanyKey(p),
+        patientName: p.nombrePaciente || "(sin nombre)",
+        time: p.horaProgramada || p.horaCita || "",
+        cancelled,
+        tubes,
+      });
+      results[p.id] = id;
+    });
+    return { batch, results };
+  }
+
+  let handoffInFlight = false;
 
   handoffBtn.addEventListener("click", () => {
     const pending = pendingHandoffPatients(currentPatients);
@@ -1601,6 +1634,7 @@
   const handoffSelectConfirmBtn = document.getElementById("handoffSelectConfirmBtn");
 
   let selectedLogisticoPhone = null;
+  let handoffFotosCache = null, handoffFotosAt = 0;
 
   // Se dibuja primero sin fotos (para que el modal abra al toque, sin
   // esperar red) y se vuelve a llamar cuando llegan las fotos de perfil
@@ -1627,12 +1661,15 @@
 
   function openHandoffSelectModal(pending) {
     selectedLogisticoPhone = null;
-    renderLogisticoChips(null);
-    getDocs(collection(db, "profiles")).then(snap => {
-      const fotos = {};
-      snap.forEach(d => { const data = d.data(); if (data && data.photoURL) fotos[d.id] = data.photoURL; });
-      renderLogisticoChips(fotos);
-    }).catch(e => console.warn("[auxiliar.html] No se pudieron cargar fotos de perfil:", e));
+    renderLogisticoChips(handoffFotosCache);
+    if (!handoffFotosCache || Date.now() - handoffFotosAt > 600000) {
+      getDocs(collection(db, "profiles")).then(snap => {
+        const fotos = {};
+        snap.forEach(d => { const data = d.data(); if (data && data.photoURL) fotos[d.id] = data.photoURL; });
+        handoffFotosCache = fotos; handoffFotosAt = Date.now();
+        renderLogisticoChips(fotos);
+      }).catch(e => console.warn("[auxiliar.html] No se pudieron cargar fotos de perfil:", e));
+    }
 
     handoffSelectList.innerHTML = pending.map(p => `
       <label class="handoff-select-row">
@@ -1668,26 +1705,50 @@
       return;
     }
 
+    if (handoffInFlight) return;          // ignora toques repetidos
+    handoffInFlight = true;
     handoffSelectConfirmBtn.disabled = true;
     const logistico = { phone: selectedLogisticoPhone, name: PEOPLE[selectedLogisticoPhone].name };
-    const results = await submitAuxiliarHandoff(selected, logistico);
 
-    if (!results) {
-      showToast("No se pudo entregar — revisa tu conexión e intenta de nuevo.", 3200);
+    let built;
+    try {
+      built = buildHandoffBatch(selected, logistico);
+    } catch (e) {
+      console.warn("[auxiliar.html] No se pudo armar la entrega:", e);
+      showToast("No se pudo entregar. Intenta de nuevo.", 3000);
+      handoffInFlight = false;
       handoffSelectConfirmBtn.disabled = false;
       return;
     }
 
+    // Marca local INMEDIATA (optimista): la pantalla responde al toque y
+    // esos pacientes ya no salen como pendientes, así no se pueden
+    // volver a entregar mientras Firebase confirma.
+    const hora = nowTimeLabelAux();
     selected.forEach(p => {
       p.entregadoLogistico = true;
-      p.entregadoLogisticoHora = nowTimeLabelAux();
-      p.entregadoLogisticoDocId = results[p.id] || "";
+      p.entregadoLogisticoHora = hora;
+      p.entregadoLogisticoDocId = built.results[p.id] || "";
     });
     savePatients(currentPatients);
-    handoffSelectConfirmBtn.disabled = false;
     closeHandoffSelectModal();
     renderHandoffCard(currentPatients);
+    handoffSelectConfirmBtn.disabled = false;
+    handoffInFlight = false;
     showToast(`✅ ${selected.length} paciente${selected.length !== 1 ? "s" : ""} entregado${selected.length !== 1 ? "s" : ""} a ${logistico.name}`, 2800);
+
+    // El envío real va en segundo plano; si falla, se deshace la marca.
+    window.withBusy(built.batch.commit(), "Enviando entrega…").catch(e => {
+      console.warn("[auxiliar.html] Falló el envío al logístico:", e);
+      selected.forEach(p => {
+        p.entregadoLogistico = false;
+        p.entregadoLogisticoHora = "";
+        p.entregadoLogisticoDocId = "";
+      });
+      savePatients(currentPatients);
+      renderPatientsList(currentPatients);
+      showToast("No se pudo entregar — revisa tu conexión e intenta de nuevo.", 4000);
+    });
   });
 
   const patientsSection = document.getElementById("patientsSection");
@@ -1812,7 +1873,7 @@
       <button type="button" class="patient-num-input" title="${draggable ? "Toca para numerar en modo Reorganizar" : ""}"${draggable ? "" : " disabled"}>${index + 1}</button>
       <div class="patient-body">
         <div class="patient-top">
-          <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}${p.grupoId ? ' <span title="Vinculado con otros pacientes">🔗</span>' : ""}${fdBadgeHtml(p)}</span>
+          <span class="patient-name"><span class="patient-status-dot status-${p.estado}"></span>${escapeHtmlAux(p.nombrePaciente || "(sin nombre)")}${p.grupoId ? ' <span title="Vinculado con otros pacientes">🔗</span>' : ""}${p.tomaTipo ? ` <span class="prepost-badge">${p.tomaTipo === "pre" ? "PRE" : "POST"}</span>` : ""}${fdBadgeHtml(p)}</span>
           <span class="patient-time">${escapeHtmlAux(p.horaProgramada || p.horaCita)}</span>
         </div>
         <div class="patient-meta">
@@ -2298,10 +2359,10 @@
     "Brenda": "🟣",
     "Jonathan": "🟠",
     "Marlio": "🟡",
-    "Camilo": "🔴",
     "Milena": "⚪",
     "Luis": "🟤",
     "Edison": "⚫",
+    "Lizeth": "🩷",
   };
   function myReportEmoji() {
     return (me && AUXILIAR_EMOJIS[me.name]) || "🧪";
@@ -3003,7 +3064,8 @@
     const all = p.grupoId ? getGroupAll(p) : [p];
     const solicitudes = all.map(x => `*${unaLinea(x.solicitud) || "—"}*`).join(" + ");
     const etiqueta = all.length > 1 ? " (mismo domicilio)" : "";
-    const text = `${myReportEmoji()} ${solicitudes}${etiqueta}\n📍 Arribo: ${p.arriboSitio}`;
+    const pp = all.flatMap(x => prePostReportLines(x, currentPatients));
+    const text = `${myReportEmoji()} ${solicitudes}${etiqueta}\n📍 Arribo: ${p.arriboSitio}` + (pp.length ? "\n" + pp.join("\n") : "");
     sendWhatsAppText(text);
   }
 
@@ -3020,6 +3082,7 @@
       `🕐 *Arribo*: ${p.arriboSitio || "—"}`,
       `🚪 *Paciente*: ${p.arriboPaciente || "—"}`,
       `🩸 *Toma*: ${p.horaToma || "—"}`,
+      ...prePostReportLines(p, currentPatients),
       `🚶 *Salida*: ${p.horaSalida || "—"}`,
       "🧪 *Tubos*:",
     ];
@@ -3072,6 +3135,7 @@
     all.forEach(p => {
       lines.push(`👤 *${unaLinea(p.nombrePaciente) || "(sin nombre)"}* — N° ${unaLinea(p.solicitud) || "—"}`);
       lines.push(`🩸 Toma: ${p.horaToma || "—"}`);
+      prePostReportLines(p, currentPatients).forEach(l => lines.push(l));
       const tomados = TUBOS_AUX.filter(tb => tb.esTubo !== false && (p.tubos[tb.key] || 0) > 0);
       if (tomados.length === 0) {
         lines.push("🧪 Sin tubos registrados");
@@ -3135,6 +3199,22 @@
     `;
     patientCardMeta.innerHTML = `${escapeHtmlAux(p.tipoCliente)} · Cita ${escapeHtmlAux(p.horaCita)} · Doc: <strong style="color:var(--text);">${escapeHtmlAux(p.tipoDocumento)} ${escapeHtmlAux(cedulaFormateada)}</strong>`;
     patientCardAddress.textContent = p.direccion ? `📍 ${p.direccion}` : "";
+    const ppBanner = document.getElementById("patientPrePostBanner");
+    if (p.tomaTipo === "pre") {
+      const w = postWindow(p);
+      ppBanner.hidden = false;
+      ppBanner.innerHTML = w
+        ? `🔬 <strong>Toma PRE</strong> — la <strong>POST</strong> va entre <strong>${escapeHtmlAux(w.startLabel)}</strong> y <strong>${escapeHtmlAux(w.endLabel)}</strong> (≈2 h después).`
+        : `🔬 <strong>Toma PRE</strong> — al marcar la toma te calculo la hora de la POST (≈2 h después).`;
+    } else if (p.tomaTipo === "post") {
+      const pre = parejaDe(p, currentPatients)[0];
+      ppBanner.hidden = false;
+      ppBanner.innerHTML = pre && pre.horaToma
+        ? `🔬 <strong>Toma POST</strong> — la PRE se tomó a las ${escapeHtmlAux(pre.horaToma)}. Hora estimada: <strong>${escapeHtmlAux(p.postVentana || "—")}</strong>.`
+        : `🔬 <strong>Toma POST</strong> — esperando que se tome la PRE para calcular la hora.`;
+    } else {
+      ppBanner.hidden = true;
+    }
     patientValorBadge.textContent = `$${valorFinal.toLocaleString("es-CO")}`;
 
     const mates = getGroupMates(p);
@@ -3636,8 +3716,8 @@
   // Si ya se importó hoy, muéstralo de una vez sin pedir el archivo de nuevo.
   if (me) {
     const existing = loadPatients();
-    if (existing && existing.length > 0) renderPatientsList(existing);
-    else checkCloudBackup();
+    if (existing && existing.length > 0) { savePatients(existing); renderPatientsList(existing); }
+    else window.withBusy(checkCloudBackup(), "Buscando respaldo…");
   }
 
   // ---------------- Título del topbar: carrusel automático si no cabe ----------------
