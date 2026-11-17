@@ -90,15 +90,15 @@ export function parejaDe(p, patients) {
   return (patients || []).filter(x => (p.parejaPostIds || []).includes(x.id));
 }
 
-// Línea(s) para el reporte de WhatsApp. Vacío si no es pre/post.
-export function prePostReportLines(p, patients, md = true) {
-  if (!p || !p.tomaTipo) return [];
-  const b = (t) => (md ? `*${t}*` : t);
-  if (p.tomaTipo === "pre") {
-    const w = postWindow(p);
-    return [`🔬 ${b("Toma PRE")}${w ? ` — POST estimada: ${w.startLabel} a ${w.endLabel}` : " — POST pendiente de calcular"}`];
-  }
-  const pre = parejaDe(p, patients)[0];
-  const lines = [`🔬 ${b("Toma POST")}${pre && pre.horaToma ? ` (PRE tomada ${pre.horaToma})` : ""}`];
-  return lines;
+// Etiqueta que va pegada al número de solicitud en el reporte: "*PRE*" / "*POST*".
+export function prePostTag(p) {
+  if (!p || !p.tomaTipo) return "";
+  return p.tomaTipo === "pre" ? " *PRE*" : " *POST*";
+}
+
+// Línea extra: solo en la PRE, con la hora aproximada de la POST.
+export function prePostReportLines(p) {
+  if (!p || p.tomaTipo !== "pre") return [];
+  const w = postWindow(p);
+  return w ? [`⏱️ POST aprox: ${w.startLabel} a ${w.endLabel}`] : [];
 }

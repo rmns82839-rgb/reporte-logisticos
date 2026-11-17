@@ -579,7 +579,7 @@
   import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, writeBatch, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
   import { PEOPLE } from "./people.js";
   import { TUBOS_AUX, checkAndClassifyNewExams, initExamGuide, getCatalogoCached, renderExamChipsHtml, computeTubeCounts, renderTubeCountHtml, guardarCorreccionExamen, getCorreccionesCached, invalidateCorreccionesCache, aplicarCorrecciones, splitExamCodeName } from "./exams.js";
-  import { esExamenDobleToma, ensurePrePostTags, syncPrePost, postWindow, parejaDe, prePostReportLines } from "./prepost.js";
+  import { esExamenDobleToma, ensurePrePostTags, syncPrePost, postWindow, parejaDe, prePostReportLines, prePostTag } from "./prepost.js";
   import { resumenDelDia, renderResumenDelDiaHtml, renderChecklistListaHtml, initPapeleriaParallax } from "./papeleria.js";
   import { initChatSystem } from "./chat.js";
 
@@ -3062,7 +3062,7 @@
 
   function sendArriboWhatsApp(p) {
     const all = p.grupoId ? getGroupAll(p) : [p];
-    const solicitudes = all.map(x => `*${unaLinea(x.solicitud) || "—"}*`).join(" + ");
+    const solicitudes = all.map(x => `*${unaLinea(x.solicitud) || "—"}*${prePostTag(x)}`).join(" + ");
     const etiqueta = all.length > 1 ? " (mismo domicilio)" : "";
     const pp = all.flatMap(x => prePostReportLines(x, currentPatients));
     const text = `${myReportEmoji()} ${solicitudes}${etiqueta}\n📍 Arribo: ${p.arriboSitio}` + (pp.length ? "\n" + pp.join("\n") : "");
@@ -3078,7 +3078,7 @@
 
   function buildFinalReportText(p) {
     const lines = [
-      `${myReportEmoji()} *${unaLinea(p.solicitud) || "—"}*`,
+      `${myReportEmoji()} *${unaLinea(p.solicitud) || "—"}*${prePostTag(p)}`,
       `🕐 *Arribo*: ${p.arriboSitio || "—"}`,
       `🚪 *Paciente*: ${p.arriboPaciente || "—"}`,
       `🩸 *Toma*: ${p.horaToma || "—"}`,
@@ -3124,7 +3124,7 @@
   // separado debajo de cada uno.
   function buildGroupReportText(all) {
     const p0 = all[0];
-    const solicitudes = all.map(x => `*${unaLinea(x.solicitud) || "—"}*`).join(" + ");
+    const solicitudes = all.map(x => `*${unaLinea(x.solicitud) || "—"}*${prePostTag(x)}`).join(" + ");
     const lines = [
       `${myReportEmoji()} ${solicitudes} (mismo domicilio)`,
       `🕐 *Arribo*: ${p0.arriboSitio || "—"}`,
@@ -3133,7 +3133,7 @@
     ];
 
     all.forEach(p => {
-      lines.push(`👤 *${unaLinea(p.nombrePaciente) || "(sin nombre)"}* — N° ${unaLinea(p.solicitud) || "—"}`);
+      lines.push(`👤 *${unaLinea(p.nombrePaciente) || "(sin nombre)"}* — N° ${unaLinea(p.solicitud) || "—"}${prePostTag(p)}`);
       lines.push(`🩸 Toma: ${p.horaToma || "—"}`);
       prePostReportLines(p, currentPatients).forEach(l => lines.push(l));
       const tomados = TUBOS_AUX.filter(tb => tb.esTubo !== false && (p.tubos[tb.key] || 0) > 0);
